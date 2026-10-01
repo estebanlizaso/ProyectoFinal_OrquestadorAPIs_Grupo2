@@ -1,0 +1,17 @@
+using OrquestadorApi.DTOs;
+
+namespace OrquestadorApi.Services;
+
+public interface IProjectService
+{
+    Task<IReadOnlyList<ProjectResponse>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<bool> DeleteAsync(int projectId, CancellationToken cancellationToken = default);
+}
+
+/*
+1. El cliente solicita GET /api/projects.
+2. El servidor empieza a consultar PostgreSQL.
+3. El cliente cierra la pestaña o cancela la petición.
+4. ASP.NET marca el CancellationToken como cancelado.
+5. Entity Framework cancela la consulta si todavía está ejecutándose.
+*/
