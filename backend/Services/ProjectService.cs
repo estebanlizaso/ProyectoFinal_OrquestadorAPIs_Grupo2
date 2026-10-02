@@ -1,58 +1,66 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+using Microsoft.EntityFrameworkCore;
+using OrquestadorApi.Data;
 using OrquestadorApi.DTOs;
 
 namespace OrquestadorApi.Services;
 
 public class ProjectService : IProjectService
 {
-    private readonly object _sync = new();
+    private readonly AppDbContext _dbContext;
 
-    private readonly List<ProjectResponse> _projects =
-    [
-        new(
-            "sincronizacion cliente - pagos",
-            "sarasa",
-            1,
-            new DateOnly(2026, 10, 1)),
-        new(
-            "sincronizacion cliente - pagos",
-            "sarasa",
-            2,
-            new DateOnly(2026, 10, 1)),
-        new(
-            "sincronizacion cliente - pagos",
-            "sarasa",
-            3,
-            new DateOnly(2026, 10, 1))
-    ];
-
-    public Task<IReadOnlyList<ProjectResponse>> GetAllAsync(
-        CancellationToken cancellationToken = default)
+    public ProjectService(AppDbContext dbContext)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        lock (_sync)
-        {
-            return Task.FromResult<IReadOnlyList<ProjectResponse>>(_projects.ToArray());
-        }
+        _dbContext = dbContext;
     }
 
-    public Task<bool> DeleteAsync(
+    public async Task<IReadOnlyList<ProjectResponse>> GetAllAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var projects = await _dbContext.Projects
+            .AsNoTracking()
+            .OrderBy(project => project.ProjectId)
+            .ToListAsync(cancellationToken);
+
+        return projects
+            .Select(project => new ProjectResponse(
+                project.ProjectName,
+                project.Description,
+                project.ProjectId,
+                project.CreatedAt.HasValue
+                    ? DateOnly.FromDateTime(project.CreatedAt.Value)
+                    : null))
+            .ToList();
+    }
+
+    public async Task<bool> DeleteAsync(
         int projectId,
         CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        var project = await _dbContext.Projects.FindAsync([projectId], cancellationToken);
 
-        lock (_sync)
+        if (project is null)
         {
-            var project = _projects.FirstOrDefault(project => project.ProjectId == projectId);
-
-            if (project is null)
-            {
-                return Task.FromResult(false);
-            }
-
-            _projects.Remove(project);
-            return Task.FromResult(true);
+            return false;
         }
+
+        _dbContext.Projects.Remove(project);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return true;
     }
 }
