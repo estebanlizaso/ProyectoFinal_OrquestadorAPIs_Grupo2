@@ -33,7 +33,7 @@ public class ProjectService : IProjectService
     {
         var projects = await _dbContext.Projects
             .AsNoTracking()
-            .OrderBy(project => project.ProjectId)
+            .OrderByDescending(project => project.CreatedAt)
             .ToListAsync(cancellationToken);
 
         return projects
