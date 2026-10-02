@@ -6,7 +6,6 @@ API ASP.NET Core con PostgreSQL y Entity Framework Core.
 
 - .NET 10 SDK
 - PostgreSQL 17
-- `dotnet-ef`
 
 En macOS, PostgreSQL se instala e inicia con:
 
@@ -43,10 +42,10 @@ ConnectionStrings__Postgres=Host=localhost;Port=5432;Database=orquestador;Userna
 
 ## Migraciones
 
-Instala la herramienta si no está disponible:
+La herramienta `dotnet-ef` se restaura automáticamente desde el manifiesto del proyecto:
 
 ```bash
-dotnet tool install --global dotnet-ef
+dotnet tool restore
 ```
 
 Crear una migración después de modificar los modelos:
@@ -75,7 +74,15 @@ dotnet ef migrations remove
 
 ## Ejecutar la API
 
-Desde `backend`:
+La forma recomendada es ejecutar desde `backend`:
+
+```bash
+./start-local.sh
+```
+
+El script inicia PostgreSQL si está detenido, restaura dependencias, aplica las migraciones y levanta la API.
+
+Ejecución manual:
 
 ```bash
 dotnet restore
@@ -89,4 +96,3 @@ dotnet watch run
 ```
 
 Al iniciar, la aplicación aplica las migraciones pendientes y crea los cuatro proyectos iniciales que falten.
-
