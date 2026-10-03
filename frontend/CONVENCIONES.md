@@ -40,7 +40,6 @@ frontend/
     features/
       projects/               # Home: listado y eliminación de proyectos (GET/DELETE /api/projects)
         components/           # ProjectCard
-        hooks/                # useProjects, useDeleteProject (consumen services/)
         types.ts              # espejo de los DTOs de proyectos
         index.ts
       canvas/                 # lienzo React Flow
@@ -52,10 +51,10 @@ frontend/
       node-config/            # modal de micro-prompting (doble clic)
       flow-export/            # armado del JSON maestro, envío y descarga del ZIP
         buildMasterJson.ts
-        useExportFlow.ts
         schema.ts             # contrato del JSON maestro (fuente única en el front)
-    services/                 # un service por recurso del backend, todos juntos
-      projectsService.ts      # getProjects, deleteProject
+    services/                 # un archivo por recurso del backend, con todo lo del recurso
+      projectService.ts       # projectService (getAll, delete) + useProjects, useDeleteProject
+      exportService.ts        # cuando exista el endpoint de exportación (service + useExportFlow)
     shared/
       ui/                     # Button, Modal, Input (sin lógica de negocio)
       api/httpClient.ts       # único lugar donde se usa fetch
@@ -71,7 +70,7 @@ Reglas:
 - Se agrupa **por funcionalidad**, no por tipo de archivo.
 - Una feature solo importa de otra a través de su `index.ts`, nunca de sus archivos internos.
 - `shared/` solo contiene código reutilizable sin conocimiento del dominio.
-- `services/` es global: ahí viven **todas** las llamadas al backend, un archivo por recurso (`projectsService.ts`). Los hooks de cada feature consumen los services; los componentes nunca llaman a un service directo.
+- `services/` es global y tiene **un archivo por recurso del backend** (`projectService.ts`, y después `userService.ts`, etc.). Ese archivo concentra todo lo del recurso: el objeto service con sus métodos y los hooks que los ejecutan (`useProjects`, `useDeleteProject`). Los componentes usan los hooks; nunca llaman a un service directo.
 
 ---
 
@@ -105,7 +104,7 @@ Reglas:
 
 - Solo componentes funcionales. **Un componente por archivo**, el nombre del archivo es el del componente (`MergeNode.tsx`), exportación nombrada.
 - Props tipadas como `NombreProps`, declaradas arriba del componente.
-- Si un componente supera ~150 líneas o mezcla fetch, estado y render, se divide.
+- Si un componente mezcla fetch, estado y render, se divide. No hay límite de líneas por archivo.
 - Los nodos custom de React Flow leen su `data` y no hablan con la API.
 - Preferir composición antes que props de configuración interminables.
 
@@ -128,8 +127,8 @@ Reglas:
   - un tipo `ApiError` (`kind`, `status`, mensaje, detalle). Para `4xx`, el mensaje sale del `title` del ProblemDetails.
   - respuestas sin body (`204`)
   - `AbortController` y timeout. El backend respeta el `CancellationToken`, así que cancelar una request también corta la consulta en el servidor.
-- Cada recurso del backend tiene su service en `src/services/` con funciones específicas (`getProjects()`, `deleteProject(projectId)`, `generateSolution(payload)`). Los services usan `httpClient`, reciben `RequestOptions` opcionales (para cancelar) y devuelven datos ya listos para usar (por ejemplo, `getProjects` desenvuelve el `body`).
-- Los hooks viven en `features/<feature>/hooks/`, llaman a los services y devuelven `{ run, status, error }` (más los datos, si la request trae alguno), con `status: RequestStatus`. Si el hook carga datos al montarse, cancela la request al desmontarse.
+- Cada recurso del backend tiene su service en `src/services/`, nombrado y organizado como el service del backend: un objeto en singular con los métodos adentro, con los mismos nombres sin el sufijo `Async` (`ProjectService.GetAllAsync` / `DeleteAsync` → `projectService.getAll()` / `projectService.delete(projectId)`). Los services usan `httpClient`, reciben `RequestOptions` opcionales (para cancelar) y devuelven datos ya listos para usar (por ejemplo, `getAll` desenvuelve el `body`).
+- Los hooks viven en el mismo archivo que su service (`src/services/<recurso>Service.ts`), lo llaman y devuelven `{ run, status, error }` (más los datos, si la request trae alguno), con `status: RequestStatus`. Si el hook carga datos al montarse, cancela la request al desmontarse.
 - La descarga del ZIP se resuelve con `Blob` + `URL.createObjectURL`, y se revoca la URL al terminar.
 - Si más adelante se decide volver a Axios, solo cambia `httpClient.ts`.
 
@@ -184,7 +183,7 @@ React + Vite + TypeScript (strict), @xyflow/react, Zustand, Tailwind CSS, lucide
 
 ## REGLAS DE CÓDIGO
 1. TypeScript strict: sin `any`, sin `as` para forzar tipos, sin enums (uniones de strings). Tipos explícitos que reflejan literalmente los DTOs del backend.
-2. Estructura por features: src/features/<feature>/{components,hooks,store,types.ts,index.ts}, src/services para todas las llamadas al backend (un service por recurso) y src/shared para lo reutilizable. Una feature importa de otra solo vía su index.ts. Los hooks consumen services; los componentes no.
+2. Estructura por features: src/features/<feature>/{components,store,types.ts,index.ts}, src/services con un archivo por recurso del backend que contiene el service y sus hooks useXxx y src/shared para lo reutilizable. Una feature importa de otra solo vía su index.ts. Los componentes usan los hooks, nunca un service directo.
 3. Componentes funcionales, uno por archivo, export nombrado, props como NombreProps. La lógica va en hooks o funciones puras, no en el JSX.
 4. Zustand: un store por feature, acciones dentro del store, siempre con selectores. Sin estado de requests en el store.
 5. fetch solo dentro de shared/api/httpClient.ts, con tipo ApiError, timeout y URL desde import.meta.env.VITE_API_URL.

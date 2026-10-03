@@ -1,7 +1,3 @@
 export { ProjectCard } from './components/ProjectCard'
 export type { ProjectCardProps } from './components/ProjectCard'
-export { useDeleteProject } from './hooks/useDeleteProject'
-export type { UseDeleteProjectResult } from './hooks/useDeleteProject'
-export { useProjects } from './hooks/useProjects'
-export type { UseProjectsResult } from './hooks/useProjects'
 export type { DeleteProjectRequest, ProjectResponse, ProjectsResponse } from './types'
