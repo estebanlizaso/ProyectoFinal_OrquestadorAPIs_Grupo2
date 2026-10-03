@@ -9,7 +9,7 @@ Este documento rige el trabajo en la carpeta `frontend/`. El backend (`backend/`
 - Trabajamos **únicamente** dentro de `frontend/`.
 - **Orden de prioridad ante cualquier conflicto:** 1) lo que ya está implementado y en uso en `backend/`; 2) este documento; 3) el pedido o prompt puntual de la tarea. Si este documento choca con el backend, se corrige este documento.
 - El backend es la **fuente de verdad del contrato**. Antes de definir o cambiar un tipo, revisar `backend/DTOs/` y `backend/Models/`, los endpoints en `backend/Controllers/` (o `Program.cs`) y los datos iniciales en `backend/Data/DatabaseInitializer.cs`. En desarrollo, el backend también publica su OpenAPI en `/openapi/v1.json`.
-- Si el frontend necesita algo que el backend no ofrece (un campo, un endpoint, un código de error), **no se inventa** en tipos ni clientes: se registra como pedido de cambio en `PEDIDOS_BACKEND.md` y se acuerda con el equipo de backend.
+- Si el frontend necesita algo que el backend no ofrece (un campo, un endpoint, un código de error), **no se inventa** en tipos ni clientes: se registra como pedido de cambio y se acuerda con el equipo de backend.
 - La URL del backend sale de variables de entorno, nunca hardcodeada. Se versiona un `.env.example` con las variables esperadas (sin valores sensibles), y `.env` / `.env.*` quedan fuera de Git, igual que en el backend.
 - El backend corre en `http://localhost:5257` (perfil `http` de `launchSettings.json`), sus rutas son `/api/<recurso>` sin versión (por ejemplo `/api/projects`) y **no tiene CORS configurado**. Por eso, en desarrollo el frontend llama a `VITE_API_URL=/api` y el proxy de Vite reenvía a `API_PROXY_TARGET`. No se agregan soluciones temporales de CORS en el código.
 - Cada vez que cambie un DTO del backend, se actualizan los tipos del frontend en el mismo sprint y se deja constancia en la documentación.
@@ -62,7 +62,6 @@ frontend/
       api/RequestStatus.ts    # 'idle' | 'loading' | 'success' | 'error'
       lib/                    # utilidades puras (cn, toError, ids, etc.)
   .env.example
-  PEDIDOS_BACKEND.md          # cosas que el front necesita y el backend todavía no ofrece
 ```
 
 Reglas:
@@ -149,7 +148,7 @@ Reglas:
 - Nombres que expliquen la intención (`isMergeConfigured`, no `flag2`).
 - **Código y nombres técnicos en inglés; textos de interfaz y documentación en español.** Los textos de UI van en un archivo de constantes, no desparramados en los componentes.
 - Excepción: los campos que vienen del backend conservan su nombre exacto (`created_at`). Si hace falta, se renombran al desestructurar (`created_at: createdAt`).
-- Nada de comentarios en el código (tampoco `TODO`). Lo pendiente se registra en la tarea o en `PEDIDOS_BACKEND.md`.
+- Nada de comentarios en el código (tampoco `TODO`). Lo pendiente se registra en la tarea.
 - Sin código muerto ni `console.log` olvidados en lo que se mergea.
 
 ---
