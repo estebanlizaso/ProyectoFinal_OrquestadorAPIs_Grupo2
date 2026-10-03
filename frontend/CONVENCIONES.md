@@ -40,8 +40,7 @@ frontend/
     features/
       projects/               # Home: listado y eliminación de proyectos (GET/DELETE /api/projects)
         components/           # ProjectCard
-        hooks/
-        projectsApi.ts
+        hooks/                # useProjects, useDeleteProject (consumen services/)
         types.ts              # espejo de los DTOs de proyectos
         index.ts
       canvas/                 # lienzo React Flow
@@ -53,14 +52,16 @@ frontend/
       node-config/            # modal de micro-prompting (doble clic)
       flow-export/            # armado del JSON maestro, envío y descarga del ZIP
         buildMasterJson.ts
-        exportApi.ts
         useExportFlow.ts
         schema.ts             # contrato del JSON maestro (fuente única en el front)
+    services/                 # un service por recurso del backend, todos juntos
+      projectsService.ts      # getProjects, deleteProject
     shared/
       ui/                     # Button, Modal, Input (sin lógica de negocio)
       api/httpClient.ts       # único lugar donde se usa fetch
       api/ApiError.ts
-      lib/                    # utilidades puras (cn, ids, etc.)
+      api/RequestStatus.ts    # 'idle' | 'loading' | 'success' | 'error'
+      lib/                    # utilidades puras (cn, toError, ids, etc.)
   .env.example
   PEDIDOS_BACKEND.md          # cosas que el front necesita y el backend todavía no ofrece
 ```
@@ -70,6 +71,7 @@ Reglas:
 - Se agrupa **por funcionalidad**, no por tipo de archivo.
 - Una feature solo importa de otra a través de su `index.ts`, nunca de sus archivos internos.
 - `shared/` solo contiene código reutilizable sin conocimiento del dominio.
+- `services/` es global: ahí viven **todas** las llamadas al backend, un archivo por recurso (`projectsService.ts`). Los hooks de cada feature consumen los services; los componentes nunca llaman a un service directo.
 
 ---
 
@@ -126,8 +128,8 @@ Reglas:
   - un tipo `ApiError` (`kind`, `status`, mensaje, detalle). Para `4xx`, el mensaje sale del `title` del ProblemDetails.
   - respuestas sin body (`204`)
   - `AbortController` y timeout. El backend respeta el `CancellationToken`, así que cancelar una request también corta la consulta en el servidor.
-- Cada feature tiene su `*Api.ts` con funciones específicas (`generateSolution(payload)`).
-- Los hooks devuelven `{ run, status, error }`, con `status: 'idle' | 'loading' | 'success' | 'error'`.
+- Cada recurso del backend tiene su service en `src/services/` con funciones específicas (`getProjects()`, `deleteProject(projectId)`, `generateSolution(payload)`). Los services usan `httpClient`, reciben `RequestOptions` opcionales (para cancelar) y devuelven datos ya listos para usar (por ejemplo, `getProjects` desenvuelve el `body`).
+- Los hooks viven en `features/<feature>/hooks/`, llaman a los services y devuelven `{ run, status, error }` (más los datos, si la request trae alguno), con `status: RequestStatus`. Si el hook carga datos al montarse, cancela la request al desmontarse.
 - La descarga del ZIP se resuelve con `Blob` + `URL.createObjectURL`, y se revoca la URL al terminar.
 - Si más adelante se decide volver a Axios, solo cambia `httpClient.ts`.
 
@@ -182,7 +184,7 @@ React + Vite + TypeScript (strict), @xyflow/react, Zustand, Tailwind CSS, lucide
 
 ## REGLAS DE CÓDIGO
 1. TypeScript strict: sin `any`, sin `as` para forzar tipos, sin enums (uniones de strings). Tipos explícitos que reflejan literalmente los DTOs del backend.
-2. Estructura por features: src/features/<feature>/{components,hooks,store,types.ts,index.ts} y src/shared para lo reutilizable. Una feature importa de otra solo vía su index.ts.
+2. Estructura por features: src/features/<feature>/{components,hooks,store,types.ts,index.ts}, src/services para todas las llamadas al backend (un service por recurso) y src/shared para lo reutilizable. Una feature importa de otra solo vía su index.ts. Los hooks consumen services; los componentes no.
 3. Componentes funcionales, uno por archivo, export nombrado, props como NombreProps. La lógica va en hooks o funciones puras, no en el JSX.
 4. Zustand: un store por feature, acciones dentro del store, siempre con selectores. Sin estado de requests en el store.
 5. fetch solo dentro de shared/api/httpClient.ts, con tipo ApiError, timeout y URL desde import.meta.env.VITE_API_URL.
