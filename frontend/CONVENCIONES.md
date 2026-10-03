@@ -7,11 +7,12 @@ Este documento rige el trabajo en la carpeta `frontend/`. El backend (`backend/`
 ## 1. Alcance y relación con el backend
 
 - Trabajamos **únicamente** dentro de `frontend/`.
-- El backend es la **fuente de verdad del contrato**. Antes de definir o cambiar un tipo del JSON maestro, revisar `backend/DTOs/` y `backend/Models/`, y los endpoints en `backend/Controllers/` (o `Program.cs`).
-- Si el frontend necesita algo que el backend no ofrece (un campo, un endpoint, un código de error), **no se inventa**: se registra como pedido de cambio y se acuerda con el equipo de backend.
-- La URL del backend sale de variables de entorno (`VITE_API_URL`), nunca hardcodeada. Se versiona un `.env.example` con las variables esperadas (sin valores sensibles), igual que en el backend.
-- Si hay problemas de CORS, se resuelven del lado del backend o con el proxy de Vite en desarrollo, no con soluciones temporales en el código.
-- Cada vez que cambie un DTO del backend, se actualiza el schema del frontend en el mismo sprint y se deja constancia en la documentación.
+- **Orden de prioridad ante cualquier conflicto:** 1) lo que ya está implementado y en uso en `backend/`; 2) este documento; 3) el pedido o prompt puntual de la tarea. Si este documento choca con el backend, se corrige este documento.
+- El backend es la **fuente de verdad del contrato**. Antes de definir o cambiar un tipo, revisar `backend/DTOs/` y `backend/Models/`, los endpoints en `backend/Controllers/` (o `Program.cs`) y los datos iniciales en `backend/Data/DatabaseInitializer.cs`. En desarrollo, el backend también publica su OpenAPI en `/openapi/v1.json`.
+- Si el frontend necesita algo que el backend no ofrece (un campo, un endpoint, un código de error), **no se inventa** en tipos ni clientes: se registra como pedido de cambio en `PEDIDOS_BACKEND.md` y se acuerda con el equipo de backend.
+- La URL del backend sale de variables de entorno, nunca hardcodeada. Se versiona un `.env.example` con las variables esperadas (sin valores sensibles), y `.env` / `.env.*` quedan fuera de Git, igual que en el backend.
+- El backend corre en `http://localhost:5257` (perfil `http` de `launchSettings.json`), sus rutas son `/api/<recurso>` sin versión (por ejemplo `/api/projects`) y **no tiene CORS configurado**. Por eso, en desarrollo el frontend llama a `VITE_API_URL=/api` y el proxy de Vite reenvía a `API_PROXY_TARGET`. No se agregan soluciones temporales de CORS en el código.
+- Cada vez que cambie un DTO del backend, se actualizan los tipos del frontend en el mismo sprint y se deja constancia en la documentación.
 
 ---
 
@@ -37,6 +38,12 @@ frontend/
   src/
     app/                      # main.tsx, App.tsx, providers, estilos globales
     features/
+      projects/               # Home: listado y eliminación de proyectos (GET/DELETE /api/projects)
+        components/           # ProjectCard
+        hooks/
+        projectsApi.ts
+        types.ts              # espejo de los DTOs de proyectos
+        index.ts
       canvas/                 # lienzo React Flow
         components/           # FlowCanvas, Toolbar, Sidebar
         nodes/                # TriggerNode, LegacyApiNode, MergeNode, MockNode
@@ -52,8 +59,10 @@ frontend/
     shared/
       ui/                     # Button, Modal, Input (sin lógica de negocio)
       api/httpClient.ts       # único lugar donde se usa fetch
+      api/ApiError.ts
       lib/                    # utilidades puras (cn, ids, etc.)
   .env.example
+  PEDIDOS_BACKEND.md          # cosas que el front necesita y el backend todavía no ofrece
 ```
 
 Reglas:
@@ -64,10 +73,20 @@ Reglas:
 
 ---
 
-## 4. Contrato del JSON maestro
+## 4. Contrato con el backend
 
-- El schema debe **reflejar los DTOs del backend**. Ante cualquier diferencia, manda el backend.
+- Los tipos y el schema del JSON maestro deben **reflejar los DTOs del backend**. Ante cualquier diferencia, manda el backend.
 - Las respuestas del backend que consumimos también se validan o se tipan explícitamente en la capa de API.
+- Los tipos son un espejo literal del JSON que serializa el backend:
+  - Los nombres de campo se respetan tal cual los define `JsonPropertyName`, aunque no sean camelCase (por ejemplo `created_at`).
+  - `int` → `number`; `string?` → `string | null`; `DateOnly?` → `string | null` con formato `YYYY-MM-DD`.
+  - Las respuestas envueltas se respetan (`ProjectsResponse` es `{ body: ProjectResponse[] }`).
+  - Los tipos de request/response se nombran como el DTO cuando existe (`ProjectsResponse`, `DeleteProjectRequest`).
+- Los endpoints se consumen como están definidos en el controller, aunque no sigan el estilo REST más habitual. Por ejemplo, `DELETE /api/projects` recibe el id en el body (`{ "projectId": number }`) y responde `204` o `404`.
+- Formato de errores del backend (`[ApiController]` de ASP.NET):
+  - Los `4xx` devuelven ProblemDetails (`type`, `title`, `status`, `traceId`).
+  - Los `400` de validación son ValidationProblemDetails, con `errors` por campo.
+  - Los `500` no tienen un formato garantizado.
 
 ---
 
@@ -101,11 +120,12 @@ Reglas:
 
 ## 8. Red con Fetch
 
-- `fetch` se usa **solo** dentro de `shared/api/httpClient.ts`, que expone funciones tipadas (`postJson<T>`, `postForBlob`) y centraliza:
+- `fetch` se usa **solo** dentro de `shared/api/httpClient.ts`, que expone funciones tipadas (`getJson<T>`, `postJson<T, B>`, `deleteJson<T, B>` y, cuando haga falta, `postForBlob`). `deleteJson` acepta body porque el backend lo usa así. El cliente centraliza:
   - base URL desde `import.meta.env.VITE_API_URL`
   - manejo de `!response.ok`
-  - un tipo `ApiError` (status, mensaje, detalle)
-  - `AbortController` y timeout
+  - un tipo `ApiError` (`kind`, `status`, mensaje, detalle). Para `4xx`, el mensaje sale del `title` del ProblemDetails.
+  - respuestas sin body (`204`)
+  - `AbortController` y timeout. El backend respeta el `CancellationToken`, así que cancelar una request también corta la consulta en el servidor.
 - Cada feature tiene su `*Api.ts` con funciones específicas (`generateSolution(payload)`).
 - Los hooks devuelven `{ run, status, error }`, con `status: 'idle' | 'loading' | 'success' | 'error'`.
 - La descarga del ZIP se resuelve con `Blob` + `URL.createObjectURL`, y se revoca la URL al terminar.
@@ -127,7 +147,8 @@ Reglas:
 - Archivos de componentes en `PascalCase`, hooks `useXxx`, utilidades en `camelCase`, constantes en `UPPER_SNAKE_CASE`.
 - Nombres que expliquen la intención (`isMergeConfigured`, no `flag2`).
 - **Código y nombres técnicos en inglés; textos de interfaz y documentación en español.** Los textos de UI van en un archivo de constantes, no desparramados en los componentes.
-- Comentarios para explicar el *por qué*, no el *qué*.
+- Excepción: los campos que vienen del backend conservan su nombre exacto (`created_at`). Si hace falta, se renombran al desestructurar (`created_at: createdAt`).
+- Nada de comentarios en el código (tampoco `TODO`). Lo pendiente se registra en la tarea o en `PEDIDOS_BACKEND.md`.
 - Sin código muerto ni `console.log` olvidados en lo que se mergea.
 
 ---
@@ -137,7 +158,7 @@ Reglas:
 - Ramas: `feat/…`, `fix/…`, `docs/…`, `add/…`.
 - Commits con Conventional Commits: `feat(canvas): agrega nodo Merge`.
 - PRs chicos, con una sola intención, y revisados por el compañero antes del merge.
-- ESLint
+- Linter: oxlint (`npm run lint`), configurado en `.oxlintrc.json`.
 - Los archivos del frontend no se mezclan con cambios del backend en un mismo PR.
 
 ---
@@ -154,18 +175,19 @@ Proyecto Final ORT, con BDT Global como cliente. Es una herramienta de asistenci
 
 ## ALCANCE
 Trabajo SOLO en la carpeta frontend/. El backend (carpeta backend/, .NET con Controllers, DTOs, Models, Services y Migrations) ya está hecho y es de solo lectura: es la fuente de verdad del contrato. No lo modifiques ni inventes endpoints o campos que no existan; si hace falta algo nuevo, indicámelo como pedido de cambio para el backend.
+Prioridad ante conflictos: 1) lo ya implementado en backend/, 2) frontend/CONVENCIONES.md, 3) esta tarea. Los tipos copian literalmente el JSON del backend (nombres como created_at, nullables, wrappers como { body }) y los endpoints se consumen tal como están en los controllers.
 
 ## STACK (no agregar librerías sin consultar)
 React + Vite + TypeScript (strict), @xyflow/react, Zustand, Tailwind CSS, lucide-react, y fetch nativo encapsulado en shared/api/httpClient.ts. Sin Axios ni React Query.
 
 ## REGLAS DE CÓDIGO
-1. TypeScript strict: sin `any`, sin `as` para forzar tipos, sin enums (uniones de strings). Tipos derivados de schemas Zod (z.infer); el schema debe reflejar los DTOs del backend.
+1. TypeScript strict: sin `any`, sin `as` para forzar tipos, sin enums (uniones de strings). Tipos explícitos que reflejan literalmente los DTOs del backend.
 2. Estructura por features: src/features/<feature>/{components,hooks,store,types.ts,index.ts} y src/shared para lo reutilizable. Una feature importa de otra solo vía su index.ts.
 3. Componentes funcionales, uno por archivo, export nombrado, props como NombreProps. La lógica va en hooks o funciones puras, no en el JSX.
 4. Zustand: un store por feature, acciones dentro del store, siempre con selectores. Sin estado de requests en el store.
-5. fetch solo dentro de shared/api/httpClient.ts, con tipo ApiError, timeout y URL desde import.meta.env.VITE_API_URL. Validar con Zod antes de enviar.
+5. fetch solo dentro de shared/api/httpClient.ts, con tipo ApiError, timeout y URL desde import.meta.env.VITE_API_URL.
 6. Estilos solo con Tailwind en className (helper cn()). Sin CSS propio ni estilos inline.
-7. Nombres: componentes PascalCase, hooks useXxx, funciones camelCase. Código en inglés; textos de UI y comentarios en español. Comentar el "por qué".
+7. Nombres: componentes PascalCase, hooks useXxx, funciones camelCase. Código en inglés; textos de UI en español. Nada de comentarios en el código.
 8. Nada de secretos hardcodeados; configuración por variables de entorno.
 
 ## CÓMO RESPONDER
