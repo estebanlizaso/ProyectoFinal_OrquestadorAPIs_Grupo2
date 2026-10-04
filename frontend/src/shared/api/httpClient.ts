@@ -75,6 +75,7 @@ async function request<T>(
   body: unknown,
   { signal, timeoutMs = DEFAULT_TIMEOUT_MS }: RequestOptions = {},
 ): Promise<T | undefined> {
+  const apiUrl = getApiUrl()
   const controller = new AbortController()
   let didTimeout = false
   const timeoutId = setTimeout(() => {
@@ -83,21 +84,38 @@ async function request<T>(
   }, timeoutMs)
   const abortFromCaller = (): void => controller.abort()
   signal?.addEventListener('abort', abortFromCaller)
+  if (signal?.aborted) {
+    controller.abort()
+  }
 
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json'
   }
 
-  let response: Response
   try {
-    response = await fetch(`${getApiUrl()}${path}`, {
+    const response = await fetch(`${apiUrl}${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     })
+
+    if (!response.ok) {
+      const details = await readErrorDetails(response)
+      throw new ApiError({
+        kind: 'http',
+        status: response.status,
+        message: getHttpErrorMessage(response.status, details),
+        details,
+      })
+    }
+
+    return await readJsonBody<T>(response)
   } catch (error) {
+    if (error instanceof ApiError) {
+      throw error
+    }
     if (didTimeout) {
       throw new ApiError({ kind: 'timeout', status: null, message: ERROR_MESSAGES.timeout })
     }
@@ -114,18 +132,6 @@ async function request<T>(
     clearTimeout(timeoutId)
     signal?.removeEventListener('abort', abortFromCaller)
   }
-
-  if (!response.ok) {
-    const details = await readErrorDetails(response)
-    throw new ApiError({
-      kind: 'http',
-      status: response.status,
-      message: getHttpErrorMessage(response.status, details),
-      details,
-    })
-  }
-
-  return readJsonBody<T>(response)
 }
 
 function requireBody<T>(data: T | undefined): T {

@@ -51,23 +51,36 @@ export function useProjects(): UseProjectsResult {
     setStatus('error')
   }, [])
 
-  const startRequest = useCallback((): Promise<ProjectResponse[]> => {
+  const startRequest = useCallback((): Promise<void> => {
     controllerRef.current?.abort()
     const controller = new AbortController()
     controllerRef.current = controller
-    return projectService.getAll({ signal: controller.signal })
-  }, [])
+    const isLatest = (): boolean => controllerRef.current === controller
+
+    return projectService.getAll({ signal: controller.signal }).then(
+      (result) => {
+        if (isLatest()) {
+          handleSuccess(result)
+        }
+      },
+      (caught: unknown) => {
+        if (isLatest()) {
+          handleFailure(caught)
+        }
+      },
+    )
+  }, [handleSuccess, handleFailure])
 
   const run = useCallback(async (): Promise<void> => {
     setStatus('loading')
     setError(null)
-    await startRequest().then(handleSuccess, handleFailure)
-  }, [startRequest, handleSuccess, handleFailure])
+    await startRequest()
+  }, [startRequest])
 
   useEffect(() => {
-    startRequest().then(handleSuccess, handleFailure)
+    void startRequest()
     return () => controllerRef.current?.abort()
-  }, [startRequest, handleSuccess, handleFailure])
+  }, [startRequest])
 
   return { projects, run, status, error }
 }
