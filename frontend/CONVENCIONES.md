@@ -61,6 +61,7 @@ frontend/
       api/ApiError.ts
       api/requestStatus.ts    # 'idle' | 'loading' | 'success' | 'error'
       lib/                    # utilidades puras (cn, toError, ids, etc.)
+  mocks/                      # respuestas simuladas del backend para `npm run dev`
   .env.example
 ```
 
@@ -131,6 +132,13 @@ Reglas:
 - La descarga del ZIP se resuelve con `Blob` + `URL.createObjectURL`, y se revoca la URL al terminar.
 - Si más adelante se decide volver a Axios, solo cambia `httpClient.ts`.
 
+### Mocks
+
+- Los mocks viven en `frontend/mocks/`, fuera de `src/`, y nunca entran al build. Se sirven con un plugin de Vite (`apiMocksPlugin.ts`) que responde en el dev server, sin librerías extra.
+- Se activan con `API_MOCKS` en el `.env` local: `success`, `empty` o `error` (un `500`). Vacía, el front habla con el backend real por el proxy. Solo se interceptan las rutas mockeadas; el resto sigue al proxy.
+- Los datos mockeados copian los datos semilla del backend (`backend/Data/DatabaseInitializer.cs`) y se tipan con los tipos del front, así respetan el mismo contrato (`{ body: [...] }`, `created_at`, nullables). No se agregan campos que el backend no devuelve.
+- La app no sabe si está mockeada: llama a la misma URL (`VITE_API_URL`) en los dos casos.
+
 ---
 
 ## 9. Estilos
@@ -138,6 +146,7 @@ Reglas:
 - Tailwind directo en `className`; helper `cn()` para clases condicionales.
 - Sin estilos inline ni CSS propio, salvo overrides puntuales de React Flow en un único archivo.
 - Colores y espaciados salen de la configuración de Tailwind; sin valores mágicos repetidos.
+- La configuración de Tailwind vive en `src/app/index.css`, dentro de `@theme`. Ahí se agregan solo los valores del diseño que no existen en la paleta por defecto (por ejemplo `--color-primary-blue`, que genera `bg-primary-blue`, `text-primary-blue`, etc.) y la fuente (`Inter`, cargada desde Google Fonts en `index.html`). Se nombran por su función y su tono (`primary-blue`, `primary-blue-light`), para que se entienda sin abrir el CSS.
 - Íconos de `lucide-react`.
 
 ---
