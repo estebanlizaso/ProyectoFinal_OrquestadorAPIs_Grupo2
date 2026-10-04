@@ -29,10 +29,19 @@ public class ProjectService : IProjectService
     }
 
     public async Task<IReadOnlyList<ProjectResponse>> GetAllAsync(
+        string? search,
         CancellationToken cancellationToken = default)
     {
-        var projects = await _dbContext.Projects
-            .AsNoTracking()
+        var query = _dbContext.Projects
+            .AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(project =>
+                EF.Functions.ILike(project.ProjectName, $"%{search}%"));
+        }
+
+        var projects = await query
             .OrderByDescending(project => project.CreatedAt)
             .ToListAsync(cancellationToken);
 
