@@ -17,9 +17,11 @@ public class ProjectsController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType(typeof(ProjectsResponse), StatusCodes.Status200OK)]
-    public async Task<ActionResult<ProjectsResponse>> GetAll(CancellationToken cancellationToken)
+    public async Task<ActionResult<ProjectsResponse>> GetAll(
+    [FromQuery] string? search,
+    CancellationToken cancellationToken)
     {
-        var projects = await _projectService.GetAllAsync(cancellationToken);
+        var projects = await _projectService.GetAllAsync(search, cancellationToken);
 
         return Ok(new ProjectsResponse(projects));
     }
