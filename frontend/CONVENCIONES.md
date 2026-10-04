@@ -59,7 +59,7 @@ frontend/
       ui/                     # Button, Modal, Input (sin lógica de negocio)
       api/httpClient.ts       # único lugar donde se usa fetch
       api/ApiError.ts
-      api/RequestStatus.ts    # 'idle' | 'loading' | 'success' | 'error'
+      api/requestStatus.ts    # 'idle' | 'loading' | 'success' | 'error'
       lib/                    # utilidades puras (cn, toError, ids, etc.)
   .env.example
 ```
@@ -145,6 +145,8 @@ Reglas:
 ## 10. Nombres y estilo de código
 
 - Archivos de componentes en `PascalCase`, hooks `useXxx`, utilidades en `camelCase`, constantes en `UPPER_SNAKE_CASE`.
+- El nombre de un archivo empieza con mayúscula **solo** si exporta un componente de React (`ProjectCard.tsx`) o una clase (`ApiError.ts`). Todo lo demás (tipos, services, utilidades, constantes) va en `camelCase` (`requestStatus.ts`, `projectService.ts`, `toError.ts`), aunque lo que exporte se escriba con mayúscula (el tipo `RequestStatus`).
+- Funciones en `camelCase`; `PascalCase` solo para clases, componentes de React (React lo exige para distinguirlos de las etiquetas HTML) y tipos.
 - Nombres que expliquen la intención (`isMergeConfigured`, no `flag2`).
 - **Código y nombres técnicos en inglés; textos de interfaz y documentación en español.** Los textos de UI van en un archivo de constantes, no desparramados en los componentes.
 - Excepción: los campos que vienen del backend conservan su nombre exacto (`created_at`). Si hace falta, se renombran al desestructurar (`created_at: createdAt`).

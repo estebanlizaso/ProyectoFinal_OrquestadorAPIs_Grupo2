@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DeleteProjectRequest, ProjectResponse, ProjectsResponse } from '../features/projects'
 import { ApiError } from '../shared/api/ApiError'
 import { deleteJson, getJson, type RequestOptions } from '../shared/api/httpClient'
-import type { RequestStatus } from '../shared/api/RequestStatus'
+import type { RequestStatus } from '../shared/api/requestStatus'
 import { toError } from '../shared/lib/toError'
 
 const PROJECTS_PATH = '/projects'
