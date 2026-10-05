@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using OrquestadorApi.DTOs;
 using OrquestadorApi.Services;
 
@@ -17,13 +18,27 @@ public class ProjectsController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType(typeof(ProjectsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ProjectsResponse>> GetAll(
     [FromQuery] string? search,
-    CancellationToken cancellationToken)
+    CancellationToken cancellationToken,
+    [FromQuery, Range(1, int.MaxValue)] int page = 1)
     {
-        var projects = await _projectService.GetAllAsync(search, cancellationToken);
+        if ((long)page * PaginationSettings.PageSize > int.MaxValue)
+        {
+            ModelState.AddModelError(nameof(page), "El número de página solicitado es demasiado grande.");
+            return ValidationProblem(ModelState);
+        }
 
-        return Ok(new ProjectsResponse(projects));
+        var result = await _projectService.GetAllAsync(search, page, cancellationToken);
+
+        string? PageLink(int targetPage) => Url.Action(
+            nameof(GetAll), "Projects", new { page = targetPage, search }, Request.Scheme);
+
+        return Ok(new ProjectsResponse(
+            result.Projects,
+            result.HasNextPage ? PageLink(page + 1) : null,
+            page > 1 ? PageLink(page - 1) : null));
     }
 
     [HttpDelete]
