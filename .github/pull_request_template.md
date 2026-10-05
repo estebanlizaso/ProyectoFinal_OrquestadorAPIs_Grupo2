@@ -35,7 +35,6 @@ Agrega las labels correspondientes:
 - `type: feature`, `type: bug`, `type: docs`, `type: refactor`
 - `area: frontend`, `area: backend`
 - `priority: high`, `priority: medium` (si corresponde)
-- `status: review`
 
 ## 🧪 Testing
 
