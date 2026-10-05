@@ -262,7 +262,7 @@ Las **labels** (etiquetas) son marcas que agregas a PRs e issues para categoriza
 ### ¿Para Qué Sirven?
 
 - ✅ **Categorizar** - Identificar tipo de trabajo (feature, bug, docs)
-- ✅ **Priorizar** - Indicar urgencia (critical, high, medium, low)
+- ✅ **Priorizar** - Indicar urgencia (high, medium, low)
 - ✅ **Área de Impacto** - Saber qué parte del proyecto afecta (frontend, backend)
 - ✅ **Estado** - Comunicar fase del trabajo (review, in-progress, blocked)
 - ✅ **Filtrar** - Buscar rápidamente: "Todos los bugs de alta prioridad"
@@ -299,19 +299,9 @@ Las **labels** (etiquetas) son marcas que agregas a PRs e issues para categoriza
 |-------|-------|------------|
 | `priority: high` | 🔴 Rojo brillante | Alta prioridad, hacer pronto |
 | `priority: medium` | 🟡 Amarillo brillante | Prioridad normal |
+| `priority: low` | 🟢 Verde brillante | Prioridad baja |
 
 **Cuándo usarlas:** En issues, para indicar urgencia. PRs heredan la prioridad del issue.
-
----
-
-#### 🚦 Status (Estado)
-
-| Label | Color | Significado |
-|-------|-------|------------|
-| `status: review` | 🔵 Cian | En revisión de código |
-| `status: blocked` | 🟠 Naranja | Bloqueado, esperando algo |
-
-**Cuándo usarlas:** Para comunicar fase actual del trabajo.
 
 ---
 
@@ -334,7 +324,6 @@ PR: "feat(frontend): agregar componente de login"
 Labels a agregar:
 ✅ type: feature      (es una feature)
 ✅ area: frontend     (afecta el frontend)
-✅ status: review     (está en revisión)
 
 Si corresponde:
 ✅ priority: high     (si es urgente)
@@ -349,7 +338,6 @@ Labels a agregar:
 ✅ type: bug          (es un bug)
 ✅ area: frontend     (en el frontend)
 ✅ priority: high     (es urgente)
-✅ status: ready      (listo para que alguien lo tome)
 ```
 
 #### En GitHub (Paso a Paso)
@@ -381,15 +369,11 @@ gh issue list --label "priority: high"
 📝 Issue creado
   ├─ Labels: type:bug, priority:high, area:frontend
 
-🔧 Alguien empieza a trabajar
-  ├─ Agrega: status:in-progress
-
 🔄 Se abre PR
-  ├─ Labels: type:bug, area:frontend, priority:high, status:review
+  ├─ Labels: type:bug, area:frontend, priority:high
   ├─ (heredadas del issue)
 
 ✅ PR aprobado y mergeado
-  ├─ Quita: status:review
   └─ Cierra el issue
 
 Done! ✨
@@ -601,12 +585,29 @@ código remoto
 - Elije qué código mantener
 - Elimina los marcadores de conflicto
 
-**4. Completar el merge:**
+**4. Completar según el flujo que uses:**
+
+#### 🔄 Opción A: Si estás en `git rebase` (RECOMENDADO)
+```bash
+git add .
+git rebase --continue
+git push origin feature/mi-funcionalidad --force-with-lease
+```
+- **Ventaja:** Mantiene historial limpio y lineal
+- **Nota:** Usa `--force-with-lease` (más seguro que `--force`)
+
+#### 🔗 Opción B: Si estás en `git merge`
 ```bash
 git add .
 git commit -m "fix: resolver conflictos de merge con develop"
 git push origin feature/mi-funcionalidad
 ```
+- **Ventaja:** Mantiene un commit de merge que documenta la integración
+- **Nota:** Genera un commit adicional en el historial
+
+**¿Cuál elegir?**
+- **Usa `rebase`** si trabajas solo en una rama (más limpio)
+- **Usa `merge`** si otros también trabajan en la misma rama (evita problemas con force-push)
 
 ### Mejores Prácticas
 

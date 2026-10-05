@@ -304,7 +304,7 @@ git stash
 
 ### Guardar con descripción
 ```bash
-git stash save "wip: trabajando en auth"
+git stash push -m "wip: trabajando en auth"
 ```
 
 ### Ver stashes guardados
