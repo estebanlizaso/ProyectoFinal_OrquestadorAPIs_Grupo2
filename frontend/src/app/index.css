@@ -1,1 +1,7 @@
 @import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --color-primary-blue: #2864f0;
+  --color-primary-blue-light: #eaf2ff;
+}
