@@ -20,9 +20,9 @@ public class ProjectsController : ControllerBase
     [ProducesResponseType(typeof(ProjectsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ProjectsResponse>> GetAll(
-    [FromQuery] string? search,
-    CancellationToken cancellationToken,
-    [FromQuery, Range(1, int.MaxValue)] int page = 1)
+        [FromQuery] string? search,
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
+        CancellationToken cancellationToken = default)
     {
         if ((long)page * PaginationSettings.PageSize > int.MaxValue)
         {
