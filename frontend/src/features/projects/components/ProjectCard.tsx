@@ -1,13 +1,13 @@
-import { EllipsisVertical } from 'lucide-react'
 import { formatDateOnly } from '../../../shared/lib/formatDateOnly'
 import { Button } from '../../../shared/ui/Button'
 import { Card } from '../../../shared/ui/Card'
 import { PROJECT_CARD_TEXTS } from '../constants'
 import type { ProjectResponse } from '../types'
+import { ProjectCardMenu } from './ProjectCardMenu'
 
 export type ProjectCardProps = {
   project: ProjectResponse
-  onDelete?: (projectId: ProjectResponse['projectId']) => void
+  onDelete?: (project: ProjectResponse) => void
 }
 
 export function ProjectCard({ project, onDelete }: ProjectCardProps) {
@@ -27,15 +27,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
             )}
           </div>
         </div>
-        {onDelete && (
-          <button
-            type="button"
-            aria-label={PROJECT_CARD_TEXTS.actionsMenu}
-            className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-900"
-          >
-            <EllipsisVertical className="size-4" aria-hidden="true" />
-          </button>
-        )}
+        {onDelete && <ProjectCardMenu onDelete={() => onDelete(project)} />}
       </header>
 
       <p className="text-sm text-gray-500">{description || PROJECT_CARD_TEXTS.noDescription}</p>

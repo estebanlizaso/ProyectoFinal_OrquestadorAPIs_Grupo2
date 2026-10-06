@@ -3,6 +3,7 @@ export const PROJECT_CARD_TEXTS = {
   actionsMenu: 'Acciones del proyecto',
   createdAt: 'Creado el',
   noDescription: 'Sin descripción',
+  deleteAction: 'Eliminar',
 }
 
 export const PROJECTS_PAGE_TEXTS = {
@@ -18,3 +19,12 @@ export const PROJECTS_PAGE_TEXTS = {
 }
 
 export const SKELETON_CARD_COUNT = 3
+
+export const PROJECT_DELETE_TEXTS = {
+  title: 'Eliminar proyecto',
+  description: (name: string): string => `Vas a eliminar "${name}". Esta acción no se puede deshacer.`,
+  cancel: 'Cancelar',
+  confirm: 'Eliminar',
+  deleting: 'Eliminando...',
+  errorTitle: 'No se pudo eliminar el proyecto',
+}
