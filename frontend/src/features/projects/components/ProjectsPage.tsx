@@ -1,15 +1,19 @@
 import { useState } from 'react'
 import { useProjects } from '../../../services/projectService'
+import { useDebouncedValue } from '../../../shared/lib/useDebouncedValue'
 import { Button } from '../../../shared/ui/Button'
 import { PageHeader } from '../../../shared/ui/PageHeader'
 import { Section } from '../../../shared/ui/Section'
-import { PROJECTS_PAGE_TEXTS } from '../constants'
+import { PROJECTS_PAGE_TEXTS, SEARCH_DEBOUNCE_MS } from '../constants'
 import type { ProjectResponse } from '../types'
 import { DeleteProjectModal } from './DeleteProjectModal'
+import { ProjectSearch } from './ProjectSearch'
 import { ProjectsContent } from './ProjectsContent'
 
 export function ProjectsPage() {
-  const { projects, run, status, error } = useProjects()
+  const [query, setQuery] = useState('')
+  const searchTerm = useDebouncedValue(query.trim(), SEARCH_DEBOUNCE_MS)
+  const { projects, run, status, error } = useProjects(searchTerm)
   const [projectToDelete, setProjectToDelete] = useState<ProjectResponse | null>(null)
 
   function handleDeleted(): void {
@@ -25,13 +29,16 @@ export function ProjectsPage() {
         actions={<Button>{PROJECTS_PAGE_TEXTS.newOrchestration}</Button>}
       />
 
-      <div className="mb-6 h-10 max-w-md" />
+      <div className="mb-6 max-w-md">
+        <ProjectSearch value={query} onChange={setQuery} />
+      </div>
 
       <Section title={PROJECTS_PAGE_TEXTS.recent}>
         <ProjectsContent
           projects={projects}
           status={status}
           error={error}
+          searchTerm={searchTerm}
           onRetry={() => void run()}
           onDeleteProject={setProjectToDelete}
         />
