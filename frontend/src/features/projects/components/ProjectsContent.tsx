@@ -12,9 +12,10 @@ export type ProjectsContentProps = {
   status: RequestStatus
   error: Error | null
   onRetry: () => void
+  onDeleteProject: (project: ProjectResponse) => void
 }
 
-export function ProjectsContent({ projects, status, error, onRetry }: ProjectsContentProps) {
+export function ProjectsContent({ projects, status, error, onRetry, onDeleteProject }: ProjectsContentProps) {
   if (status === 'error') {
     return (
       <StatusMessage
@@ -45,5 +46,5 @@ export function ProjectsContent({ projects, status, error, onRetry }: ProjectsCo
     )
   }
 
-  return <ProjectGrid projects={projects} />
+  return <ProjectGrid projects={projects} onDelete={onDeleteProject} />
 }
