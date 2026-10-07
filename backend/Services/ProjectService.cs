@@ -28,8 +28,9 @@ public class ProjectService : IProjectService
         _dbContext = dbContext;
     }
 
-    public async Task<IReadOnlyList<ProjectResponse>> GetAllAsync(
+    public async Task<ProjectPage> GetAllAsync(
         string? search,
+        int page,
         CancellationToken cancellationToken = default)
     {
         var normalizedSearch = search?.Trim();
@@ -45,9 +46,13 @@ public class ProjectService : IProjectService
 
         var projects = await query
             .OrderByDescending(project => project.CreatedAt)
+            .ThenByDescending(project => project.ProjectId)
+            .Skip(checked((page - 1) * PaginationSettings.PageSize))
+            .Take(PaginationSettings.PageSize + 1)
             .ToListAsync(cancellationToken);
 
-        return projects
+        var body = projects
+            .Take(PaginationSettings.PageSize)
             .Select(project => new ProjectResponse(
                 project.ProjectName,
                 project.Description,
@@ -56,6 +61,8 @@ public class ProjectService : IProjectService
                     ? DateOnly.FromDateTime(project.CreatedAt.Value)
                     : null))
             .ToList();
+
+        return new ProjectPage(body, projects.Count > PaginationSettings.PageSize);
     }
 
     public async Task<bool> DeleteAsync(
