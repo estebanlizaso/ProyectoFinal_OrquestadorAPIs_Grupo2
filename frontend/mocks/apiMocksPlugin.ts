@@ -9,6 +9,7 @@ const API_MOCK_SCENARIOS: ApiMockScenario[] = ['success', 'empty', 'error']
 const PROJECTS_ROUTE = '/api/projects'
 const MOCK_DELAY_MS = 800
 const MOCK_TRACE_ID = 'mock-trace-id'
+const MOCK_ORIGIN = 'http://localhost'
 
 const HTTP_STATUS = {
   ok: 200,
@@ -71,6 +72,19 @@ function readJsonBody(request: IncomingMessage): Promise<unknown> {
   })
 }
 
+function getSearchTerm(request: IncomingMessage): string {
+  const url = new URL(request.url ?? '/', MOCK_ORIGIN)
+  return url.searchParams.get('search')?.trim() ?? ''
+}
+
+function filterProjects(projects: ProjectResponse[], searchTerm: string): ProjectResponse[] {
+  if (searchTerm === '') {
+    return projects
+  }
+  const normalizedTerm = searchTerm.toLowerCase()
+  return projects.filter(({ name }) => name.toLowerCase().includes(normalizedTerm))
+}
+
 function sendJson(response: ServerResponse, status: number, data: unknown): void {
   response.statusCode = status
   response.setHeader('Content-Type', 'application/json')
@@ -131,7 +145,11 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
     configureServer(server) {
       server.middlewares.use(PROJECTS_ROUTE, (request, response, next) => {
         if (request.method === 'GET') {
-          setTimeout(() => sendProjects(response, scenario, projects), MOCK_DELAY_MS)
+          const searchTerm = getSearchTerm(request)
+          setTimeout(
+            () => sendProjects(response, scenario, filterProjects(projects, searchTerm)),
+            MOCK_DELAY_MS,
+          )
           return
         }
         if (request.method === 'DELETE') {

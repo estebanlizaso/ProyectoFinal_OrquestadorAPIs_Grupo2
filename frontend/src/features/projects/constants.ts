@@ -28,3 +28,13 @@ export const PROJECT_DELETE_TEXTS = {
   deleting: 'Eliminando...',
   errorTitle: 'No se pudo eliminar el proyecto',
 }
+
+export const SEARCH_DEBOUNCE_MS = 300
+
+export const PROJECT_SEARCH_TEXTS = {
+  label: 'Buscar proyectos',
+  placeholder: 'Buscar por nombre',
+  clear: 'Limpiar búsqueda',
+  noResultsTitle: 'No hay resultados',
+  noResultsDescription: (term: string): string => `No encontramos proyectos que coincidan con "${term}".`,
+}

@@ -7,8 +7,9 @@ import { toError } from '../shared/lib/toError'
 
 const PROJECTS_PATH = '/projects'
 
-async function getAll(options?: RequestOptions): Promise<ProjectResponse[]> {
-  const { body } = await getJson<ProjectsResponse>(PROJECTS_PATH, options)
+async function getAll(search?: string, options?: RequestOptions): Promise<ProjectResponse[]> {
+  const path = search ? `${PROJECTS_PATH}?${new URLSearchParams({ search }).toString()}` : PROJECTS_PATH
+  const { body } = await getJson<ProjectsResponse>(path, options)
   return body
 }
 
@@ -31,7 +32,7 @@ export type UseProjectsResult = {
   error: Error | null
 }
 
-export function useProjects(): UseProjectsResult {
+export function useProjects(search = ''): UseProjectsResult {
   const [projects, setProjects] = useState<ProjectResponse[]>([])
   const [status, setStatus] = useState<RequestStatus>('loading')
   const [error, setError] = useState<Error | null>(null)
@@ -57,7 +58,7 @@ export function useProjects(): UseProjectsResult {
     controllerRef.current = controller
     const isLatest = (): boolean => controllerRef.current === controller
 
-    return projectService.getAll({ signal: controller.signal }).then(
+    return projectService.getAll(search, { signal: controller.signal }).then(
       (result) => {
         if (isLatest()) {
           handleSuccess(result)
@@ -69,7 +70,7 @@ export function useProjects(): UseProjectsResult {
         }
       },
     )
-  }, [handleSuccess, handleFailure])
+  }, [search, handleSuccess, handleFailure])
 
   const run = useCallback(async (): Promise<void> => {
     setStatus('loading')
