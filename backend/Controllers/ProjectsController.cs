@@ -15,6 +15,18 @@ public class ProjectsController : ControllerBase
         _projectService = projectService;
     }
 
+    [HttpPost]
+    [ProducesResponseType(typeof(ProjectResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ProjectResponse>> Create(
+        [FromBody] CreateProjectRequest request,
+        CancellationToken cancellationToken)
+    {
+        var project = await _projectService.CreateAsync(request.Name, cancellationToken);
+
+        return StatusCode(StatusCodes.Status201Created, project);
+    }
+
     [HttpGet]
     [ProducesResponseType(typeof(ProjectsResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ProjectsResponse>> GetAll(

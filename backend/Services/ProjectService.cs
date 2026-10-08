@@ -16,6 +16,7 @@
 using Microsoft.EntityFrameworkCore;
 using OrquestadorApi.Data;
 using OrquestadorApi.DTOs;
+using OrquestadorApi.Models;
 
 namespace OrquestadorApi.Services;
 
@@ -26,6 +27,27 @@ public class ProjectService : IProjectService
     public ProjectService(AppDbContext dbContext)
     {
         _dbContext = dbContext;
+    }
+
+    public async Task<ProjectResponse> CreateAsync(
+        string projectName,
+        CancellationToken cancellationToken = default)
+    {
+        var createdAt = DateTime.UtcNow;
+        var project = new Project
+        {
+            ProjectName = projectName.Trim(),
+            CreatedAt = createdAt
+        };
+
+        _dbContext.Projects.Add(project);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new ProjectResponse(
+            project.ProjectName,
+            project.Description,
+            project.ProjectId,
+            DateOnly.FromDateTime(createdAt));
     }
 
     public async Task<IReadOnlyList<ProjectResponse>> GetAllAsync(
