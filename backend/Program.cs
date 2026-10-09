@@ -80,6 +80,7 @@ builder.Services.AddHttpClient<IAiProvider, GeminiAiProvider>((serviceProvider, 
     client.BaseAddress = new Uri($"{options.BaseUrl.TrimEnd('/')}/");
     client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
 });
+builder.Services.AddSingleton<IAiRulesProvider, JsonAiRulesProvider>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IProjectContextService, ProjectContextService>();
 
