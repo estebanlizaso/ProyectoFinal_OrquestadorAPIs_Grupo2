@@ -1,6 +1,6 @@
 using OrquestadorApi.DTOs;
 
-namespace OrquestadorApi.Services;
+namespace OrquestadorApi.Services.Projects;
 
 public interface IProjectService
 {

@@ -1,24 +1,9 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 using Microsoft.EntityFrameworkCore;
 using OrquestadorApi.Data;
 using OrquestadorApi.DTOs;
 using OrquestadorApi.Models;
 
-namespace OrquestadorApi.Services;
+namespace OrquestadorApi.Services.Projects;
 
 public class ProjectService : IProjectService
 {
