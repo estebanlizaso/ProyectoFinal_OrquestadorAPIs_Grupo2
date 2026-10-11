@@ -38,7 +38,7 @@ frontend/
   src/
     app/                      # main.tsx, App.tsx, providers, estilos globales
     features/
-      projects/               # Home: listado y eliminación de proyectos (GET/DELETE /api/projects)
+      projects/               # Home: listado paginado, búsqueda y eliminación de proyectos (GET/DELETE /api/projects)
         components/           # ProjectCard
         types.ts              # espejo de los DTOs de proyectos
         index.ts
@@ -81,9 +81,10 @@ Reglas:
 - Los tipos son un espejo literal del JSON que serializa el backend:
   - Los nombres de campo se respetan tal cual los define `JsonPropertyName`, aunque no sean camelCase (por ejemplo `created_at`).
   - `int` → `number`; `string?` → `string | null`; `DateOnly?` → `string | null` con formato `YYYY-MM-DD`.
-  - Las respuestas envueltas se respetan (`ProjectsResponse` es `{ body: ProjectResponse[] }`).
+  - Las respuestas envueltas se respetan (`ProjectsResponse` es `{ body: ProjectResponse[], next: string | null, prev: string | null }`).
   - Los tipos de request/response se nombran como el DTO cuando existe (`ProjectsResponse`, `DeleteProjectRequest`).
 - Los endpoints se consumen como están definidos en el controller, aunque no sigan el estilo REST más habitual. Por ejemplo, `DELETE /api/projects` recibe el id en el body (`{ "projectId": number }`) y responde `204` o `404`.
+- `GET /api/projects` es paginado: recibe `search` y `page` (desde `1`, que es el valor por defecto; un valor inválido responde `400`). El tamaño de página (12) lo define el backend en `PaginationSettings.PageSize` y el frontend no lo repite. `next` y `prev` son URLs absolutas armadas por el backend, o `null` si no hay página en esa dirección. El frontend las usa solo para saber si hay página siguiente o anterior: nunca hace `fetch` a esas URLs, sino que pide la página por número a través de `httpClient`. El backend no devuelve el total, así que la paginación es de Anterior / Siguiente.
 - Formato de errores del backend (`[ApiController]` de ASP.NET):
   - Los `4xx` devuelven ProblemDetails (`type`, `title`, `status`, `traceId`).
   - Los `400` de validación son ValidationProblemDetails, con `errors` por campo.
@@ -127,7 +128,7 @@ Reglas:
   - un tipo `ApiError` (`kind`, `status`, mensaje, detalle). Para `4xx`, el mensaje sale del `title` del ProblemDetails.
   - respuestas sin body (`204`)
   - `AbortController` y timeout. El backend respeta el `CancellationToken`, así que cancelar una request también corta la consulta en el servidor.
-- Cada recurso del backend tiene su service en `src/services/`, nombrado y organizado como el service del backend: un objeto en singular con los métodos adentro, con los mismos nombres sin el sufijo `Async` (`ProjectService.GetAllAsync` / `DeleteAsync` → `projectService.getAll()` / `projectService.delete(projectId)`). Los services usan `httpClient`, reciben `RequestOptions` opcionales (para cancelar) y devuelven datos ya listos para usar (por ejemplo, `getAll` desenvuelve el `body`).
+- Cada recurso del backend tiene su service en `src/services/`, nombrado y organizado como el service del backend: un objeto en singular con los métodos adentro, con los mismos nombres sin el sufijo `Async` (`ProjectService.GetAllAsync` / `DeleteAsync` → `projectService.getAll()` / `projectService.delete(projectId)`). Los services usan `httpClient`, reciben `RequestOptions` opcionales (para cancelar) y devuelven datos ya listos para usar (por ejemplo, `getAll` desenvuelve el `body` y convierte `next` / `prev` en `hasNextPage` / `hasPreviousPage`).
 - Los hooks viven en el mismo archivo que su service (`src/services/<recurso>Service.ts`), lo llaman y devuelven `{ run, status, error }` (más los datos, si la request trae alguno), con `status: RequestStatus`. Si el hook carga datos al montarse, cancela la request al desmontarse.
 - La descarga del ZIP se resuelve con `Blob` + `URL.createObjectURL`, y se revoca la URL al terminar.
 - Si más adelante se decide volver a Axios, solo cambia `httpClient.ts`.
