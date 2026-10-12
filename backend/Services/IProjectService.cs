@@ -4,8 +4,9 @@ namespace OrquestadorApi.Services;
 
 public interface IProjectService
 {
-    Task<IReadOnlyList<ProjectResponse>> GetAllAsync(
+    Task<ProjectPage> GetAllAsync(
     string? search,
+    int page,
     CancellationToken cancellationToken = default);
     Task<bool> DeleteAsync(int projectId, CancellationToken cancellationToken = default);
 }
