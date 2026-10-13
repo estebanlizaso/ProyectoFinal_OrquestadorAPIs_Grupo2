@@ -8,8 +8,9 @@ public interface IProjectService
         string projectName,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<ProjectResponse>> GetAllAsync(
+    Task<ProjectPage> GetAllAsync(
         string? search,
+        int page,
         CancellationToken cancellationToken = default);
 
     Task<bool> DeleteAsync(int projectId, CancellationToken cancellationToken = default);

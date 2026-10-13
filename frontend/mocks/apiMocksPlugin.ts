@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
+import { FIRST_PAGE } from '../src/features/projects/constants.ts'
 import type { DeleteProjectRequest, ProjectResponse, ProjectsResponse } from '../src/features/projects/types.ts'
 import { MOCK_PROJECTS } from './projects.ts'
 
@@ -10,6 +11,7 @@ const PROJECTS_ROUTE = '/api/projects'
 const MOCK_DELAY_MS = 800
 const MOCK_TRACE_ID = 'mock-trace-id'
 const MOCK_ORIGIN = 'http://localhost'
+const MOCK_PAGE_SIZE = 12
 
 const HTTP_STATUS = {
   ok: 200,
@@ -21,6 +23,7 @@ const HTTP_STATUS = {
 
 const MOCK_ERROR_TITLES = {
   invalidRequest: 'Solicitud inválida',
+  invalidPage: 'Número de página inválido',
   projectNotFound: 'Proyecto no encontrado',
 }
 
@@ -72,9 +75,39 @@ function readJsonBody(request: IncomingMessage): Promise<unknown> {
   })
 }
 
-function getSearchTerm(request: IncomingMessage): string {
-  const url = new URL(request.url ?? '/', MOCK_ORIGIN)
+function getRequestUrl(request: IncomingMessage): URL {
+  return new URL(request.url ?? '/', MOCK_ORIGIN)
+}
+
+function getSearchTerm(url: URL): string {
   return url.searchParams.get('search')?.trim() ?? ''
+}
+
+function getPage(url: URL): number | null {
+  const rawPage = url.searchParams.get('page')
+  if (rawPage === null) {
+    return FIRST_PAGE
+  }
+  const page = Number(rawPage)
+  return Number.isInteger(page) && page >= FIRST_PAGE ? page : null
+}
+
+function buildPageLink(page: number, searchTerm: string): string {
+  const params = new URLSearchParams({ page: String(page) })
+  if (searchTerm !== '') {
+    params.set('search', searchTerm)
+  }
+  return `${MOCK_ORIGIN}${PROJECTS_ROUTE}?${params.toString()}`
+}
+
+function paginateProjects(projects: ProjectResponse[], page: number, searchTerm: string): ProjectsResponse {
+  const start = (page - FIRST_PAGE) * MOCK_PAGE_SIZE
+  const end = start + MOCK_PAGE_SIZE
+  return {
+    body: projects.slice(start, end),
+    next: projects.length > end ? buildPageLink(page + 1, searchTerm) : null,
+    prev: page > FIRST_PAGE ? buildPageLink(page - 1, searchTerm) : null,
+  }
 }
 
 function filterProjects(projects: ProjectResponse[], searchTerm: string): ProjectResponse[] {
@@ -100,13 +133,23 @@ function sendServerError(response: ServerResponse): void {
   response.end()
 }
 
-function sendProjects(response: ServerResponse, scenario: ApiMockScenario, projects: ProjectResponse[]): void {
+function sendProjects(
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  projects: ProjectResponse[],
+  url: URL,
+): void {
   if (scenario === 'error') {
     sendServerError(response)
     return
   }
-  const payload: ProjectsResponse = { body: projects }
-  sendJson(response, HTTP_STATUS.ok, payload)
+  const page = getPage(url)
+  if (page === null) {
+    sendProblem(response, HTTP_STATUS.badRequest, MOCK_ERROR_TITLES.invalidPage)
+    return
+  }
+  const searchTerm = getSearchTerm(url)
+  sendJson(response, HTTP_STATUS.ok, paginateProjects(filterProjects(projects, searchTerm), page, searchTerm))
 }
 
 async function sendDeleteResult(
@@ -145,11 +188,8 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
     configureServer(server) {
       server.middlewares.use(PROJECTS_ROUTE, (request, response, next) => {
         if (request.method === 'GET') {
-          const searchTerm = getSearchTerm(request)
-          setTimeout(
-            () => sendProjects(response, scenario, filterProjects(projects, searchTerm)),
-            MOCK_DELAY_MS,
-          )
+          const url = getRequestUrl(request)
+          setTimeout(() => sendProjects(response, scenario, projects, url), MOCK_DELAY_MS)
           return
         }
         if (request.method === 'DELETE') {

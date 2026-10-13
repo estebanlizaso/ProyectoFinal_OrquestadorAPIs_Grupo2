@@ -68,11 +68,11 @@ API_MOCKS=success
 
 | Valor | Respuesta de `GET /api/projects` |
 | --- | --- |
-| `success` | Los cuatro proyectos iniciales del backend |
+| `success` | 25 proyectos de ejemplo, paginados de a 12 (tres páginas: 12, 12 y 1) |
 | `empty` | Una lista vacía |
 | `error` | Un error `500` |
 
-Los mocks tardan 800 ms en responder para que se vea el estado de carga. Solo simulan `GET /api/projects`; el resto de las llamadas sigue yendo al backend real. Viven en `frontend/mocks/` y no se incluyen en el build.
+Los mocks respetan el contrato del backend: filtran por `search`, paginan con `page` (un valor inválido responde `400`) y devuelven `next` / `prev`. Los mocks tardan 800 ms en responder para que se vea el estado de carga. Solo simulan `GET /api/projects`; el resto de las llamadas sigue yendo al backend real. Viven en `frontend/mocks/` y no se incluyen en el build.
 
 ## Scripts
 
