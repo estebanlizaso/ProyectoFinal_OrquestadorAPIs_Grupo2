@@ -19,4 +19,6 @@ public class Project
 
     [Column("description")]
     public string? Description { get; set; }
+
+    public ProjectContext? Context { get; set; }
 }

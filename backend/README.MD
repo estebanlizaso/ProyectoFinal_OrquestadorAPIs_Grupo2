@@ -32,13 +32,14 @@ psql postgres -c "ALTER ROLE postgres WITH PASSWORD 'TU_PASSWORD';"
 
 Si el usuario o la base ya existen, no vuelvas a crearlos.
 
-Crea `backend/.env` tomando `.env.example` como referencia. El archivo debe contener solamente la variable de conexión, sin comandos ni texto adicional:
+Crea `backend/.env` tomando `.env.example` como referencia. El archivo debe contener la conexión a PostgreSQL y la API key de Gemini, sin comandos ni texto adicional:
 
 ```dotenv
 ConnectionStrings__Postgres=Host=localhost;Port=5432;Database=orquestador;Username=postgres;Password=TU_PASSWORD
+GEMINI_API_KEY=TU_API_KEY_DE_GEMINI
 ```
 
-`.env` contiene credenciales y no debe subirse a Git.
+La API key se obtiene desde Google AI Studio. `.env` contiene credenciales y no debe subirse a Git.
 
 ## Migraciones
 

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
 using OrquestadorApi.DTOs;
 using OrquestadorApi.Services;
+using OrquestadorApi.Services.Projects;
 
 namespace OrquestadorApi.Controllers;
 
@@ -14,6 +15,18 @@ public class ProjectsController : ControllerBase
     public ProjectsController(IProjectService projectService)
     {
         _projectService = projectService;
+    }
+
+    [HttpPost]
+    [ProducesResponseType(typeof(ProjectResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ProjectResponse>> Create(
+        [FromBody] CreateProjectRequest request,
+        CancellationToken cancellationToken)
+    {
+        var project = await _projectService.CreateAsync(request.Name, cancellationToken);
+
+        return StatusCode(StatusCodes.Status201Created, project);
     }
 
     [HttpGet]

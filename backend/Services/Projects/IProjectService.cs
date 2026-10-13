@@ -1,13 +1,18 @@
 using OrquestadorApi.DTOs;
 
-namespace OrquestadorApi.Services;
+namespace OrquestadorApi.Services.Projects;
 
 public interface IProjectService
 {
+    Task<ProjectResponse> CreateAsync(
+        string projectName,
+        CancellationToken cancellationToken = default);
+
     Task<ProjectPage> GetAllAsync(
-    string? search,
-    int page,
-    CancellationToken cancellationToken = default);
+        string? search,
+        int page,
+        CancellationToken cancellationToken = default);
+
     Task<bool> DeleteAsync(int projectId, CancellationToken cancellationToken = default);
 }
 

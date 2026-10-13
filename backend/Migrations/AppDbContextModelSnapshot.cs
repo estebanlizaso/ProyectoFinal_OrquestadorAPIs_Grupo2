@@ -48,6 +48,48 @@ namespace OrquestadorApi.Migrations
 
                     b.ToTable("projects");
                 });
+
+            modelBuilder.Entity("OrquestadorApi.Models.ProjectContext", b =>
+                {
+                    b.Property<int>("ContextId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("context_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ContextId"));
+
+                    b.Property<string>("InitialPrompt")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("initial_prompt");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer")
+                        .HasColumnName("project_id");
+
+                    b.HasKey("ContextId");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique();
+
+                    b.ToTable("contexts");
+                });
+
+            modelBuilder.Entity("OrquestadorApi.Models.ProjectContext", b =>
+                {
+                    b.HasOne("OrquestadorApi.Models.Project", "Project")
+                        .WithOne("Context")
+                        .HasForeignKey("OrquestadorApi.Models.ProjectContext", "ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("OrquestadorApi.Models.Project", b =>
+                {
+                    b.Navigation("Context");
+                });
 #pragma warning restore 612, 618
         }
     }
