@@ -31,6 +31,15 @@ export const PROJECT_DELETE_TEXTS = {
 
 export const SEARCH_DEBOUNCE_MS = 300
 
+export const FIRST_PAGE = 1
+
+export const PROJECT_PAGINATION_TEXTS = {
+  label: 'Paginación de proyectos',
+  previous: 'Anterior',
+  next: 'Siguiente',
+  currentPage: (page: number): string => `Página ${page}`,
+}
+
 export const PROJECT_SEARCH_TEXTS = {
   label: 'Buscar proyectos',
   placeholder: 'Buscar por nombre',

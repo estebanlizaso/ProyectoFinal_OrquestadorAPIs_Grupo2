@@ -1,4 +1,5 @@
 import { CircleAlert, FolderOpen, SearchX } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { RequestStatus } from '../../../shared/api/requestStatus'
 import { Button } from '../../../shared/ui/Button'
 import { StatusMessage } from '../../../shared/ui/StatusMessage'
@@ -14,6 +15,7 @@ export type ProjectsContentProps = {
   searchTerm: string
   onRetry: () => void
   onDeleteProject: (project: ProjectResponse) => void
+  pagination?: ReactNode
 }
 
 export function ProjectsContent({
@@ -23,6 +25,7 @@ export function ProjectsContent({
   searchTerm,
   onRetry,
   onDeleteProject,
+  pagination,
 }: ProjectsContentProps) {
   if (status === 'error') {
     return (
@@ -64,5 +67,10 @@ export function ProjectsContent({
     )
   }
 
-  return <ProjectGrid projects={projects} onDelete={onDeleteProject} />
+  return (
+    <>
+      <ProjectGrid projects={projects} onDelete={onDeleteProject} />
+      {pagination}
+    </>
+  )
 }

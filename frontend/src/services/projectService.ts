@@ -7,10 +7,22 @@ import { toError } from '../shared/lib/toError'
 
 const PROJECTS_PATH = '/projects'
 
-async function getAll(search?: string, options?: RequestOptions): Promise<ProjectResponse[]> {
-  const path = search ? `${PROJECTS_PATH}?${new URLSearchParams({ search }).toString()}` : PROJECTS_PATH
-  const { body } = await getJson<ProjectsResponse>(path, options)
-  return body
+export type ProjectPage = {
+  projects: ProjectResponse[]
+  hasNextPage: boolean
+  hasPreviousPage: boolean
+}
+
+async function getAll(search: string, page: number, options?: RequestOptions): Promise<ProjectPage> {
+  const params = new URLSearchParams({ page: String(page) })
+  if (search) {
+    params.set('search', search)
+  }
+  const { body, next, prev } = await getJson<ProjectsResponse>(
+    `${PROJECTS_PATH}?${params.toString()}`,
+    options,
+  )
+  return { projects: body, hasNextPage: next !== null, hasPreviousPage: prev !== null }
 }
 
 async function deleteById(
@@ -25,21 +37,29 @@ export const projectService = {
   delete: deleteById,
 }
 
-export type UseProjectsResult = {
-  projects: ProjectResponse[]
+export type UseProjectsResult = ProjectPage & {
   run: () => Promise<void>
   status: RequestStatus
   error: Error | null
 }
 
-export function useProjects(search = ''): UseProjectsResult {
-  const [projects, setProjects] = useState<ProjectResponse[]>([])
+const EMPTY_PROJECT_PAGE: ProjectPage = { projects: [], hasNextPage: false, hasPreviousPage: false }
+
+export function useProjects(search: string, page: number): UseProjectsResult {
+  const [projectPage, setProjectPage] = useState<ProjectPage>(EMPTY_PROJECT_PAGE)
   const [status, setStatus] = useState<RequestStatus>('loading')
   const [error, setError] = useState<Error | null>(null)
   const controllerRef = useRef<AbortController | null>(null)
+  const [requestedParams, setRequestedParams] = useState({ search, page })
 
-  const handleSuccess = useCallback((result: ProjectResponse[]): void => {
-    setProjects(result)
+  if (requestedParams.search !== search || requestedParams.page !== page) {
+    setRequestedParams({ search, page })
+    setStatus('loading')
+    setError(null)
+  }
+
+  const handleSuccess = useCallback((result: ProjectPage): void => {
+    setProjectPage(result)
     setError(null)
     setStatus('success')
   }, [])
@@ -58,7 +78,7 @@ export function useProjects(search = ''): UseProjectsResult {
     controllerRef.current = controller
     const isLatest = (): boolean => controllerRef.current === controller
 
-    return projectService.getAll(search, { signal: controller.signal }).then(
+    return projectService.getAll(search, page, { signal: controller.signal }).then(
       (result) => {
         if (isLatest()) {
           handleSuccess(result)
@@ -70,7 +90,7 @@ export function useProjects(search = ''): UseProjectsResult {
         }
       },
     )
-  }, [search, handleSuccess, handleFailure])
+  }, [search, page, handleSuccess, handleFailure])
 
   const run = useCallback(async (): Promise<void> => {
     setStatus('loading')
@@ -83,7 +103,7 @@ export function useProjects(search = ''): UseProjectsResult {
     return () => controllerRef.current?.abort()
   }, [startRequest])
 
-  return { projects, run, status, error }
+  return { ...projectPage, run, status, error }
 }
 
 export type UseDeleteProjectResult = {

@@ -7,6 +7,8 @@ export type ProjectResponse = {
 
 export type ProjectsResponse = {
   body: ProjectResponse[]
+  next: string | null
+  prev: string | null
 }
 
 export type DeleteProjectRequest = {
