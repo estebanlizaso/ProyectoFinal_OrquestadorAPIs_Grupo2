@@ -1,12 +1,13 @@
-import { EllipsisVertical, Trash2 } from 'lucide-react'
+import { ClipboardCopy, EllipsisVertical, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { PROJECT_CARD_TEXTS } from '../constants'
 
 export type ProjectCardMenuProps = {
   onDelete: () => void
+  onCopyPrompt: () => void
 }
 
-export function ProjectCardMenu({ onDelete }: ProjectCardMenuProps) {
+export function ProjectCardMenu({ onDelete, onCopyPrompt }: ProjectCardMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -37,6 +38,10 @@ export function ProjectCardMenu({ onDelete }: ProjectCardMenuProps) {
     setIsOpen(false)
     onDelete()
   }
+  function handleCopyPrompt(): void {
+    setIsOpen(false)
+    onCopyPrompt()
+    }
 
   return (
     <div ref={containerRef} className="relative">
@@ -55,7 +60,17 @@ export function ProjectCardMenu({ onDelete }: ProjectCardMenuProps) {
           role="menu"
           className="absolute right-0 z-10 mt-1 w-36 rounded-lg border border-gray-100 bg-white py-1 shadow-md"
         >
-          <button
+        <button
+        type="button"
+        role="menuitem"
+        onClick={handleCopyPrompt}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+        >
+          <ClipboardCopy className="size-4 shrink-0" aria-hidden="true" />
+          Copiar prompt inicial del proyecto
+        </button>
+
+        <button
             type="button"
             role="menuitem"
             onClick={handleDelete}

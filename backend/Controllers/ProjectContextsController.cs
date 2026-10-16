@@ -46,4 +46,23 @@ public class ProjectContextsController : ControllerBase
             _ => throw new InvalidOperationException("Estado de creación de contexto desconocido.")
         };
     }
+
+    [HttpGet]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Get(
+        [FromRoute] int projectId,
+        CancellationToken cancellationToken)
+    {
+        var initialPrompt = await _projectContextService.GetInitialPromptAsync(
+            projectId,
+            cancellationToken);
+
+        if (initialPrompt is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(new { initialPrompt });
+    }
 }
