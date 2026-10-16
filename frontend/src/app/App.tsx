@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CreateProjectModal, ProjectsPage, type ProjectResponse } from '../features/projects'
 import { navigate } from '../shared/lib/navigate'
-import { usePathname } from '../shared/lib/usePathName'
+import { usePathname } from '../shared/lib/usePathname'
 import { ProjectContextPlaceholder } from './ProjectContextPlaceholder'
 import { AppLayout } from './layout/AppLayout'
 import { buildProjectContextPath, resolveRoute } from './routes'

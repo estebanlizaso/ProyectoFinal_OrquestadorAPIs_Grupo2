@@ -74,6 +74,11 @@ API_MOCKS=success
 
 Los mocks respetan el contrato del backend: filtran por `search`, paginan con `page` (un valor inválido responde `400`) y devuelven `next` / `prev`. Los mocks tardan 800 ms en responder para que se vea el estado de carga. Solo simulan `GET /api/projects`; el resto de las llamadas sigue yendo al backend real. Viven en `frontend/mocks/` y no se incluyen en el build.
 
+-------------este seria el nuevo contrato segun las actualizaciones------
+Los mocks respetan el contrato del backend. `GET /api/projects` filtra por `search`, pagina con `page` (un valor inválido responde `400`) y devuelve `next` / `prev`. `POST /api/projects` crea un proyecto en memoria (responde `201` con el proyecto creado, que queda primero en la lista; un nombre vacío responde `400`) y `DELETE /api/projects` lo elimina (`204`, o `404` si no existe). Los cambios se pierden al reiniciar Vite. Los mocks tardan 800 ms en responder para que se vea el estado de carga y viven en `frontend/mocks/`, fuera del build.
+
+
+
 ## Scripts
 
 | Comando | Qué hace |

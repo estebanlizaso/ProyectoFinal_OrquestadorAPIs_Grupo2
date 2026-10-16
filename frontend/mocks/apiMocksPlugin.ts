@@ -172,7 +172,6 @@ function sendValidationProblem(response: ServerResponse): void {
   })
 }
 
-
 function sendProjects(
   response: ServerResponse,
   scenario: ApiMockScenario,
@@ -219,8 +218,6 @@ async function sendCreateResult(
   sendJson(response, HTTP_STATUS.created, project)
 }
 
-
-
 async function sendDeleteResult(
   request: IncomingMessage,
   response: ServerResponse,
@@ -262,7 +259,7 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
           return
         }
 
-                if (request.method === 'POST') {
+          if (request.method === 'POST') {
           void sendCreateResult(request, response, scenario, projects)
           return
         }
