@@ -2,6 +2,9 @@ export const APP_TEXTS = {
   title: 'Orquestador IA',
   navigation: 'Navegación',
   newOrchestration: 'Nueva orquestación',
+  projectContext: 'Contexto global',
+  projectContextPending: (projectId: number): string =>
+    `Proyecto #${projectId}. Esta pantalla se reemplaza por la de contexto global.`,
 }
 
 export type NavItemId = 'projects'
