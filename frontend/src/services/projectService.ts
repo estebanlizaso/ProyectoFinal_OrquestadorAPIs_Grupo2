@@ -9,8 +9,10 @@ import { ApiError } from '../shared/api/ApiError'
 import { deleteJson, getJson, postJson, type RequestOptions } from '../shared/api/httpClient'
 import type { RequestStatus } from '../shared/api/requestStatus'
 import { toError } from '../shared/lib/toError'
+import { wait } from '../shared/lib/wait'
 
 const PROJECTS_PATH = '/projects'
+const MIN_RELOAD_MS = 1_500
 
 export type ProjectPage = {
   projects: ProjectResponse[]
@@ -81,30 +83,32 @@ export function useProjects(search: string, page: number): UseProjectsResult {
     setStatus('error')
   }, [])
 
-  const startRequest = useCallback((): Promise<void> => {
-    controllerRef.current?.abort()
-    const controller = new AbortController()
-    controllerRef.current = controller
-    const isLatest = (): boolean => controllerRef.current === controller
+  const startRequest = useCallback(
+    async (minDurationMs = 0): Promise<void> => {
+      controllerRef.current?.abort()
+      const controller = new AbortController()
+      controllerRef.current = controller
 
-    return projectService.getAll(search, page, { signal: controller.signal }).then(
-      (result) => {
-        if (isLatest()) {
-          handleSuccess(result)
-        }
-      },
-      (caught: unknown) => {
-        if (isLatest()) {
-          handleFailure(caught)
-        }
-      },
-    )
-  }, [search, page, handleSuccess, handleFailure])
+      const [outcome] = await Promise.allSettled([
+        projectService.getAll(search, page, { signal: controller.signal }),
+        wait(minDurationMs),
+      ])
+      if (controllerRef.current !== controller) {
+        return
+      }
+      if (outcome.status === 'fulfilled') {
+        handleSuccess(outcome.value)
+        return
+      }
+      handleFailure(outcome.reason)
+    },
+    [search, page, handleSuccess, handleFailure],
+  )
 
   const run = useCallback(async (): Promise<void> => {
     setStatus('loading')
     setError(null)
-    await startRequest()
+    await startRequest(MIN_RELOAD_MS)
   }, [startRequest])
 
   useEffect(() => {

@@ -1,6 +1,3 @@
-import type { ErrorMessages } from '../../shared/api/getErrorMessage'
-import { HTTP_STATUS } from '../../shared/api/httpStatus'
-
 export const GLOBAL_CONTEXT_PAGE_TEXTS = {
   title: 'Contexto global',
   subtitle: 'Explicá el objetivo, la IA completa los datos faltantes.',
@@ -11,14 +8,6 @@ export const GLOBAL_CONTEXT_PAGE_TEXTS = {
   questionsTitle: 'Para completar la arquitectura necesito confirmar:',
   codeTitle: (language: string): string => `Código generado (${language})`,
   errorTitle: 'No se pudo generar el contexto',
-}
-
-export const GLOBAL_CONTEXT_ERROR_MESSAGES: ErrorMessages = {
-  byStatus: {
-    [HTTP_STATUS.badRequest]: 'Revisá lo que escribiste e intentá de nuevo.',
-    [HTTP_STATUS.notFound]: 'Este proyecto ya no existe.',
-    [HTTP_STATUS.badGateway]: 'La IA no pudo generar el contexto. Probá de nuevo.',
-  },
 }
 
 export const CONTEXT_DETAILS_TEXTS = {

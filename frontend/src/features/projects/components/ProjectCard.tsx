@@ -16,16 +16,13 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
   return (
     <Card className="flex h-full flex-col gap-3">
       <header className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <span aria-hidden="true" className="size-8 shrink-0 rounded-full bg-gray-100" />
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900">{name}</h3>
-            {createdAt && (
-              <p className="text-xs text-gray-400">
-                {PROJECT_CARD_TEXTS.createdAt} <time dateTime={createdAt}>{formatDateOnly(createdAt)}</time>
-              </p>
-            )}
-          </div>
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">{name}</h3>
+          {createdAt && (
+            <p className="text-xs text-gray-400">
+              {PROJECT_CARD_TEXTS.createdAt} <time dateTime={createdAt}>{formatDateOnly(createdAt)}</time>
+            </p>
+          )}
         </div>
         {onDelete && <ProjectCardMenu onDelete={() => onDelete(project)} />}
       </header>
