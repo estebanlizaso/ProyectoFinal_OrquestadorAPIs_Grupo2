@@ -66,18 +66,20 @@ Sirven para trabajar sin backend o para ver cada estado de la pantalla. Se activ
 API_MOCKS=success
 ```
 
-| Valor | Respuesta de `GET /api/projects` |
+| Valor | Qué responden |
 | --- | --- |
 | `success` | 25 proyectos de ejemplo, paginados de a 12 (tres páginas: 12, 12 y 1) |
-| `empty` | Una lista vacía |
-| `error` | Un error `500` |
+| `empty` | Una lista vacía de proyectos |
+| `error` | Un error `500` en todas las rutas mockeadas |
 
-Los mocks respetan el contrato del backend: filtran por `search`, paginan con `page` (un valor inválido responde `400`) y devuelven `next` / `prev`. Los mocks tardan 800 ms en responder para que se vea el estado de carga. Solo simulan `GET /api/projects`; el resto de las llamadas sigue yendo al backend real. Viven en `frontend/mocks/` y no se incluyen en el build.
+Los mocks respetan el contrato del backend:
 
--------------este seria el nuevo contrato segun las actualizaciones------
-Los mocks respetan el contrato del backend. `GET /api/projects` filtra por `search`, pagina con `page` (un valor inválido responde `400`) y devuelve `next` / `prev`. `POST /api/projects` crea un proyecto en memoria (responde `201` con el proyecto creado, que queda primero en la lista; un nombre vacío responde `400`) y `DELETE /api/projects` lo elimina (`204`, o `404` si no existe). Los cambios se pierden al reiniciar Vite. Los mocks tardan 800 ms en responder para que se vea el estado de carga y viven en `frontend/mocks/`, fuera del build.
+- `GET /api/projects` filtra por `search`, pagina con `page` (un valor inválido responde `400`) y devuelve `next` / `prev`.
+- `POST /api/projects` crea un proyecto en memoria: responde `201` con el proyecto, que queda primero en la lista. Un nombre vacío responde `400`.
+- `DELETE /api/projects` lo elimina: `204`, o `404` si no existe.
+- `POST /api/projects/{projectId}/context` responde `201` con un contexto de ejemplo en estado `ready` (plan y código). Si el proyecto ya tenía contexto, devuelve el mismo con `200`. Responde `404` si el proyecto no existe y `400` si el prompt está vacío.
 
-
+Los cambios se pierden al reiniciar Vite. Los mocks tardan 800 ms en responder para que se vea el estado de carga y viven en `frontend/mocks/`, fuera del build.
 
 ## Scripts
 
@@ -94,5 +96,6 @@ Antes de abrir un PR, `npm run lint` y `npm run build` tienen que pasar sin erro
 
 - **`npm error enoent Could not read package.json`**: el comando se ejecutó fuera de `frontend`.
 - **"No se pudieron cargar los proyectos"**: el backend no está corriendo, `.env` no existe o `API_PROXY_TARGET` apunta a otro puerto.
+- **El backend no levanta con `'ApiKey' field is required`**: falta `GEMINI_API_KEY` en `backend/.env` (ver [`backend/README.MD`](../backend/README.MD)).
 - **En Git Bash, las variables pasadas por comando se rompen** (`VITE_API_URL=/api npm run dev` termina pidiendo a `C:/Program Files/Git/api`): usa el archivo `.env` o antepone `MSYS_NO_PATHCONV=1`.
 - **VS Code marca `Unknown at rule @theme` en `index.css`**: es un aviso del editor, no un error. Se resuelve asociando los `.css` al modo "Tailwind CSS" de la extensión Tailwind CSS IntelliSense.
