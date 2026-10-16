@@ -1,10 +1,37 @@
-import { ProjectsPage } from '../features/projects'
+import { useState } from 'react'
+import { GlobalContextPage } from '../features/global-context'
+import { CreateProjectModal, ProjectsPage, type ProjectResponse } from '../features/projects'
+import { navigate } from '../shared/lib/navigate'
+import { usePathname } from '../shared/lib/usePathname'
 import { AppLayout } from './layout/AppLayout'
+import { buildProjectContextPath, resolveRoute } from './routes'
 
 export function App() {
+  const route = resolveRoute(usePathname())
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+
+  function openCreateModal(): void {
+    setIsCreateModalOpen(true)
+  }
+
+  function closeCreateModal(): void {
+    setIsCreateModalOpen(false)
+  }
+
+  function handleCreated(project: ProjectResponse): void {
+    closeCreateModal()
+    navigate(buildProjectContextPath(project.projectId))
+  }
+
   return (
-    <AppLayout activeNavItem="projects">
-      <ProjectsPage />
+    <AppLayout activeNavItem="projects" onNewOrchestration={openCreateModal}>
+      {route.name === 'projectContext' ? (
+        <GlobalContextPage key={route.projectId} projectId={route.projectId} />
+      ) : (
+        <ProjectsPage onNewOrchestration={openCreateModal} />
+      )}
+
+      {isCreateModalOpen && <CreateProjectModal onClose={closeCreateModal} onCreated={handleCreated} />}
     </AppLayout>
   )
 }

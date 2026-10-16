@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { DeleteProjectRequest, ProjectResponse, ProjectsResponse } from '../features/projects'
+import type {
+  CreateProjectRequest,
+  DeleteProjectRequest,
+  ProjectResponse,
+  ProjectsResponse,
+} from '../features/projects'
 import { ApiError } from '../shared/api/ApiError'
-import { deleteJson, getJson, type RequestOptions } from '../shared/api/httpClient'
+import { deleteJson, getJson, postJson, type RequestOptions } from '../shared/api/httpClient'
 import type { RequestStatus } from '../shared/api/requestStatus'
 import { toError } from '../shared/lib/toError'
+import { wait } from '../shared/lib/wait'
 
 const PROJECTS_PATH = '/projects'
+const MIN_RELOAD_MS = 1_500
 
 export type ProjectPage = {
   projects: ProjectResponse[]
@@ -25,6 +32,10 @@ async function getAll(search: string, page: number, options?: RequestOptions): P
   return { projects: body, hasNextPage: next !== null, hasPreviousPage: prev !== null }
 }
 
+async function create(name: string, options?: RequestOptions): Promise<ProjectResponse> {
+  return postJson<ProjectResponse, CreateProjectRequest>(PROJECTS_PATH, { name }, options)
+}
+
 async function deleteById(
   projectId: ProjectResponse['projectId'],
   options?: RequestOptions,
@@ -34,6 +45,7 @@ async function deleteById(
 
 export const projectService = {
   getAll,
+  create,
   delete: deleteById,
 }
 
@@ -51,7 +63,6 @@ export function useProjects(search: string, page: number): UseProjectsResult {
   const [error, setError] = useState<Error | null>(null)
   const controllerRef = useRef<AbortController | null>(null)
   const [requestedParams, setRequestedParams] = useState({ search, page })
-
   if (requestedParams.search !== search || requestedParams.page !== page) {
     setRequestedParams({ search, page })
     setStatus('loading')
@@ -72,30 +83,32 @@ export function useProjects(search: string, page: number): UseProjectsResult {
     setStatus('error')
   }, [])
 
-  const startRequest = useCallback((): Promise<void> => {
-    controllerRef.current?.abort()
-    const controller = new AbortController()
-    controllerRef.current = controller
-    const isLatest = (): boolean => controllerRef.current === controller
+  const startRequest = useCallback(
+    async (minDurationMs = 0): Promise<void> => {
+      controllerRef.current?.abort()
+      const controller = new AbortController()
+      controllerRef.current = controller
 
-    return projectService.getAll(search, page, { signal: controller.signal }).then(
-      (result) => {
-        if (isLatest()) {
-          handleSuccess(result)
-        }
-      },
-      (caught: unknown) => {
-        if (isLatest()) {
-          handleFailure(caught)
-        }
-      },
-    )
-  }, [search, page, handleSuccess, handleFailure])
+      const [outcome] = await Promise.allSettled([
+        projectService.getAll(search, page, { signal: controller.signal }),
+        wait(minDurationMs),
+      ])
+      if (controllerRef.current !== controller) {
+        return
+      }
+      if (outcome.status === 'fulfilled') {
+        handleSuccess(outcome.value)
+        return
+      }
+      handleFailure(outcome.reason)
+    },
+    [search, page, handleSuccess, handleFailure],
+  )
 
   const run = useCallback(async (): Promise<void> => {
     setStatus('loading')
     setError(null)
-    await startRequest()
+    await startRequest(MIN_RELOAD_MS)
   }, [startRequest])
 
   useEffect(() => {
@@ -104,6 +117,34 @@ export function useProjects(search: string, page: number): UseProjectsResult {
   }, [startRequest])
 
   return { ...projectPage, run, status, error }
+}
+
+export type UseCreateProjectResult = {
+  run: (name: string) => Promise<ProjectResponse | null>
+  status: RequestStatus
+  error: Error | null
+}
+
+export function useCreateProject(): UseCreateProjectResult {
+  const [status, setStatus] = useState<RequestStatus>('idle')
+  const [error, setError] = useState<Error | null>(null)
+
+  const run = useCallback(async (name: string): Promise<ProjectResponse | null> => {
+    setStatus('loading')
+    setError(null)
+
+    try {
+      const project = await projectService.create(name)
+      setStatus('success')
+      return project
+    } catch (caught) {
+      setError(toError(caught))
+      setStatus('error')
+      return null
+    }
+  }, [])
+
+  return { run, status, error }
 }
 
 export type UseDeleteProjectResult = {
