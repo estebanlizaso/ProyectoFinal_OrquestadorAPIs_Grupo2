@@ -1,7 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
 import { FIRST_PAGE } from '../src/features/projects/constants.ts'
-import type { DeleteProjectRequest, ProjectResponse, ProjectsResponse } from '../src/features/projects/types.ts'
+import type {
+  CreateProjectRequest,
+  DeleteProjectRequest,
+  ProjectResponse,
+  ProjectsResponse,
+} from '../src/features/projects/types.ts'
 import { MOCK_PROJECTS } from './projects.ts'
 
 export type ApiMockScenario = 'success' | 'empty' | 'error'
@@ -15,6 +20,7 @@ const MOCK_PAGE_SIZE = 12
 
 const HTTP_STATUS = {
   ok: 200,
+  created: 201,
   noContent: 204,
   badRequest: 400,
   notFound: 404,
@@ -25,6 +31,11 @@ const MOCK_ERROR_TITLES = {
   invalidRequest: 'Solicitud inválida',
   invalidPage: 'Número de página inválido',
   projectNotFound: 'Proyecto no encontrado',
+  validation: 'Una o mas errores de validacion ocurridos.',
+}
+
+const MOCK_VALIDATION_MESSAGES = {
+  nameRequired: 'El nombre es requerido',
 }
 
 function isApiMockScenario(value: string): value is ApiMockScenario {
@@ -47,6 +58,16 @@ function isDeleteProjectRequest(value: unknown): value is DeleteProjectRequest {
     value !== null &&
     'projectId' in value &&
     typeof value.projectId === 'number'
+  )
+}
+
+function isCreateProjectRequest(value: unknown): value is CreateProjectRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'name' in value &&
+    typeof value.name === 'string' &&
+    value.name.trim() !== ''
   )
 }
 
@@ -133,6 +154,25 @@ function sendServerError(response: ServerResponse): void {
   response.end()
 }
 
+function getNextProjectId(projects: ProjectResponse[]): number {
+  return projects.reduce((maxId, { projectId }) => Math.max(maxId, projectId), 0) + 1
+}
+
+function getTodayAsDateOnly(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function sendValidationProblem(response: ServerResponse): void {
+  sendJson(response, HTTP_STATUS.badRequest, {
+    type: 'about:blank',
+    title: MOCK_ERROR_TITLES.validation,
+    status: HTTP_STATUS.badRequest,
+    traceId: MOCK_TRACE_ID,
+    errors: { Name: [MOCK_VALIDATION_MESSAGES.nameRequired] },
+  })
+}
+
+
 function sendProjects(
   response: ServerResponse,
   scenario: ApiMockScenario,
@@ -151,6 +191,35 @@ function sendProjects(
   const searchTerm = getSearchTerm(url)
   sendJson(response, HTTP_STATUS.ok, paginateProjects(filterProjects(projects, searchTerm), page, searchTerm))
 }
+
+async function sendCreateResult(
+  request: IncomingMessage,
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  projects: ProjectResponse[],
+): Promise<void> {
+  const payload = await readJsonBody(request).catch(() => undefined)
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  if (!isCreateProjectRequest(payload)) {
+    sendValidationProblem(response)
+    return
+  }
+  const project: ProjectResponse = {
+    name: payload.name.trim(),
+    description: null,
+    projectId: getNextProjectId(projects),
+    created_at: getTodayAsDateOnly(),
+  }
+  projects.unshift(project)
+  sendJson(response, HTTP_STATUS.created, project)
+}
+
+
 
 async function sendDeleteResult(
   request: IncomingMessage,
@@ -192,6 +261,14 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
           setTimeout(() => sendProjects(response, scenario, projects, url), MOCK_DELAY_MS)
           return
         }
+
+                if (request.method === 'POST') {
+          void sendCreateResult(request, response, scenario, projects)
+          return
+        }
+
+
+
         if (request.method === 'DELETE') {
           void sendDeleteResult(request, response, scenario, projects)
           return
