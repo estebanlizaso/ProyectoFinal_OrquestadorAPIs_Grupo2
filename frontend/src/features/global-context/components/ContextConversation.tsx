@@ -1,3 +1,4 @@
+import { CircleAlert } from 'lucide-react'
 import type { RequestStatus } from '../../../shared/api/requestStatus'
 import { GLOBAL_CONTEXT_PAGE_TEXTS } from '../constants'
 import type { GeneratedCodeResponse } from '../types'
@@ -5,11 +6,18 @@ import type { GeneratedCodeResponse } from '../types'
 export type ContextConversationProps = {
   prompt: string | null
   generatedContent: GeneratedCodeResponse | null
+  rejectionReason: string | null
   status: RequestStatus
   errorMessage: string | null
 }
 
-export function ContextConversation({ prompt, generatedContent, status, errorMessage }: ContextConversationProps) {
+export function ContextConversation({
+  prompt,
+  generatedContent,
+  rejectionReason,
+  status,
+  errorMessage,
+}: ContextConversationProps) {
   if (prompt === null) {
     return <p className="text-sm text-gray-400">{GLOBAL_CONTEXT_PAGE_TEXTS.goalEmpty}</p>
   }
@@ -28,6 +36,16 @@ export function ContextConversation({ prompt, generatedContent, status, errorMes
         <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
           <p className="font-semibold">{GLOBAL_CONTEXT_PAGE_TEXTS.errorTitle}</p>
           <p>{errorMessage}</p>
+        </div>
+      )}
+
+      {rejectionReason && (
+        <div role="alert" className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <CircleAlert className="size-5 shrink-0" aria-hidden="true" />
+          <div>
+            <p className="font-semibold">{GLOBAL_CONTEXT_PAGE_TEXTS.rejectedTitle}</p>
+            <p>{rejectionReason}</p>
+          </div>
         </div>
       )}
 

@@ -4,9 +4,10 @@ import type { GeneratedCodeResponse } from '../types'
 
 export type ContextDetailsPanelProps = {
   generatedContent: GeneratedCodeResponse | null
+  isRejected: boolean
 }
 
-export function ContextDetailsPanel({ generatedContent }: ContextDetailsPanelProps) {
+export function ContextDetailsPanel({ generatedContent, isRejected }: ContextDetailsPanelProps) {
   return (
     <Card className="p-6">
       <h2 className="text-lg leading-none font-bold text-gray-900">{CONTEXT_DETAILS_TEXTS.title}</h2>
@@ -25,7 +26,9 @@ export function ContextDetailsPanel({ generatedContent }: ContextDetailsPanelPro
           )}
         </>
       ) : (
-        <p className="mt-4 text-sm text-gray-400">{CONTEXT_DETAILS_TEXTS.empty}</p>
+        <p className="mt-4 text-sm text-gray-400">
+          {isRejected ? CONTEXT_DETAILS_TEXTS.rejected : CONTEXT_DETAILS_TEXTS.empty}
+        </p>
       )}
     </Card>
   )

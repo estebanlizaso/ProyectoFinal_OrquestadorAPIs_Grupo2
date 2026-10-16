@@ -6,6 +6,7 @@ import { Card } from '../../../shared/ui/Card'
 import { PageHeader } from '../../../shared/ui/PageHeader'
 import { GLOBAL_CONTEXT_PAGE_TEXTS } from '../constants'
 import { GLOBAL_CONTEXT_ERROR_MESSAGES } from '../errorMessages'
+import type { GeneratedCodeResponse } from '../types'
 import { ContextConversation } from './ContextConversation'
 import { ContextDetailsPanel } from './ContextDetailsPanel'
 import { PromptComposer } from './PromptComposer'
@@ -14,10 +15,18 @@ export type GlobalContextPageProps = {
   projectId: number
 }
 
+const REJECTION_PATTERN = /^\s*(?:#|\/\/)\s*Error:\s*(.+)/i
+
+function getRejectionReason(generatedContent: GeneratedCodeResponse | null): string | null {
+  return REJECTION_PATTERN.exec(generatedContent?.code ?? '')?.[1]?.trim() ?? null
+}
+
 export function GlobalContextPage({ projectId }: GlobalContextPageProps) {
   const [draft, setDraft] = useState('')
   const [sentPrompt, setSentPrompt] = useState<string | null>(null)
   const { context, run, status, error } = useCreateProjectContext()
+  const rejectionReason = getRejectionReason(context?.generatedContent ?? null)
+  const generatedContent = rejectionReason === null ? (context?.generatedContent ?? null) : null
 
   async function handleSubmit(): Promise<void> {
     const prompt = draft.trim()
@@ -42,7 +51,8 @@ export function GlobalContextPage({ projectId }: GlobalContextPageProps) {
           <h2 className="text-lg leading-none font-bold text-gray-900">{GLOBAL_CONTEXT_PAGE_TEXTS.goalTitle}</h2>
           <ContextConversation
             prompt={context?.initialPrompt ?? sentPrompt}
-            generatedContent={context?.generatedContent ?? null}
+            generatedContent={generatedContent}
+            rejectionReason={rejectionReason}
             status={status}
             errorMessage={error ? getErrorMessage(error, GLOBAL_CONTEXT_ERROR_MESSAGES) : null}
           />
@@ -55,7 +65,7 @@ export function GlobalContextPage({ projectId }: GlobalContextPageProps) {
           />
         </Card>
 
-        <ContextDetailsPanel generatedContent={context?.generatedContent ?? null} />
+        <ContextDetailsPanel generatedContent={generatedContent} isRejected={rejectionReason !== null} />
       </div>
     </div>
   )

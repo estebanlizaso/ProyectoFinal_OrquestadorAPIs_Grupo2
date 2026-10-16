@@ -8,11 +8,13 @@ export const GLOBAL_CONTEXT_PAGE_TEXTS = {
   questionsTitle: 'Para completar la arquitectura necesito confirmar:',
   codeTitle: (language: string): string => `Código generado (${language})`,
   errorTitle: 'No se pudo generar el contexto',
+  rejectedTitle: 'La IA no puede ayudarte con esto',
 }
 
 export const CONTEXT_DETAILS_TEXTS = {
   title: 'Contexto detectado',
   empty: 'Acá vas a ver el resumen y el plan cuando envíes el objetivo.',
+  rejected: 'No hay contexto para esta solicitud.',
   planTitle: 'Plan de la IA',
 }
 
