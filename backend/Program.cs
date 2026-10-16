@@ -10,6 +10,17 @@ using OrquestadorApi.Services.Projects;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendLocal", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 var envPath = Path.Combine(builder.Environment.ContentRootPath, ".env");
 
 if (!File.Exists(envPath))
@@ -85,6 +96,7 @@ builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IProjectContextService, ProjectContextService>();
 
 var app = builder.Build();
+app.UseCors("FrontendLocal");
 
 if (app.Environment.IsDevelopment())
 {

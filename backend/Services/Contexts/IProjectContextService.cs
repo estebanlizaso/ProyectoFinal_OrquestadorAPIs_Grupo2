@@ -8,6 +8,9 @@ public interface IProjectContextService
         int projectId,
         string prompt,
         CancellationToken cancellationToken = default);
+    Task<string?> GetInitialPromptAsync(
+    int projectId,
+    CancellationToken cancellationToken = default);
 }
 
 public enum CreateProjectContextStatus
@@ -22,3 +25,5 @@ public record CreateProjectContextResult(
     CreateProjectContextStatus Status,
     ProjectContextResponse? Context = null,
     int? ContextId = null);
+
+
