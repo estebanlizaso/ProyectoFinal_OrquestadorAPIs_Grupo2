@@ -47,3 +47,15 @@ export const PROJECT_SEARCH_TEXTS = {
   noResultsTitle: 'No hay resultados',
   noResultsDescription: (term: string): string => `No encontramos proyectos que coincidan con "${term}".`,
 }
+
+export const PROJECT_CREATE_TEXTS = {
+  title: 'Nueva orquestación',
+  description: 'Ponele un nombre a tu orquestación. Después vas a definir su contexto.',
+  nameLabel: 'Nombre',
+  namePlaceholder: 'Ej: Orquestador de pagos',
+  cancel: 'Cancelar',
+  confirm: 'Confirmar',
+  creating: 'Creando...',
+  errorTitle: 'No se pudo crear el proyecto',
+  invalidName: 'El nombre no es válido.',
+}

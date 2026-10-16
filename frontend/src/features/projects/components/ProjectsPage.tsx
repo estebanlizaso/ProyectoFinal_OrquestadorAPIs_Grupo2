@@ -11,7 +11,11 @@ import { ProjectPagination } from './ProjectPagination'
 import { ProjectSearch } from './ProjectSearch'
 import { ProjectsContent } from './ProjectsContent'
 
-export function ProjectsPage() {
+export type ProjectsPageProps = {
+  onNewOrchestration: () => void
+}
+
+export function ProjectsPage({ onNewOrchestration }: ProjectsPageProps) {
   const [query, setQuery] = useState('')
   const searchTerm = useDebouncedValue(query.trim(), SEARCH_DEBOUNCE_MS)
   const [page, setPage] = useState(FIRST_PAGE)
@@ -42,7 +46,7 @@ export function ProjectsPage() {
       <PageHeader
         title={PROJECTS_PAGE_TEXTS.title}
         subtitle={PROJECTS_PAGE_TEXTS.subtitle}
-        actions={<Button>{PROJECTS_PAGE_TEXTS.newOrchestration}</Button>}
+        actions={<Button onClick={onNewOrchestration}>{PROJECTS_PAGE_TEXTS.newOrchestration}</Button>}
       />
 
       <div className="mb-6 max-w-md">

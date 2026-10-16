@@ -6,15 +6,16 @@ import { SidebarNavItem } from './SidebarNavItem'
 
 export type SidebarProps = {
   activeNavItem: NavItemId
+  onNewOrchestration: () => void
 }
 
-export function Sidebar({ activeNavItem }: SidebarProps) {
+export function Sidebar({ activeNavItem, onNewOrchestration }: SidebarProps) {
   const navigationTitleId = useId()
 
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-gray-100 bg-white p-4">
       <div className="mb-8 flex items-center gap-2">
-        <Button size="icon" aria-label={APP_TEXTS.newOrchestration}>
+        <Button size="icon" aria-label={APP_TEXTS.newOrchestration} onClick={onNewOrchestration}>
           <Plus className="size-4.5" aria-hidden="true" />
         </Button>
         <span className="text-lg leading-none font-bold text-gray-900">{APP_TEXTS.title}</span>
