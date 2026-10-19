@@ -51,6 +51,15 @@ namespace OrquestadorApi.Migrations
 
             modelBuilder.Entity("OrquestadorApi.Models.ProjectContext", b =>
                 {
+                    b.Property<string>("Resumen")
+                        .HasColumnType("text")
+                        .HasColumnName("resumen");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .IsConcurrencyToken()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
                     b.Property<int>("ContextId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")

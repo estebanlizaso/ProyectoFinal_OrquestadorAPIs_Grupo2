@@ -17,5 +17,12 @@ public class ProjectContext
     [Column("initial_prompt")]
     public required string InitialPrompt { get; set; }
 
+    [Column("resumen")]
+    public string? Resumen { get; set; }
+
+    [ConcurrencyCheck]
+    [Column("updated_at")]
+    public DateTime? UpdatedAt { get; set; }
+
     public Project Project { get; set; } = null!;
 }

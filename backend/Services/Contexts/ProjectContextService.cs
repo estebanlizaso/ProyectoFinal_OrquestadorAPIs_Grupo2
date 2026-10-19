@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Text.Json;
 using OrquestadorApi.Data;
 using OrquestadorApi.DTOs;
 using OrquestadorApi.Models;
@@ -72,9 +73,35 @@ public class ProjectContextService : IProjectContextService
 
         try
         {
-            var generatedContent = await _aiProvider.GenerateContentAsync(
-                projectContext.InitialPrompt,
-                cancellationToken);
+            var currentMessage = prompt.Trim();
+            var agentInput = JsonSerializer.Serialize(new
+            {
+                initialPrompt = projectContext.InitialPrompt,
+                resumen = projectContext.Resumen,
+                userMessage = currentMessage
+            });
+            var generatedContent = await _aiProvider.GenerateContentAsync(agentInput, cancellationToken);
+            if (generatedContent.Status == "out_of_scope")
+            {
+                return new CreateProjectContextResult(
+                    contextWasCreated ? CreateProjectContextStatus.Created : CreateProjectContextStatus.Reused,
+                    new ProjectContextResponse(
+                        projectContext.ContextId, projectContext.ProjectId, projectContext.InitialPrompt,
+                        generatedContent, projectContext.Resumen, projectContext.UpdatedAt));
+            }
+
+            var resumen = await _aiProvider.GenerateResumenAsync(
+                projectContext.InitialPrompt, projectContext.Resumen, currentMessage,
+                generatedContent, cancellationToken);
+
+            if (_dbContext.Entry(projectContext).State == EntityState.Detached)
+            {
+                _dbContext.Contexts.Attach(projectContext);
+            }
+
+            projectContext.Resumen = resumen;
+            projectContext.UpdatedAt = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync(cancellationToken);
 
             return new CreateProjectContextResult(
                 contextWasCreated
@@ -84,7 +111,14 @@ public class ProjectContextService : IProjectContextService
                     projectContext.ContextId,
                     projectContext.ProjectId,
                     projectContext.InitialPrompt,
-                    generatedContent));
+                    generatedContent,
+                    projectContext.Resumen,
+                    projectContext.UpdatedAt));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new CreateProjectContextResult(
+                CreateProjectContextStatus.Conflict, ContextId: projectContext.ContextId);
         }
         catch (AiProviderException exception)
         {
