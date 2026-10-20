@@ -18,6 +18,7 @@ public enum CreateProjectContextStatus
     Created,
     Reused,
     ProjectNotFound,
+    Conflict,
     AiProviderFailed
 }
 

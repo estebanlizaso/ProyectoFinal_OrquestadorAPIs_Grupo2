@@ -27,6 +27,50 @@ public class GeminiAiProvider : IAiProvider
         string prompt,
         CancellationToken cancellationToken = default)
     {
+        return ParseGeneratedContent(await SendAsync(
+            prompt, BuildSystemInstruction(_rulesProvider.RulesJson), ResponseJsonSchema, cancellationToken));
+    }
+
+    public async Task<string> GenerateResumenAsync(
+        string initialPrompt,
+        string? previousResumen,
+        string userMessage,
+        GeneratedCodeResponse response,
+        CancellationToken cancellationToken = default)
+    {
+        var input = JsonSerializer.Serialize(new { initialPrompt, previousResumen, userMessage, response });
+        var json = await SendAsync(input,
+            BuildSystemInstruction(_rulesProvider.SummaryRulesJson),
+            new
+            {
+                type = "object",
+                additionalProperties = false,
+                properties = new { resumen = new { type = "string" } },
+                required = new[] { "resumen" }
+            }, cancellationToken);
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.TryGetProperty("resumen", out var value) &&
+                value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString()))
+            {
+                return value.GetString()!.Trim();
+            }
+        }
+        catch (JsonException exception)
+        {
+            throw new AiProviderException("Gemini devolvió un resumen inválido.", exception);
+        }
+
+        throw new AiProviderException("Gemini devolvió un resumen vacío o inválido.");
+    }
+
+    private async Task<string> SendAsync(
+        string prompt,
+        string systemInstruction,
+        object responseSchema,
+        CancellationToken cancellationToken)
+    {
         var path = $"{_options.ApiVersion.Trim('/')}/models/" +
             $"{Uri.EscapeDataString(_options.Model)}:generateContent";
 
@@ -40,12 +84,12 @@ public class GeminiAiProvider : IAiProvider
                 request.Headers.Add("x-goog-api-key", _options.ApiKey);
                 request.Content = JsonContent.Create(new GeminiRequest(
                     new GeminiContent(
-                        [new GeminiPart(BuildSystemInstruction(_rulesProvider.RulesJson))]),
+                        [new GeminiPart(systemInstruction)]),
                     [new GeminiContent([new GeminiPart(prompt)])],
                     new GeminiGenerationConfig(
                         0.2,
                         "application/json",
-                        ResponseJsonSchema)));
+                        responseSchema)));
 
                 using var response = await _httpClient.SendAsync(request, cancellationToken);
 
@@ -81,7 +125,7 @@ public class GeminiAiProvider : IAiProvider
                     throw new AiProviderException("Gemini devolvió una respuesta sin contenido.");
                 }
 
-                return ParseGeneratedContent(generatedContentJson);
+                return generatedContentJson;
             }
 
             throw new AiProviderException("Gemini agotó los intentos de generación.");
@@ -136,6 +180,17 @@ public class GeminiAiProvider : IAiProvider
             throw new AiProviderException("Gemini devolvió un contrato de respuesta incompleto.");
         }
 
+        if (generatedContent.Status == "out_of_scope")
+        {
+            if (generatedContent.Questions.Count != 0 || generatedContent.Plan.Count != 0 ||
+                generatedContent.Code is not null)
+            {
+                throw new AiProviderException("Gemini devolvió un estado out_of_scope inválido.");
+            }
+
+            return generatedContent;
+        }
+
         if (generatedContent.Status == "needs_clarification")
         {
             if (generatedContent.Questions.Count == 0 || generatedContent.Code is not null)
@@ -172,7 +227,7 @@ public class GeminiAiProvider : IAiProvider
             status = new
             {
                 type = "string",
-                @enum = new[] { "needs_clarification", "ready" }
+                @enum = new[] { "needs_clarification", "ready", "out_of_scope" }
             },
             language = new { type = "string" },
             summary = new { type = "string" },

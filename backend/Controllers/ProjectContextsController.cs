@@ -20,6 +20,7 @@ public class ProjectContextsController : ControllerBase
     [ProducesResponseType(typeof(ProjectContextResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProjectContextGenerationErrorResponse), StatusCodes.Status502BadGateway)]
     public async Task<ActionResult<ProjectContextResponse>> Create(
         [FromRoute] int projectId,
@@ -38,11 +39,15 @@ public class ProjectContextsController : ControllerBase
                 result.Context),
             CreateProjectContextStatus.Reused => Ok(result.Context),
             CreateProjectContextStatus.ProjectNotFound => NotFound(),
+            CreateProjectContextStatus.Conflict => Conflict(new
+            {
+                message = "El contexto cambió durante la generación. Reenviá el mensaje para usar la memoria actualizada."
+            }),
             CreateProjectContextStatus.AiProviderFailed => StatusCode(
                 StatusCodes.Status502BadGateway,
                 new ProjectContextGenerationErrorResponse(
                     result.ContextId!.Value,
-                    "El prompt fue guardado, pero no se pudo generar el contexto con Gemini.")),
+                    "No se pudo completar la respuesta o actualizar el resumen con Gemini. La memoria anterior se conserva; reenviá el mensaje para reintentar.")),
             _ => throw new InvalidOperationException("Estado de creación de contexto desconocido.")
         };
     }
