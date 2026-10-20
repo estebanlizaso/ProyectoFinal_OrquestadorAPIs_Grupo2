@@ -22,7 +22,16 @@ public class ProjectContextService : IProjectContextService
         _aiProvider = aiProvider;
         _logger = logger;
     }
-
+    public async Task<string?> GetInitialPromptAsync(
+    int projectId,
+    CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Contexts
+            .AsNoTracking()
+            .Where(context => context.ProjectId == projectId)
+            .Select(context => context.InitialPrompt)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
     public async Task<CreateProjectContextResult> CreateAsync(
         int projectId,
         string prompt,
