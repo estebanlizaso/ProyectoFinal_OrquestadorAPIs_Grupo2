@@ -10,12 +10,16 @@ using OrquestadorApi.Services.Projects;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var frontendOrigins = builder.Configuration
+    .GetSection("Cors:FrontendOrigins")
+    .Get<string[]>() ?? [];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendLocal", policy =>
     {
         policy
-            .WithOrigins("http://localhost:5173")
+            .WithOrigins(frontendOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });

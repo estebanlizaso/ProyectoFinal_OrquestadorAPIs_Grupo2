@@ -47,10 +47,11 @@ public class ProjectContextsController : ControllerBase
         };
     }
 
+
     [HttpGet]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(InitialProjectPromptResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Get(
+    public async Task<ActionResult<InitialProjectPromptResponse>> Get(
         [FromRoute] int projectId,
         CancellationToken cancellationToken)
     {
@@ -63,6 +64,7 @@ public class ProjectContextsController : ControllerBase
             return NotFound();
         }
 
-        return Ok(new { initialPrompt });
+        return Ok(new InitialProjectPromptResponse(initialPrompt));
     }
+
 }
