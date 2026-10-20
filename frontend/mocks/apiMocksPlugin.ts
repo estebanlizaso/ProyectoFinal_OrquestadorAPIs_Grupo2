@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
+import type { CreateProjectContextRequest, ProjectContextResponse } from '../src/features/global-context/types.ts'
 import { FIRST_PAGE } from '../src/features/projects/constants.ts'
 import type {
   CreateProjectRequest,
@@ -7,12 +8,15 @@ import type {
   ProjectResponse,
   ProjectsResponse,
 } from '../src/features/projects/types.ts'
+import { MOCK_GENERATED_CONTENT } from './projectContexts.ts'
 import { MOCK_PROJECTS } from './projects.ts'
 
 export type ApiMockScenario = 'success' | 'empty' | 'error'
 
 const API_MOCK_SCENARIOS: ApiMockScenario[] = ['success', 'empty', 'error']
 const PROJECTS_ROUTE = '/api/projects'
+const PROJECTS_ROOT_PATH = '/'
+const PROJECT_CONTEXT_PATH_PATTERN = /^\/(\d+)\/context\/?$/
 const MOCK_DELAY_MS = 800
 const MOCK_TRACE_ID = 'mock-trace-id'
 const MOCK_ORIGIN = 'http://localhost'
@@ -31,12 +35,15 @@ const MOCK_ERROR_TITLES = {
   invalidRequest: 'Solicitud inválida',
   invalidPage: 'Número de página inválido',
   projectNotFound: 'Proyecto no encontrado',
-  validation: 'Una o mas errores de validacion ocurridos.',
+  validation: 'One or more validation errors occurred.',
 }
 
-const MOCK_VALIDATION_MESSAGES = {
-  nameRequired: 'El nombre es requerido',
+const MOCK_VALIDATION_ERRORS = {
+  nameRequired: { Name: ['The Name field is required.'] },
+  promptRequired: { Prompt: ['The Prompt field is required.'] },
 }
+
+type ValidationErrors = Record<string, string[]>
 
 function isApiMockScenario(value: string): value is ApiMockScenario {
   return API_MOCK_SCENARIOS.some((scenario) => scenario === value)
@@ -69,6 +76,21 @@ function isCreateProjectRequest(value: unknown): value is CreateProjectRequest {
     typeof value.name === 'string' &&
     value.name.trim() !== ''
   )
+}
+
+function isCreateProjectContextRequest(value: unknown): value is CreateProjectContextRequest {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'prompt' in value &&
+    typeof value.prompt === 'string' &&
+    value.prompt.trim() !== ''
+  )
+}
+
+function getContextProjectId(pathname: string): number | null {
+  const rawProjectId = PROJECT_CONTEXT_PATH_PATTERN.exec(pathname)?.[1]
+  return rawProjectId === undefined ? null : Number(rawProjectId)
 }
 
 function wait(milliseconds: number): Promise<void> {
@@ -162,13 +184,13 @@ function getTodayAsDateOnly(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-function sendValidationProblem(response: ServerResponse): void {
+function sendValidationProblem(response: ServerResponse, errors: ValidationErrors): void {
   sendJson(response, HTTP_STATUS.badRequest, {
     type: 'about:blank',
     title: MOCK_ERROR_TITLES.validation,
     status: HTTP_STATUS.badRequest,
     traceId: MOCK_TRACE_ID,
-    errors: { Name: [MOCK_VALIDATION_MESSAGES.nameRequired] },
+    errors,
   })
 }
 
@@ -205,7 +227,7 @@ async function sendCreateResult(
     return
   }
   if (!isCreateProjectRequest(payload)) {
-    sendValidationProblem(response)
+    sendValidationProblem(response, MOCK_VALIDATION_ERRORS.nameRequired)
     return
   }
   const project: ProjectResponse = {
@@ -245,27 +267,72 @@ async function sendDeleteResult(
   response.end()
 }
 
+async function sendCreateContextResult(
+  request: IncomingMessage,
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  projects: ProjectResponse[],
+  contexts: Map<number, ProjectContextResponse>,
+  projectId: number,
+): Promise<void> {
+  const payload = await readJsonBody(request).catch(() => undefined)
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  if (!isCreateProjectContextRequest(payload)) {
+    sendValidationProblem(response, MOCK_VALIDATION_ERRORS.promptRequired)
+    return
+  }
+  if (!projects.some((project) => project.projectId === projectId)) {
+    sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.projectNotFound)
+    return
+  }
+  const existingContext = contexts.get(projectId)
+  if (existingContext) {
+    sendJson(response, HTTP_STATUS.ok, existingContext)
+    return
+  }
+  const context: ProjectContextResponse = {
+    contextId: contexts.size + 1,
+    projectId,
+    initialPrompt: payload.prompt.trim(),
+    generatedContent: MOCK_GENERATED_CONTENT,
+  }
+  contexts.set(projectId, context)
+  sendJson(response, HTTP_STATUS.created, context)
+}
+
 export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
   const projects: ProjectResponse[] = scenario === 'success' ? [...MOCK_PROJECTS] : []
+  const contexts = new Map<number, ProjectContextResponse>()
 
   return {
     name: 'api-mocks',
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use(PROJECTS_ROUTE, (request, response, next) => {
+        const url = getRequestUrl(request)
+        const contextProjectId = getContextProjectId(url.pathname)
+
+        if (contextProjectId !== null && request.method === 'POST') {
+          void sendCreateContextResult(request, response, scenario, projects, contexts, contextProjectId)
+          return
+        }
+        if (url.pathname !== PROJECTS_ROOT_PATH) {
+          next()
+          return
+        }
         if (request.method === 'GET') {
-          const url = getRequestUrl(request)
           setTimeout(() => sendProjects(response, scenario, projects, url), MOCK_DELAY_MS)
           return
         }
-
-          if (request.method === 'POST') {
+        if (request.method === 'POST') {
           void sendCreateResult(request, response, scenario, projects)
           return
         }
-
-
-
         if (request.method === 'DELETE') {
           void sendDeleteResult(request, response, scenario, projects)
           return

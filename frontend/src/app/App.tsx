@@ -1,8 +1,8 @@
 import { useState } from 'react'
+import { GlobalContextPage } from '../features/global-context'
 import { CreateProjectModal, ProjectsPage, type ProjectResponse } from '../features/projects'
 import { navigate } from '../shared/lib/navigate'
 import { usePathname } from '../shared/lib/usePathname'
-import { ProjectContextPlaceholder } from './ProjectContextPlaceholder'
 import { AppLayout } from './layout/AppLayout'
 import { buildProjectContextPath, resolveRoute } from './routes'
 
@@ -26,7 +26,7 @@ export function App() {
   return (
     <AppLayout activeNavItem="projects" onNewOrchestration={openCreateModal}>
       {route.name === 'projectContext' ? (
-        <ProjectContextPlaceholder projectId={route.projectId} />
+        <GlobalContextPage key={route.projectId} projectId={route.projectId} />
       ) : (
         <ProjectsPage onNewOrchestration={openCreateModal} />
       )}

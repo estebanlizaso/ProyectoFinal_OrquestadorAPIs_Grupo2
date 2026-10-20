@@ -1,7 +1,9 @@
 import { useDeleteProject } from '../../../services/projectService'
+import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import { Button } from '../../../shared/ui/Button'
 import { Modal } from '../../../shared/ui/Modal'
 import { PROJECT_DELETE_TEXTS } from '../constants'
+import { PROJECT_DELETE_ERROR_MESSAGES } from '../errorMessages'
 import type { ProjectResponse } from '../types'
 
 export type DeleteProjectModalProps = {
@@ -31,7 +33,7 @@ export function DeleteProjectModal({ project, onClose, onDeleted }: DeleteProjec
       {error && (
         <div role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
           <p className="font-semibold">{PROJECT_DELETE_TEXTS.errorTitle}</p>
-          <p>{error.message}</p>
+          <p>{getErrorMessage(error, PROJECT_DELETE_ERROR_MESSAGES)}</p>
         </div>
       )}
       <div className="mt-6 flex justify-end gap-2">

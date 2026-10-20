@@ -1,5 +1,6 @@
 import { CircleAlert, FolderOpen, SearchX } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import type { RequestStatus } from '../../../shared/api/requestStatus'
 import { Button } from '../../../shared/ui/Button'
 import { StatusMessage } from '../../../shared/ui/StatusMessage'
@@ -33,7 +34,7 @@ export function ProjectsContent({
         icon={CircleAlert}
         tone="error"
         title={PROJECTS_PAGE_TEXTS.errorTitle}
-        description={error?.message}
+        description={error ? getErrorMessage(error) : undefined}
         action={
           <Button variant="secondary" onClick={onRetry}>
             {PROJECTS_PAGE_TEXTS.retry}

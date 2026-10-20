@@ -1,19 +1,16 @@
 import { useId, useState } from 'react'
 import { useCreateProject } from '../../../services/projectService'
-import { ApiError } from '../../../shared/api/ApiError'
+import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import { Button } from '../../../shared/ui/Button'
 import { Input } from '../../../shared/ui/Input'
 import { Modal } from '../../../shared/ui/Modal'
 import { PROJECT_CREATE_TEXTS } from '../constants'
+import { PROJECT_CREATE_ERROR_MESSAGES } from '../errorMessages'
 import type { ProjectResponse } from '../types'
 
 export type CreateProjectModalProps = {
   onClose: () => void
   onCreated: (project: ProjectResponse) => void
-}
-
-function getErrorMessage(error: Error): string {
-  return error instanceof ApiError && error.status === 400 ? PROJECT_CREATE_TEXTS.invalidName : error.message
 }
 
 export function CreateProjectModal({ onClose, onCreated }: CreateProjectModalProps) {
@@ -60,7 +57,7 @@ export function CreateProjectModal({ onClose, onCreated }: CreateProjectModalPro
         {error && (
           <div role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
             <p className="font-semibold">{PROJECT_CREATE_TEXTS.errorTitle}</p>
-            <p>{getErrorMessage(error)}</p>
+            <p>{getErrorMessage(error, PROJECT_CREATE_ERROR_MESSAGES)}</p>
           </div>
         )}
         <div className="mt-6 flex justify-end gap-2">

@@ -57,5 +57,4 @@ export const PROJECT_CREATE_TEXTS = {
   confirm: 'Confirmar',
   creating: 'Creando...',
   errorTitle: 'No se pudo crear el proyecto',
-  invalidName: 'El nombre no es válido.',
 }

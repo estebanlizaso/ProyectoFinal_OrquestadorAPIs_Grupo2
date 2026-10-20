@@ -38,9 +38,17 @@ frontend/
   src/
     app/                      # main.tsx, App.tsx, providers, estilos globales
     features/
-      projects/                # Home: listado paginado, búsqueda, creación y eliminación de proyectos (GET/POST/DELETE /api/projects)
-        components/           # ProjectCard
+      projects/               # Home: listado paginado, búsqueda, creación y eliminación de proyectos (GET/POST/DELETE /api/projects)
+        components/           # ProjectCard, CreateProjectModal, DeleteProjectModal
+        constants.ts          # textos de UI
+        errorMessages.ts      # mensajes de error de la feature para getErrorMessage
         types.ts              # espejo de los DTOs de proyectos
+        index.ts
+      global-context/         # Contexto global: prompt inicial del proyecto (POST /api/projects/{projectId}/context)
+        components/           # GlobalContextPage, PromptComposer, ContextConversation, ContextDetailsPanel
+        constants.ts
+        errorMessages.ts
+        types.ts              # espejo de los DTOs de contexto
         index.ts
       canvas/                 # lienzo React Flow
         components/           # FlowCanvas, Toolbar, Sidebar
@@ -53,14 +61,17 @@ frontend/
         buildMasterJson.ts
         schema.ts             # contrato del JSON maestro (fuente única en el front)
     services/                 # un archivo por recurso del backend, con todo lo del recurso
-      projectService.ts       # projectService (getAll, delete) + useProjects, useDeleteProject
+      projectService.ts       # projectService (getAll, create, delete) + useProjects, useCreateProject, useDeleteProject
+      projectContextService.ts # projectContextService (create) + useCreateProjectContext
       exportService.ts        # cuando exista el endpoint de exportación (service + useExportFlow)
     shared/
       ui/                     # Button, Modal, Input (sin lógica de negocio)
       api/httpClient.ts       # único lugar donde se usa fetch
       api/ApiError.ts
       api/requestStatus.ts    # 'idle' | 'loading' | 'success' | 'error'
-      lib/                    # utilidades puras (cn, toError, ids, etc.)
+      api/httpStatus.ts       # códigos HTTP con nombre (HTTP_STATUS.notFound)
+      api/getErrorMessage.ts  # traduce un error a un mensaje para el usuario
+      lib/                    # utilidades puras (cn, toError, wait, navigate, etc.)
   mocks/                      # respuestas simuladas del backend para `npm run dev`
   .env.example
 ```
@@ -70,8 +81,7 @@ Reglas:
 - Se agrupa **por funcionalidad**, no por tipo de archivo.
 - Una feature solo importa de otra a través de su `index.ts`, nunca de sus archivos internos.
 - `shared/` solo contiene código reutilizable sin conocimiento del dominio.
-- `services/` es global y tiene **un archivo por recurso del backend** (`projectService.ts`, y después `userService.ts`, etc.). Ese archivo concentra todo lo del recurso: el objeto service con sus métodos y los hooks que los ejecutan (`useProjects`, `useDeleteProject`). Los componentes usan los hooks; nunca llaman a un service directo. create: projectService.getAll() / projectService.create(name) / projectService.delete(projectId).
-
+- `services/` es global y tiene **un archivo por recurso del backend** (`projectService.ts`, y después `userService.ts`, etc.). Ese archivo concentra todo lo del recurso: el objeto service con sus métodos y los hooks que los ejecutan (`useProjects`, `useDeleteProject`). Los componentes usan los hooks; nunca llaman a un service directo.
 - La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context`).
 
 ---
@@ -92,9 +102,7 @@ Reglas:
   - Los `4xx` devuelven ProblemDetails (`type`, `title`, `status`, `traceId`).
   - Los `400` de validación son ValidationProblemDetails, con `errors` por campo.
   - Los `500` no tienen un formato garantizado.
-
-
-
+- `POST /api/projects/{projectId}/context` recibe `{ "prompt": string }` (`CreateProjectContextRequest`) y responde `ProjectContextResponse` (`contextId`, `projectId`, `initialPrompt`, `generatedContent`). Responde `201` la primera vez y `200` si el proyecto ya tenía contexto: en ese caso ignora el prompt nuevo y vuelve a generar con el inicial. Responde `404` si el proyecto no existe y `502` (`{ contextId, message }`) si falla la IA. Puede tardar hasta 60 s, por eso el service usa un timeout de 65 s.
 
 ---
 
@@ -138,6 +146,7 @@ Reglas:
 - Los hooks viven en el mismo archivo que su service (`src/services/<recurso>Service.ts`), lo llaman y devuelven `{ run, status, error }` (más los datos, si la request trae alguno), con `status: RequestStatus`. Si el hook carga datos al montarse, cancela la request al desmontarse.
 - La descarga del ZIP se resuelve con `Blob` + `URL.createObjectURL`, y se revoca la URL al terminar.
 - Si más adelante se decide volver a Axios, solo cambia `httpClient.ts`.
+- Al usuario nunca se le muestran `error.message`, códigos HTTP ni textos del backend. Los componentes usan `getErrorMessage(error, MENSAJES_DE_LA_FEATURE)`: los mensajes generales (sin conexión, timeout, `500`, error desconocido) están en el helper, y cada feature agrega o reemplaza los suyos por código en su `errorMessages.ts`.
 
 ### Mocks
 
@@ -145,6 +154,7 @@ Reglas:
 - Se activan con `API_MOCKS` en el `.env` local: `success`, `empty` o `error` (un `500`). Vacía, el front habla con el backend real por el proxy. Solo se interceptan las rutas mockeadas; el resto sigue al proxy.
 - Los datos mockeados copian los datos semilla del backend (`backend/Data/DatabaseInitializer.cs`) y se tipan con los tipos del front, así respetan el mismo contrato (`{ body: [...] }`, `created_at`, nullables). No se agregan campos que el backend no devuelve.
 - La app no sabe si está mockeada: llama a la misma URL (`VITE_API_URL`) en los dos casos.
+- Los mocks se compilan con otra configuración de TypeScript. Por eso los archivos de `src/` que importan (`types.ts` y `constants.ts` de una feature) no importan nada de `shared/`.
 
 ---
 

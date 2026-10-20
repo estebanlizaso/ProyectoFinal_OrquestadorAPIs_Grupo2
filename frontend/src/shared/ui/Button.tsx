@@ -12,7 +12,7 @@ export type ButtonProps = ComponentPropsWithoutRef<'button'> & {
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary: 'bg-primary-blue font-medium text-white hover:bg-primary-blue/90 disabled:opacity-50',
   secondary:
-    'border border-gray-200 bg-white font-medium text-primary-blue hover:bg-gray-50 disabled:opacity-50',
+    'border border-gray-200 bg-white font-medium text-primary-blue hover:bg-gray-100 disabled:opacity-50',
   soft: 'border border-primary-blue-light bg-primary-blue-light font-normal text-primary-blue hover:border-primary-blue',
   danger: 'bg-red-600 font-medium text-white hover:bg-red-700 disabled:opacity-50',
 }
@@ -34,7 +34,7 @@ export function Button({
     <button
       type={type}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-lg transition-colors disabled:cursor-not-allowed',
+        'inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg transition-colors disabled:cursor-not-allowed',
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
         className,
