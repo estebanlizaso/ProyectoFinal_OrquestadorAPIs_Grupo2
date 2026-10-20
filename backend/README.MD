@@ -130,12 +130,6 @@ generación, se devuelve HTTP 409 para evitar sobrescribir esa memoria; se debe 
 el mensaje usando el contexto actualizado. Las dos llamadas aumentan el tiempo de respuesta
 y el consumo de la API.
 
-Verificaciones sin conexión a PostgreSQL ni llamadas reales a Gemini, desde la raíz:
-
-```bash
-dotnet run --project tests/ContextMemory.Checks/ContextMemory.Checks.csproj
-```
-
 Las instrucciones de IA se centralizan en `AI/Rules`: `code-generator.rules.json`
 para generar c?digo y `context-summary.rules.json` para consolidar la memoria
 (incluye el l?mite de 600 palabras y las reglas sobre decisiones, supuestos y mocks).
