@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ContextMemory.Checks")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fab35c501f5deb06262fe747a532eae71f17ed1b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+acecc72789ae30b2fa4d7ba315f4b28fa204c4d7")]
 [assembly: System.Reflection.AssemblyProductAttribute("ContextMemory.Checks")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ContextMemory.Checks")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
