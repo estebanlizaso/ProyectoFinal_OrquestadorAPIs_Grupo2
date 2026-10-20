@@ -14,3 +14,7 @@ export type ProjectsResponse = {
 export type DeleteProjectRequest = {
   projectId: ProjectResponse['projectId']
 }
+
+export type CreateProjectRequest = {
+  name: string
+}

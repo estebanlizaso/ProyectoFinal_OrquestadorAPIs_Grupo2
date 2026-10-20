@@ -38,7 +38,7 @@ frontend/
   src/
     app/                      # main.tsx, App.tsx, providers, estilos globales
     features/
-      projects/               # Home: listado paginado, búsqueda y eliminación de proyectos (GET/DELETE /api/projects)
+      projects/                # Home: listado paginado, búsqueda, creación y eliminación de proyectos (GET/POST/DELETE /api/projects)
         components/           # ProjectCard
         types.ts              # espejo de los DTOs de proyectos
         index.ts
@@ -70,7 +70,9 @@ Reglas:
 - Se agrupa **por funcionalidad**, no por tipo de archivo.
 - Una feature solo importa de otra a través de su `index.ts`, nunca de sus archivos internos.
 - `shared/` solo contiene código reutilizable sin conocimiento del dominio.
-- `services/` es global y tiene **un archivo por recurso del backend** (`projectService.ts`, y después `userService.ts`, etc.). Ese archivo concentra todo lo del recurso: el objeto service con sus métodos y los hooks que los ejecutan (`useProjects`, `useDeleteProject`). Los componentes usan los hooks; nunca llaman a un service directo.
+- `services/` es global y tiene **un archivo por recurso del backend** (`projectService.ts`, y después `userService.ts`, etc.). Ese archivo concentra todo lo del recurso: el objeto service con sus métodos y los hooks que los ejecutan (`useProjects`, `useDeleteProject`). Los componentes usan los hooks; nunca llaman a un service directo. create: projectService.getAll() / projectService.create(name) / projectService.delete(projectId).
+
+- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context`).
 
 ---
 
@@ -84,11 +86,15 @@ Reglas:
   - Las respuestas envueltas se respetan (`ProjectsResponse` es `{ body: ProjectResponse[], next: string | null, prev: string | null }`).
   - Los tipos de request/response se nombran como el DTO cuando existe (`ProjectsResponse`, `DeleteProjectRequest`).
 - Los endpoints se consumen como están definidos en el controller, aunque no sigan el estilo REST más habitual. Por ejemplo, `DELETE /api/projects` recibe el id en el body (`{ "projectId": number }`) y responde `204` o `404`.
+- `POST /api/projects` recibe `{ "name": string }` (`CreateProjectRequest`) y responde `201` con el `ProjectResponse` creado, sin el wrapper `body`. Un nombre inválido responde `400` (ValidationProblemDetails).
 - `GET /api/projects` es paginado: recibe `search` y `page` (desde `1`, que es el valor por defecto; un valor inválido responde `400`). El tamaño de página (12) lo define el backend en `PaginationSettings.PageSize` y el frontend no lo repite. `next` y `prev` son URLs absolutas armadas por el backend, o `null` si no hay página en esa dirección. El frontend las usa solo para saber si hay página siguiente o anterior: nunca hace `fetch` a esas URLs, sino que pide la página por número a través de `httpClient`. El backend no devuelve el total, así que la paginación es de Anterior / Siguiente.
 - Formato de errores del backend (`[ApiController]` de ASP.NET):
   - Los `4xx` devuelven ProblemDetails (`type`, `title`, `status`, `traceId`).
   - Los `400` de validación son ValidationProblemDetails, con `errors` por campo.
   - Los `500` no tienen un formato garantizado.
+
+
+
 
 ---
 
