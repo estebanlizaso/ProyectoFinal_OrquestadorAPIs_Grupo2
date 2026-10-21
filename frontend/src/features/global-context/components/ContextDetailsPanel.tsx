@@ -1,4 +1,4 @@
-import { Card } from '../../../shared/ui/Card'
+import { SidePanel } from '../../../shared/ui/SidePanel'
 import { CONTEXT_DETAILS_TEXTS } from '../constants'
 
 export type ContextDetailsPanelProps = {
@@ -7,11 +7,10 @@ export type ContextDetailsPanelProps = {
 
 export function ContextDetailsPanel({ plan }: ContextDetailsPanelProps) {
   return (
-    <Card className="p-6">
-      <h2 className="text-lg leading-none font-bold text-gray-900">{CONTEXT_DETAILS_TEXTS.title}</h2>
+    <SidePanel title={CONTEXT_DETAILS_TEXTS.title}>
       {plan.length > 0 ? (
         <>
-          <h3 className="mt-4 text-sm font-semibold text-gray-900">{CONTEXT_DETAILS_TEXTS.planTitle}</h3>
+          <h3 className="text-sm font-semibold text-gray-900">{CONTEXT_DETAILS_TEXTS.planTitle}</h3>
           <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-gray-500">
             {plan.map((step) => (
               <li key={step}>{step}</li>
@@ -19,8 +18,8 @@ export function ContextDetailsPanel({ plan }: ContextDetailsPanelProps) {
           </ul>
         </>
       ) : (
-        <p className="mt-4 text-sm text-gray-400">{CONTEXT_DETAILS_TEXTS.empty}</p>
+        <p className="text-sm text-gray-400">{CONTEXT_DETAILS_TEXTS.empty}</p>
       )}
-    </Card>
+    </SidePanel>
   )
 }

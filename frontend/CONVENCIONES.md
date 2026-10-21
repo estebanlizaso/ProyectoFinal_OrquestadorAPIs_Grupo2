@@ -51,6 +51,11 @@ frontend/
         types.ts              # espejo de los DTOs de contexto
         useContextHistory.ts  # historial del chat en localStorage (una clave por proyecto) + clearContextHistory
         isOutOfScope.ts
+        findLatestValidTurn.ts # última respuesta que no fue out_of_scope
+      proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama (vacío por ahora) y panel del asistente
+        components/           # ProposedArchitecturePage, ArchitectureDiagram, AiAssistantPanel
+        constants.ts
+        index.ts
         index.ts
       canvas/                 # lienzo React Flow
         components/           # FlowCanvas, Toolbar, Sidebar
@@ -67,7 +72,7 @@ frontend/
       projectContextService.ts # projectContextService (create) + useCreateProjectContext
       exportService.ts        # cuando exista el endpoint de exportación (service + useExportFlow)
     shared/
-      ui/                     # Button, Modal, Input (sin lógica de negocio)
+      ui/                     # Button, Modal, Input, Card, SidePanel (sin lógica de negocio)
       api/httpClient.ts       # único lugar donde se usa fetch
       api/ApiError.ts
       api/requestStatus.ts    # 'idle' | 'loading' | 'success' | 'error'
@@ -84,7 +89,7 @@ Reglas:
 - Una feature solo importa de otra a través de su `index.ts`, nunca de sus archivos internos.
 - `shared/` solo contiene código reutilizable sin conocimiento del dominio.
 - `services/` es global y tiene **un archivo por recurso del backend** (`projectService.ts`, y después `userService.ts`, etc.). Ese archivo concentra todo lo del recurso: el objeto service con sus métodos y los hooks que los ejecutan (`useProjects`, `useDeleteProject`). Los componentes usan los hooks; nunca llaman a un service directo.
-- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context`).
+- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context` o `/projects/{projectId}/architecture`).
 
 ---
 

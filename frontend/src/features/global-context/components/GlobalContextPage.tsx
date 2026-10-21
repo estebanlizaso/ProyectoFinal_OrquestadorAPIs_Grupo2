@@ -6,7 +6,7 @@ import { Card } from '../../../shared/ui/Card'
 import { PageHeader } from '../../../shared/ui/PageHeader'
 import { GLOBAL_CONTEXT_PAGE_TEXTS } from '../constants'
 import { GLOBAL_CONTEXT_ERROR_MESSAGES } from '../errorMessages'
-import { isOutOfScope } from '../isOutOfScope'
+import { findLatestValidTurn } from '../findLatestValidTurn'
 import { useContextHistory } from '../useContextHistory'
 import { ContextConversation } from './ContextConversation'
 import { ContextDetailsPanel } from './ContextDetailsPanel'
@@ -14,14 +14,16 @@ import { PromptComposer } from './PromptComposer'
 
 export type GlobalContextPageProps = {
   projectId: number
+  onGenerateArchitecture: () => void
 }
 
-export function GlobalContextPage({ projectId }: GlobalContextPageProps) {
+export function GlobalContextPage({ projectId, onGenerateArchitecture }: GlobalContextPageProps) {
   const [draft, setDraft] = useState('')
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
   const { turns, addTurn } = useContextHistory(projectId)
   const { run, status, error } = useCreateProjectContext()
-  const latestPlan = turns.findLast((turn) => !isOutOfScope(turn.generatedContent))?.generatedContent.plan ?? []
+  const latestPlan = findLatestValidTurn(turns)?.generatedContent.plan ?? []
+  const hasReadyTurn = turns.some((turn) => turn.generatedContent.status === 'ready')
 
   async function handleSubmit(): Promise<void> {
     const prompt = draft.trim()
@@ -41,7 +43,11 @@ export function GlobalContextPage({ projectId }: GlobalContextPageProps) {
       <PageHeader
         title={GLOBAL_CONTEXT_PAGE_TEXTS.title}
         subtitle={GLOBAL_CONTEXT_PAGE_TEXTS.subtitle}
-        actions={<Button disabled>{GLOBAL_CONTEXT_PAGE_TEXTS.generateArchitecture}</Button>}
+        actions={
+          <Button disabled={!hasReadyTurn} onClick={onGenerateArchitecture}>
+            {GLOBAL_CONTEXT_PAGE_TEXTS.generateArchitecture}
+          </Button>
+        }
       />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
