@@ -1,7 +1,9 @@
+import { useInitialPrompt } from '../../../services/projectContextService'
+import { downloadTextFile } from '../../../shared/lib/downloadTextFile'
 import { formatDateOnly } from '../../../shared/lib/formatDateOnly'
 import { Button } from '../../../shared/ui/Button'
 import { Card } from '../../../shared/ui/Card'
-import { PROJECT_CARD_TEXTS } from '../constants'
+import { buildInitialPromptFileName, PROJECT_CARD_TEXTS } from '../constants'
 import type { ProjectResponse } from '../types'
 import { ProjectCardMenu } from './ProjectCardMenu'
 
@@ -11,7 +13,15 @@ export type ProjectCardProps = {
 }
 
 export function ProjectCard({ project, onDelete }: ProjectCardProps) {
-  const { name, description, created_at: createdAt } = project
+  const { projectId, name, description, created_at: createdAt } = project
+  const { run: fetchInitialPrompt, status: promptStatus } = useInitialPrompt()
+
+  async function handleDownloadPrompt(): Promise<void> {
+    const prompt = await fetchInitialPrompt(projectId)
+    if (prompt !== null) {
+      downloadTextFile(buildInitialPromptFileName(projectId), prompt)
+    }
+  }
 
   return (
     <Card className="flex h-full flex-col gap-3">
@@ -24,7 +34,12 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
             </p>
           )}
         </div>
-        {onDelete && <ProjectCardMenu onDelete={() => onDelete(project)} />}
+        <ProjectCardMenu
+          onDownloadPrompt={() => void handleDownloadPrompt()}
+          isDownloadingPrompt={promptStatus === 'loading'}
+          hasDownloadPromptError={promptStatus === 'error'}
+          onDelete={onDelete && (() => onDelete(project))}
+        />
       </header>
 
       <p className="text-sm text-gray-500">{description || PROJECT_CARD_TEXTS.noDescription}</p>
