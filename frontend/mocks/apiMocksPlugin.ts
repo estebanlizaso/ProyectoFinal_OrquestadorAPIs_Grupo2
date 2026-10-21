@@ -282,6 +282,8 @@ function buildSeedContexts(): Map<number, ProjectContextResponse> {
       projectId,
       initialPrompt,
       generatedContent: MOCK_GENERATED_CONTENT,
+      resumen: null,
+      updatedAt: null,
     })
   })
   return contexts
