@@ -20,4 +20,7 @@ public class AiOptions
 
     [Range(1, 300)]
     public int TimeoutSeconds { get; set; } = 60;
+
+    [Range(1, 600)]
+    public int ArchitectureTimeoutSeconds { get; set; } = 120;
 }
