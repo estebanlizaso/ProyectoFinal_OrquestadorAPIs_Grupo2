@@ -1,6 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
-import type { CreateProjectContextRequest, ProjectContextResponse } from '../src/features/global-context/types.ts'
+import type {
+  CreateProjectContextRequest,
+  InitialProjectPromptResponse,
+  ProjectContextResponse,
+} from '../src/features/global-context/types.ts'
 import { FIRST_PAGE } from '../src/features/projects/constants.ts'
 import type {
   CreateProjectRequest,
@@ -8,6 +12,7 @@ import type {
   ProjectResponse,
   ProjectsResponse,
 } from '../src/features/projects/types.ts'
+import { MOCK_INITIAL_PROMPTS } from './initialPrompts.ts'
 import { MOCK_GENERATED_CONTENT } from './projectContexts.ts'
 import { MOCK_PROJECTS } from './projects.ts'
 
@@ -35,6 +40,7 @@ const MOCK_ERROR_TITLES = {
   invalidRequest: 'Solicitud inválida',
   invalidPage: 'Número de página inválido',
   projectNotFound: 'Proyecto no encontrado',
+  promptNotFound: 'Prompt inicial no encontrado',
   validation: 'One or more validation errors occurred.',
 }
 
@@ -267,6 +273,41 @@ async function sendDeleteResult(
   response.end()
 }
 
+function buildSeedContexts(): Map<number, ProjectContextResponse> {
+  const contexts = new Map<number, ProjectContextResponse>()
+  Object.entries(MOCK_INITIAL_PROMPTS).forEach(([rawProjectId, initialPrompt], index) => {
+    const projectId = Number(rawProjectId)
+    contexts.set(projectId, {
+      contextId: index + 1,
+      projectId,
+      initialPrompt,
+      generatedContent: MOCK_GENERATED_CONTENT,
+    })
+  })
+  return contexts
+}
+
+async function sendInitialPromptResult(
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  contexts: Map<number, ProjectContextResponse>,
+  projectId: number,
+): Promise<void> {
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  const context = contexts.get(projectId)
+  if (!context) {
+    sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.promptNotFound)
+    return
+  }
+  const payload: InitialProjectPromptResponse = { initialPrompt: context.initialPrompt }
+  sendJson(response, HTTP_STATUS.ok, payload)
+}
+
 async function sendCreateContextResult(
   request: IncomingMessage,
   response: ServerResponse,
@@ -309,7 +350,8 @@ async function sendCreateContextResult(
 
 export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
   const projects: ProjectResponse[] = scenario === 'success' ? [...MOCK_PROJECTS] : []
-  const contexts = new Map<number, ProjectContextResponse>()
+  const contexts =
+    scenario === 'success' ? buildSeedContexts() : new Map<number, ProjectContextResponse>()
 
   return {
     name: 'api-mocks',
@@ -321,6 +363,10 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
 
         if (contextProjectId !== null && request.method === 'POST') {
           void sendCreateContextResult(request, response, scenario, projects, contexts, contextProjectId)
+          return
+        }
+        if (contextProjectId !== null && request.method === 'GET') {
+          void sendInitialPromptResult(response, scenario, contexts, contextProjectId)
           return
         }
         if (url.pathname !== PROJECTS_ROOT_PATH) {

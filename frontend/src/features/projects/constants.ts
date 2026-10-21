@@ -4,6 +4,13 @@ export const PROJECT_CARD_TEXTS = {
   createdAt: 'Creado el',
   noDescription: 'Sin descripción',
   deleteAction: 'Eliminar',
+  downloadPromptAction: 'Copiar prompt inicial del proyecto',
+  downloadingPrompt: 'Obteniendo prompt...',
+  downloadPromptError: 'No se pudo obtener el prompt inicial del proyecto.',
+}
+
+export function buildInitialPromptFileName(projectId: number): string {
+  return `prompt-inicial-proyecto-${projectId}.txt`
 }
 
 export const PROJECTS_PAGE_TEXTS = {

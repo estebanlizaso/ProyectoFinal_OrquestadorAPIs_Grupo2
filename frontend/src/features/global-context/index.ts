@@ -6,6 +6,7 @@ export { findLatestValidTurn } from './findLatestValidTurn'
 export type {
   CreateProjectContextRequest,
   GeneratedCodeResponse,
+  InitialProjectPromptResponse,
   ProjectContextGenerationErrorResponse,
   ProjectContextResponse,
 } from './types'

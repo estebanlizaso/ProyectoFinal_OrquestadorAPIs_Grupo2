@@ -1,6 +1,10 @@
 import { useCallback, useState } from 'react'
-import type { CreateProjectContextRequest, ProjectContextResponse } from '../features/global-context'
-import { postJson, type RequestOptions } from '../shared/api/httpClient'
+import type {
+  CreateProjectContextRequest,
+  InitialProjectPromptResponse,
+  ProjectContextResponse,
+} from '../features/global-context'
+import { getJson, postJson, type RequestOptions } from '../shared/api/httpClient'
 import type { RequestStatus } from '../shared/api/requestStatus'
 import { toError } from '../shared/lib/toError'
 
@@ -22,8 +26,17 @@ async function create(
   )
 }
 
+async function getInitialPrompt(
+  projectId: ProjectContextResponse['projectId'],
+  options?: RequestOptions,
+): Promise<string> {
+  const { initialPrompt } = await getJson<InitialProjectPromptResponse>(buildContextPath(projectId), options)
+  return initialPrompt
+}
+
 export const projectContextService = {
   create,
+  getInitialPrompt,
 }
 
 export type UseCreateProjectContextResult = {
@@ -61,4 +74,32 @@ export function useCreateProjectContext(): UseCreateProjectContextResult {
   )
 
   return { context, run, status, error }
+}
+
+export type UseInitialPromptResult = {
+  run: (projectId: ProjectContextResponse['projectId']) => Promise<string | null>
+  status: RequestStatus
+  error: Error | null
+}
+
+export function useInitialPrompt(): UseInitialPromptResult {
+  const [status, setStatus] = useState<RequestStatus>('idle')
+  const [error, setError] = useState<Error | null>(null)
+
+  const run = useCallback(async (projectId: ProjectContextResponse['projectId']): Promise<string | null> => {
+    setStatus('loading')
+    setError(null)
+
+    try {
+      const prompt = await projectContextService.getInitialPrompt(projectId)
+      setStatus('success')
+      return prompt
+    } catch (caught) {
+      setError(toError(caught))
+      setStatus('error')
+      return null
+    }
+  }, [])
+
+  return { run, status, error }
 }
