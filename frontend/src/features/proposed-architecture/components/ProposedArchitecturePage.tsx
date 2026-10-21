@@ -17,6 +17,7 @@ export function ProposedArchitecturePage({ projectId }: ProposedArchitecturePage
     <div className="p-8">
       <PageHeader
         title={PROPOSED_ARCHITECTURE_PAGE_TEXTS.title}
+        subtitle={PROPOSED_ARCHITECTURE_PAGE_TEXTS.subtitle}
         actions={<Button disabled>{PROPOSED_ARCHITECTURE_PAGE_TEXTS.confirmFlow}</Button>}
       />
 

@@ -1,5 +1,6 @@
 export const PROPOSED_ARCHITECTURE_PAGE_TEXTS = {
   title: 'Arquitectura propuesta',
+  subtitle: 'Revisá y ajustá lo que sea necesario en el diagrama.',
   confirmFlow: 'Confirmar flujo',
   diagramEmpty: 'Todavía no hay un diagrama para mostrar.',
 }
