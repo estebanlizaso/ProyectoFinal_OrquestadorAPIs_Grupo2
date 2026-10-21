@@ -300,6 +300,8 @@ async function sendCreateContextResult(
     projectId,
     initialPrompt: payload.prompt.trim(),
     generatedContent: MOCK_GENERATED_CONTENT,
+    resumen: null,
+    updatedAt: new Date().toISOString(),
   }
   contexts.set(projectId, context)
   sendJson(response, HTTP_STATUS.created, context)

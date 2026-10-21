@@ -1,4 +1,5 @@
 import { useDeleteProject } from '../../../services/projectService'
+import { clearContextHistory } from '../../global-context'
 import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import { Button } from '../../../shared/ui/Button'
 import { Modal } from '../../../shared/ui/Modal'
@@ -19,6 +20,7 @@ export function DeleteProjectModal({ project, onClose, onDeleted }: DeleteProjec
   async function handleConfirm(): Promise<void> {
     const wasDeleted = await run(project.projectId)
     if (wasDeleted) {
+      clearContextHistory(project.projectId)
       onDeleted()
     }
   }

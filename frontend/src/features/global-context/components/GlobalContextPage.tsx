@@ -6,7 +6,8 @@ import { Card } from '../../../shared/ui/Card'
 import { PageHeader } from '../../../shared/ui/PageHeader'
 import { GLOBAL_CONTEXT_PAGE_TEXTS } from '../constants'
 import { GLOBAL_CONTEXT_ERROR_MESSAGES } from '../errorMessages'
-import type { GeneratedCodeResponse } from '../types'
+import { isOutOfScope } from '../isOutOfScope'
+import { useContextHistory } from '../useContextHistory'
 import { ContextConversation } from './ContextConversation'
 import { ContextDetailsPanel } from './ContextDetailsPanel'
 import { PromptComposer } from './PromptComposer'
@@ -15,25 +16,22 @@ export type GlobalContextPageProps = {
   projectId: number
 }
 
-const REJECTION_PATTERN = /^\s*(?:#|\/\/)\s*Error:\s*(.+)/i
-
-function getRejectionReason(generatedContent: GeneratedCodeResponse | null): string | null {
-  return REJECTION_PATTERN.exec(generatedContent?.code ?? '')?.[1]?.trim() ?? null
-}
-
 export function GlobalContextPage({ projectId }: GlobalContextPageProps) {
   const [draft, setDraft] = useState('')
-  const [sentPrompt, setSentPrompt] = useState<string | null>(null)
-  const { context, run, status, error } = useCreateProjectContext()
-  const rejectionReason = getRejectionReason(context?.generatedContent ?? null)
-  const generatedContent = rejectionReason === null ? (context?.generatedContent ?? null) : null
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
+  const { turns, addTurn } = useContextHistory(projectId)
+  const { run, status, error } = useCreateProjectContext()
+  const latestPlan = turns.findLast((turn) => !isOutOfScope(turn.generatedContent))?.generatedContent.plan ?? []
 
   async function handleSubmit(): Promise<void> {
     const prompt = draft.trim()
-    setSentPrompt(prompt)
+    setPendingPrompt(prompt)
     setDraft('')
     const createdContext = await run(projectId, prompt)
-    if (!createdContext) {
+    if (createdContext) {
+      addTurn({ prompt, generatedContent: createdContext.generatedContent })
+      setPendingPrompt(null)
+    } else {
       setDraft(prompt)
     }
   }
@@ -50,9 +48,8 @@ export function GlobalContextPage({ projectId }: GlobalContextPageProps) {
         <Card className="flex flex-col gap-6 p-6 lg:col-span-2">
           <h2 className="text-lg leading-none font-bold text-gray-900">{GLOBAL_CONTEXT_PAGE_TEXTS.goalTitle}</h2>
           <ContextConversation
-            prompt={context?.initialPrompt ?? sentPrompt}
-            generatedContent={generatedContent}
-            rejectionReason={rejectionReason}
+            turns={turns}
+            pendingPrompt={pendingPrompt}
             status={status}
             errorMessage={error ? getErrorMessage(error, GLOBAL_CONTEXT_ERROR_MESSAGES) : null}
           />
@@ -61,11 +58,10 @@ export function GlobalContextPage({ projectId }: GlobalContextPageProps) {
             onChange={setDraft}
             onSubmit={() => void handleSubmit()}
             isSending={status === 'loading'}
-            isLocked={context !== null}
           />
         </Card>
 
-        <ContextDetailsPanel generatedContent={generatedContent} isRejected={rejectionReason !== null} />
+        <ContextDetailsPanel plan={latestPlan} />
       </div>
     </div>
   )

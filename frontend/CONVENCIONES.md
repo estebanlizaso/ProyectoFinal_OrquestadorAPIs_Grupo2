@@ -45,10 +45,12 @@ frontend/
         types.ts              # espejo de los DTOs de proyectos
         index.ts
       global-context/         # Contexto global: prompt inicial del proyecto (POST /api/projects/{projectId}/context)
-        components/           # GlobalContextPage, PromptComposer, ContextConversation, ContextDetailsPanel
+        components/           # GlobalContextPage, PromptComposer, ContextConversation, ConversationTurn, PromptBubble, AiBubble, ContextDetailsPanel
         constants.ts
         errorMessages.ts
         types.ts              # espejo de los DTOs de contexto
+        useContextHistory.ts  # historial del chat en localStorage (una clave por proyecto) + clearContextHistory
+        isOutOfScope.ts
         index.ts
       canvas/                 # lienzo React Flow
         components/           # FlowCanvas, Toolbar, Sidebar
@@ -102,7 +104,9 @@ Reglas:
   - Los `4xx` devuelven ProblemDetails (`type`, `title`, `status`, `traceId`).
   - Los `400` de validación son ValidationProblemDetails, con `errors` por campo.
   - Los `500` no tienen un formato garantizado.
-- `POST /api/projects/{projectId}/context` recibe `{ "prompt": string }` (`CreateProjectContextRequest`) y responde `ProjectContextResponse` (`contextId`, `projectId`, `initialPrompt`, `generatedContent`). Responde `201` la primera vez y `200` si el proyecto ya tenía contexto: en ese caso ignora el prompt nuevo y vuelve a generar con el inicial. Responde `404` si el proyecto no existe y `502` (`{ contextId, message }`) si falla la IA. Puede tardar hasta 60 s, por eso el service usa un timeout de 65 s.
+- `POST /api/projects/{projectId}/context` recibe `{ "prompt": string }` (`CreateProjectContextRequest`) y responde `ProjectContextResponse` (`contextId`, `projectId`, `initialPrompt`, `generatedContent`, `resumen`, `updatedAt`). Cada mensaje del chat va a este mismo endpoint: el backend le pasa a la IA el prompt inicial, el `resumen` acumulado y el mensaje nuevo. `generatedContent.status` es `needs_clarification`, `ready` u `out_of_scope`; en `out_of_scope`, `summary` trae el motivo y `code` es `null`. Responde `201` la primera vez y `200` en los mensajes siguientes, `404` si el proyecto no existe, `409` si el contexto cambió durante la generación y `502` (`{ contextId, message }`) si falla la IA. Puede tardar hasta 60 s, por eso el service usa un timeout de 65 s.
+- `GET /api/projects/{projectId}/context` devuelve solo `{ "initialPrompt": string }` (`InitialProjectPromptResponse`), o `404` si el proyecto no tiene contexto.
+- El backend no guarda la conversación. El front guarda el historial del chat en `localStorage` con una clave por proyecto (`useContextHistory`) y lo borra cuando se elimina el proyecto (`clearContextHistory`).
 
 ---
 
