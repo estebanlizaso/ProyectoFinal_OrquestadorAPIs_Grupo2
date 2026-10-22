@@ -1,0 +1,309 @@
+{
+  "info": {
+    "name": "Orquestador APIs - Presentacion",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Siete endpoints reales de los tres controllers de backend en HEAD 9ff9eca, igual a origin/develop. Revision 2026-10-22. Todas las peticiones tienen contrato revisado en codigo y quedan pendientes de prueba HTTP. Ramas y PRs de Fede revisados: no se detectaron endpoints adicionales pendientes de integrar en develop. Ver postman/README.md. Sin autenticacion declarada en el servidor; las credenciales PostgreSQL/Gemini son configuracion del backend y no se incluyen. Ejecutar individualmente: crear proyecto, copiar projectId, listar, planificar, consultar prompt, editar nodo, generar arquitectura, eliminar al final. Los ejemplos no garantizan la existencia de IDs o keys."
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5257",
+      "type": "string",
+      "description": "Perfil http de backend/Properties/launchSettings.json; sin barra final."
+    },
+    {
+      "key": "projectId",
+      "value": "1",
+      "type": "string",
+      "description": "Ejemplo: reemplazar por projectId real de crear o listar proyectos."
+    }
+  ],
+  "item": [
+    {
+      "name": "Proyectos",
+      "item": [
+        {
+          "name": "Crear proyecto",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "projects"
+              ]
+            },
+            "description": "Fuente: ProjectsController.Create, CreateProjectRequest, ProjectService. name es obligatorio y no admite blanco; se guarda con Trim(). 201: ProjectResponse {name, description, projectId, created_at}; 400: body invalido. Copiar projectId de la respuesta a la variable de coleccion.\n\nContrato revisado en codigo (HEAD 9ff9eca). Prueba HTTP pendiente por indicacion del usuario.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo de orquestaci?n\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar, buscar y paginar proyectos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/projects?page=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "projects"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Opcional, predeterminado 1."
+                },
+                {
+                  "key": "search",
+                  "value": "Demo",
+                  "description": "Filtro opcional por nombre. Activar para buscar.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Fuente: ProjectsController.GetAll, ProjectService, PaginationSettings. Query opcional search: filtro por nombre sin distinguir mayusculas; se aplica Trim(). page: entero >=1, predeterminado 1; page*12 debe ser <= int.MaxValue. Pagina de 12, orden por fecha e ID descendente. 200: {body: ProjectResponse[], next: string|null, prev: string|null}; 400: pagina invalida. Activar search para filtrar.\n\nContrato revisado en codigo (HEAD 9ff9eca). Prueba HTTP pendiente por indicacion del usuario."
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar proyecto (ejecutar al final)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "projects"
+              ]
+            },
+            "description": "Fuente: ProjectsController.Delete, DeleteProjectRequest. El ID va en el body, no en la ruta. projectId: entero de 1 a int.MaxValue. Elimina el proyecto seleccionado. 204: sin contenido; 404: inexistente; 400: validacion del DTO.\n\nContrato revisado en codigo (HEAD 9ff9eca). Prueba HTTP pendiente por indicacion del usuario.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"projectId\": {{projectId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Contextos",
+      "item": [
+        {
+          "name": "Crear contexto o continuar planificacion",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/projects/{{projectId}}/context",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "projects",
+                "{{projectId}}",
+                "context"
+              ]
+            },
+            "description": "Fuente: ProjectContextsController.Create, CreateProjectContextRequest. projectId es un entero de ruta. prompt es obligatorio y no admite blanco. Requiere proyecto existente y Gemini configurado; ejecuta planificador y resumidor. Cambiar prompt y reenviar para continuar la conversacion. 201: contexto creado; 200: reutilizado; 400: body invalido; 404: proyecto inexistente; 409: conflicto concurrente; 502: fallo de Gemini, con {contextId, message}. ProjectContextResponse incluye contextId, projectId, initialPrompt, generatedContent, planner, nodes, relations, mapVersion, resumen y updatedAt. Guardar nodes[].key para el PATCH.\n\nContrato revisado en codigo (HEAD 9ff9eca). Prueba HTTP pendiente por indicacion del usuario.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Quiero integrar una API de pedidos con una API de inventario para consultar disponibilidad antes de confirmar un pedido. Usar Python.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener prompt inicial",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/projects/{{projectId}}/context",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "projects",
+                "{{projectId}}",
+                "context"
+              ]
+            },
+            "description": "Fuente: ProjectContextsController.Get, InitialProjectPromptResponse. Devuelve solamente {initialPrompt: string}, no el mapa completo. Sin body. No llama a Gemini ni escribe datos. 200: con contexto; 404: proyecto o contexto inexistente.\n\nContrato revisado en codigo (HEAD 9ff9eca). Prueba HTTP pendiente por indicacion del usuario."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Nodos de contexto",
+      "item": [
+        {
+          "name": "Actualizar notas de un nodo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/projects/{{projectId}}/context/nodes/:nodeKey",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "projects",
+                "{{projectId}}",
+                "context",
+                "nodes",
+                ":nodeKey"
+              ],
+              "variable": [
+                {
+                  "key": "nodeKey",
+                  "value": "api-pedidos",
+                  "description": "Reemplazar por nodes[].key real de la respuesta POST /context."
+                }
+              ]
+            },
+            "description": "Fuente: ProjectContextsController.UpdateNodeNotes, UpdateOrchestrationNodeRequest, ProjectContextService. projectId: entero de ruta; nodeKey: key real de nodes de la respuesta del POST de contexto. api-pedidos es un ejemplo y debe sustituirse. userNotes: maximo 2000 caracteres; omitir equivale a cadena vacia; vacio o blanco limpia la nota; se guarda con Trim(). Requiere nodo activo; puede incrementar mapVersion. 200: OrchestrationNodeResponse {id,key,name,description,kind,role,responsibility,status,userNotes,isActive,sortOrder}; 400: validacion; 404: recurso inexistente o nodo inactivo; 409: conflicto concurrente.\n\nContrato revisado en codigo (HEAD 9ff9eca). Prueba HTTP pendiente por indicacion del usuario.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userNotes\": \"Usar un mock local para la API de inventario y timeout de 10 segundos.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Arquitectura",
+      "item": [
+        {
+          "name": "Generar arquitectura",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/projects/{{projectId}}/architecture",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "projects",
+                "{{projectId}}",
+                "architecture"
+              ]
+            },
+            "description": "Fuente: ProjectArchitectureController.Generate, GenerateArchitectureRequest, ArchitectureService. Body completo opcional: tambien admite {} o quitar el body. language opcional: python o dotnet; sin override usa el lenguaje guardado o python. Requiere contexto con nodos activos kind=system y Gemini configurado. 200: ArchitectureResponse {contextId,projectId,language,mapVersion,generatedAt,summary,envExample,contexts,warnings,contextChanged}; contexts contiene {key,name,summary,code,dependencies,env,assumptions,warnings}. 400: lenguaje/body invalido; 404: proyecto/contexto inexistente; 409: sin sistemas detectados; 422: l?mite superado; 502: fallo de IA, con {message}. No persiste el codigo generado. Si contextChanged=true, revisar o regenerar. Timeout del servidor para arquitectura: 120 s.\n\nContrato revisado en codigo (HEAD 9ff9eca). Prueba HTTP pendiente por indicacion del usuario.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"language\": \"python\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
