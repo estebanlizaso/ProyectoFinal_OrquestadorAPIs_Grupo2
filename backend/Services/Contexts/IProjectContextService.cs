@@ -8,9 +8,20 @@ public interface IProjectContextService
         int projectId,
         string prompt,
         CancellationToken cancellationToken = default);
+
+    Task<ProjectContextResponse?> GetAsync(
+        int projectId,
+        CancellationToken cancellationToken = default);
+
     Task<string?> GetInitialPromptAsync(
-    int projectId,
-    CancellationToken cancellationToken = default);
+        int projectId,
+        CancellationToken cancellationToken = default);
+
+    Task<UpdateNodeNotesResult> UpdateNodeNotesAsync(
+        int projectId,
+        string nodeKey,
+        string userNotes,
+        CancellationToken cancellationToken = default);
 }
 
 public enum CreateProjectContextStatus
@@ -25,6 +36,16 @@ public enum CreateProjectContextStatus
 public record CreateProjectContextResult(
     CreateProjectContextStatus Status,
     ProjectContextResponse? Context = null,
-    int? ContextId = null);
+    int? ContextId = null,
+    string? ErrorMessage = null);
 
+public enum UpdateNodeNotesStatus
+{
+    Updated,
+    NotFound,
+    Conflict
+}
 
+public record UpdateNodeNotesResult(
+    UpdateNodeNotesStatus Status,
+    OrchestrationNodeResponse? Node = null);

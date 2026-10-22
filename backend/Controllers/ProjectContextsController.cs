@@ -41,17 +41,17 @@ public class ProjectContextsController : ControllerBase
             CreateProjectContextStatus.ProjectNotFound => NotFound(),
             CreateProjectContextStatus.Conflict => Conflict(new
             {
-                message = "El contexto cambió durante la generación. Reenviá el mensaje para usar la memoria actualizada."
+                message = "El contexto cambió durante la planificación. Reenviá el mensaje para usar la memoria actualizada."
             }),
             CreateProjectContextStatus.AiProviderFailed => StatusCode(
                 StatusCodes.Status502BadGateway,
                 new ProjectContextGenerationErrorResponse(
                     result.ContextId!.Value,
-                    "No se pudo completar la respuesta o actualizar el resumen con Gemini. La memoria anterior se conserva; reenviá el mensaje para reintentar.")),
+                    result.ErrorMessage ??
+                    "No se pudo planificar la orquestación o actualizar el resumen con Gemini. La memoria anterior se conserva; reenviá el mensaje para reintentar.")),
             _ => throw new InvalidOperationException("Estado de creación de contexto desconocido.")
         };
     }
-
 
     [HttpGet]
     [ProducesResponseType(typeof(InitialProjectPromptResponse), StatusCodes.Status200OK)]
@@ -72,4 +72,32 @@ public class ProjectContextsController : ControllerBase
         return Ok(new InitialProjectPromptResponse(initialPrompt));
     }
 
+    [HttpPatch("nodes/{nodeKey}")]
+    [ProducesResponseType(typeof(OrchestrationNodeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<OrchestrationNodeResponse>> UpdateNodeNotes(
+        [FromRoute] int projectId,
+        [FromRoute] string nodeKey,
+        [FromBody] UpdateOrchestrationNodeRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _projectContextService.UpdateNodeNotesAsync(
+            projectId,
+            nodeKey,
+            request.UserNotes,
+            cancellationToken);
+
+        return result.Status switch
+        {
+            UpdateNodeNotesStatus.Updated => Ok(result.Node),
+            UpdateNodeNotesStatus.NotFound => NotFound(),
+            UpdateNodeNotesStatus.Conflict => Conflict(new
+            {
+                message = "El contexto cambió mientras se guardaba la nota del nodo. Reintentá la operación."
+            }),
+            _ => throw new InvalidOperationException("Estado de actualización de nodo desconocido.")
+        };
+    }
 }

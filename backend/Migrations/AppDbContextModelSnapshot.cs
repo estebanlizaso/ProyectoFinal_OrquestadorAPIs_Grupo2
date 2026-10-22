@@ -22,6 +22,137 @@ namespace OrquestadorApi.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("OrquestadorApi.Models.OrchestrationNode", b =>
+                {
+                    b.Property<int>("NodeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("node_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("NodeId"));
+
+                    b.Property<int>("ContextId")
+                        .HasColumnType("integer")
+                        .HasColumnName("context_id");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Responsibility")
+                        .HasColumnType("text")
+                        .HasColumnName("responsibility");
+
+                    b.Property<string>("Role")
+                        .HasColumnType("text")
+                        .HasColumnName("role");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UserNotes")
+                        .HasColumnType("text")
+                        .HasColumnName("user_notes");
+
+                    b.HasKey("NodeId");
+
+                    b.HasIndex("ContextId", "IsActive");
+
+                    b.HasIndex("ContextId", "Key")
+                        .IsUnique();
+
+                    b.ToTable("orchestration_nodes");
+                });
+
+            modelBuilder.Entity("OrquestadorApi.Models.OrchestrationRelation", b =>
+                {
+                    b.Property<int>("RelationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("relation_id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("RelationId"));
+
+                    b.Property<int>("ContextId")
+                        .HasColumnType("integer")
+                        .HasColumnName("context_id");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Kind")
+                        .HasColumnType("text")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("label");
+
+                    b.Property<string>("Operation")
+                        .HasColumnType("text")
+                        .HasColumnName("operation");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<int>("SourceNodeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("source_node_id");
+
+                    b.Property<int>("TargetNodeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("target_node_id");
+
+                    b.HasKey("RelationId");
+
+                    b.HasIndex("ContextId");
+
+                    b.HasIndex("SourceNodeId");
+
+                    b.HasIndex("TargetNodeId");
+
+                    b.HasIndex("ContextId", "SourceNodeId", "TargetNodeId", "Label")
+                        .IsUnique();
+
+                    b.ToTable("orchestration_relations");
+                });
+
             modelBuilder.Entity("OrquestadorApi.Models.Project", b =>
                 {
                     b.Property<int>("ProjectId")
@@ -51,15 +182,6 @@ namespace OrquestadorApi.Migrations
 
             modelBuilder.Entity("OrquestadorApi.Models.ProjectContext", b =>
                 {
-                    b.Property<string>("Resumen")
-                        .HasColumnType("text")
-                        .HasColumnName("resumen");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .IsConcurrencyToken()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
                     b.Property<int>("ContextId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -72,9 +194,50 @@ namespace OrquestadorApi.Migrations
                         .HasColumnType("text")
                         .HasColumnName("initial_prompt");
 
+                    b.Property<string>("Language")
+                        .HasColumnType("text")
+                        .HasColumnName("language");
+
+                    b.Property<int>("MapVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("map_version");
+
+                    b.PrimitiveCollection<string[]>("PlannerAssumptions")
+                        .HasColumnType("text[]")
+                        .HasColumnName("planner_assumptions");
+
+                    b.PrimitiveCollection<string[]>("PlannerPlan")
+                        .HasColumnType("text[]")
+                        .HasColumnName("planner_plan");
+
+                    b.PrimitiveCollection<string[]>("PlannerQuestions")
+                        .HasColumnType("text[]")
+                        .HasColumnName("planner_questions");
+
+                    b.Property<string>("PlannerReply")
+                        .HasColumnType("text")
+                        .HasColumnName("planner_reply");
+
+                    b.Property<string>("PlannerStatus")
+                        .HasColumnType("text")
+                        .HasColumnName("planner_status");
+
+                    b.Property<string>("PlannerSummary")
+                        .HasColumnType("text")
+                        .HasColumnName("planner_summary");
+
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer")
                         .HasColumnName("project_id");
+
+                    b.Property<string>("Resumen")
+                        .HasColumnType("text")
+                        .HasColumnName("resumen");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .IsConcurrencyToken()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
 
                     b.HasKey("ContextId");
 
@@ -82,6 +245,44 @@ namespace OrquestadorApi.Migrations
                         .IsUnique();
 
                     b.ToTable("contexts");
+                });
+
+            modelBuilder.Entity("OrquestadorApi.Models.OrchestrationNode", b =>
+                {
+                    b.HasOne("OrquestadorApi.Models.ProjectContext", "ProjectContext")
+                        .WithMany("OrchestrationNodes")
+                        .HasForeignKey("ContextId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProjectContext");
+                });
+
+            modelBuilder.Entity("OrquestadorApi.Models.OrchestrationRelation", b =>
+                {
+                    b.HasOne("OrquestadorApi.Models.ProjectContext", "ProjectContext")
+                        .WithMany("OrchestrationRelations")
+                        .HasForeignKey("ContextId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OrquestadorApi.Models.OrchestrationNode", "SourceNode")
+                        .WithMany()
+                        .HasForeignKey("SourceNodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OrquestadorApi.Models.OrchestrationNode", "TargetNode")
+                        .WithMany()
+                        .HasForeignKey("TargetNodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProjectContext");
+
+                    b.Navigation("SourceNode");
+
+                    b.Navigation("TargetNode");
                 });
 
             modelBuilder.Entity("OrquestadorApi.Models.ProjectContext", b =>
@@ -98,6 +299,13 @@ namespace OrquestadorApi.Migrations
             modelBuilder.Entity("OrquestadorApi.Models.Project", b =>
                 {
                     b.Navigation("Context");
+                });
+
+            modelBuilder.Entity("OrquestadorApi.Models.ProjectContext", b =>
+                {
+                    b.Navigation("OrchestrationNodes");
+
+                    b.Navigation("OrchestrationRelations");
                 });
 #pragma warning restore 612, 618
         }

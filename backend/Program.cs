@@ -5,6 +5,7 @@ using Npgsql;
 using OrquestadorApi.Configuration;
 using OrquestadorApi.Data;
 using OrquestadorApi.Services.AI;
+using OrquestadorApi.Services.Architecture;
 using OrquestadorApi.Services.Contexts;
 using OrquestadorApi.Services.Projects;
 
@@ -89,15 +90,22 @@ builder.Services
         options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _),
         "AI:BaseUrl debe ser una URL absoluta.")
     .ValidateOnStart();
+builder.Services
+    .AddOptions<OrchestrationOptions>()
+    .Bind(builder.Configuration.GetSection(OrchestrationOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 builder.Services.AddHttpClient<IAiProvider, GeminiAiProvider>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<IOptions<AiOptions>>().Value;
     client.BaseAddress = new Uri($"{options.BaseUrl.TrimEnd('/')}/");
-    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+    client.Timeout = TimeSpan.FromSeconds(
+        Math.Max(options.TimeoutSeconds, options.ArchitectureTimeoutSeconds) + 10);
 });
 builder.Services.AddSingleton<IAiRulesProvider, JsonAiRulesProvider>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IProjectContextService, ProjectContextService>();
+builder.Services.AddScoped<IArchitectureService, ArchitectureService>();
 
 var app = builder.Build();
 app.UseCors("FrontendLocal");
