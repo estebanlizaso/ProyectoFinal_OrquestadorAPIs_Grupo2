@@ -36,7 +36,8 @@ public enum CreateProjectContextStatus
 public record CreateProjectContextResult(
     CreateProjectContextStatus Status,
     ProjectContextResponse? Context = null,
-    int? ContextId = null);
+    int? ContextId = null,
+    string? ErrorMessage = null);
 
 public enum UpdateNodeNotesStatus
 {

@@ -144,8 +144,7 @@ public class GeminiAiProvider : IAiProvider
                     var errorDetail = TryGetGeminiErrorMessage(errorBody);
 
                     throw new AiProviderException(
-                        $"Gemini respondió con el código HTTP {(int)response.StatusCode}." +
-                        (errorDetail is null ? string.Empty : $" {errorDetail}"));
+                        BuildProviderErrorMessage(response.StatusCode, errorDetail));
                 }
 
                 var responseBody = await response.Content.ReadAsStringAsync(requestToken);
@@ -214,6 +213,58 @@ public class GeminiAiProvider : IAiProvider
         }
 
         return null;
+    }
+
+    private static string BuildProviderErrorMessage(
+        System.Net.HttpStatusCode statusCode,
+        string? errorDetail)
+    {
+        if (statusCode == System.Net.HttpStatusCode.TooManyRequests ||
+            ContainsAny(
+                errorDetail,
+                "rate limit",
+                "quota",
+                "resource_exhausted",
+                "too many requests"))
+        {
+            return "Gemini alcanzó el rate limit o la cuota de solicitudes. " +
+                "Esperá unos segundos y volvé a intentar.";
+        }
+
+        if (statusCode == System.Net.HttpStatusCode.RequestEntityTooLarge ||
+            ContainsAny(
+                errorDetail,
+                "too long",
+                "too large",
+                "exceeds the maximum",
+                "maximum number of tokens",
+                "token count",
+                "payload size",
+                "input size",
+                "context length",
+                "input token"))
+        {
+            return "El mensaje es demasiado largo y supera el límite de contexto " +
+                "del modelo de Gemini. Acortá el mensaje o dividí el pedido en partes.";
+        }
+
+        var detail = string.IsNullOrWhiteSpace(errorDetail)
+            ? string.Empty
+            : $" Detalle: {Truncate(errorDetail.Trim(), 300)}";
+
+        return $"Gemini respondió con HTTP {(int)statusCode}. " +
+            $"Volvé a intentar en unos segundos.{detail}";
+    }
+
+    private static bool ContainsAny(string? value, params string[] terms)
+    {
+        return !string.IsNullOrWhiteSpace(value) &&
+            terms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string Truncate(string value, int maxLength)
+    {
+        return value.Length <= maxLength ? value : value[..maxLength] + "...";
     }
 
     private static bool IsTransient(System.Net.HttpStatusCode statusCode)
