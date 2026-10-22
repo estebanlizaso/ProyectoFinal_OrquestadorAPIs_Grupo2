@@ -316,7 +316,8 @@ public class ProjectContextService : IProjectContextService
 
             return new CreateProjectContextResult(
                 CreateProjectContextStatus.AiProviderFailed,
-                ContextId: projectContext.ContextId);
+                ContextId: projectContext.ContextId,
+                ErrorMessage: exception.Message);
         }
     }
 

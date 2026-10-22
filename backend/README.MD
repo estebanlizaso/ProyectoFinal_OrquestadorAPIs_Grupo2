@@ -176,7 +176,7 @@ Códigos:
 - `400 Bad Request`: body inválido.
 - `404 Not Found`: el proyecto no existe.
 - `409 Conflict`: el contexto cambió durante la planificación; hay que reenviar el mensaje.
-- `502 Bad Gateway`: falló Gemini. La memoria y el mapa anteriores se conservan.
+- `502 Bad Gateway`: falló Gemini. El `message` distingue rate limit/cuota, mensaje demasiado largo para el contexto del modelo y otros errores. La memoria y el mapa anteriores se conservan.
 
 Respuesta resumida:
 
