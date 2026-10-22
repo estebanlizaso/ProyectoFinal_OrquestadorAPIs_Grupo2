@@ -6,6 +6,7 @@ public class JsonAiRulesProvider : IAiRulesProvider
 {
     public JsonAiRulesProvider(IHostEnvironment environment)
     {
+        PlannerRulesJson = LoadRules(environment, "AI/Rules/planner.rules.json");
         RulesJson = LoadRules(environment, "AI/Rules/code-generator.rules.json");
         SummaryRulesJson = LoadRules(environment, "AI/Rules/context-summary.rules.json");
     }
@@ -37,6 +38,9 @@ public class JsonAiRulesProvider : IAiRulesProvider
         return rulesJson;
     }
 
+    public string PlannerRulesJson { get; }
+
     public string RulesJson { get; }
+
     public string SummaryRulesJson { get; }
 }
