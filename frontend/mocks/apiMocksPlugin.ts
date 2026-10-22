@@ -282,6 +282,8 @@ function buildSeedContexts(): Map<number, ProjectContextResponse> {
       projectId,
       initialPrompt,
       generatedContent: MOCK_GENERATED_CONTENT,
+      resumen: null,
+      updatedAt: null,
     })
   })
   return contexts
@@ -341,6 +343,8 @@ async function sendCreateContextResult(
     projectId,
     initialPrompt: payload.prompt.trim(),
     generatedContent: MOCK_GENERATED_CONTENT,
+    resumen: null,
+    updatedAt: new Date().toISOString(),
   }
   contexts.set(projectId, context)
   sendJson(response, HTTP_STATUS.created, context)

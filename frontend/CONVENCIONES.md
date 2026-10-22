@@ -45,10 +45,17 @@ frontend/
         types.ts              # espejo de los DTOs de proyectos
         index.ts
       global-context/         # Contexto global: prompt inicial del proyecto (POST /api/projects/{projectId}/context)
-        components/           # GlobalContextPage, PromptComposer, ContextConversation, ContextDetailsPanel
+        components/           # GlobalContextPage, PromptComposer, ContextConversation, ConversationTurn, PromptBubble, AiBubble, ContextDetailsPanel, NodeCard
         constants.ts
         errorMessages.ts
         types.ts              # espejo de los DTOs de contexto
+        useContextHistory.ts  # historial del chat y último mapa (nodes + relations) en localStorage, una clave por proyecto, + clearContextHistory
+        isOutOfScope.ts
+        findLatestValidTurn.ts # última respuesta que no fue out_of_scope
+      proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama (vacío por ahora) y panel del asistente
+        components/           # ProposedArchitecturePage, ArchitectureDiagram, AiAssistantPanel
+        constants.ts
+        index.ts
         index.ts
       canvas/                 # lienzo React Flow
         components/           # FlowCanvas, Toolbar, Sidebar
@@ -65,7 +72,7 @@ frontend/
       projectContextService.ts # projectContextService (create) + useCreateProjectContext
       exportService.ts        # cuando exista el endpoint de exportación (service + useExportFlow)
     shared/
-      ui/                     # Button, Modal, Input (sin lógica de negocio)
+      ui/                     # Button, Modal, Input, Card, SidePanel (sin lógica de negocio)
       api/httpClient.ts       # único lugar donde se usa fetch
       api/ApiError.ts
       api/requestStatus.ts    # 'idle' | 'loading' | 'success' | 'error'
@@ -82,7 +89,7 @@ Reglas:
 - Una feature solo importa de otra a través de su `index.ts`, nunca de sus archivos internos.
 - `shared/` solo contiene código reutilizable sin conocimiento del dominio.
 - `services/` es global y tiene **un archivo por recurso del backend** (`projectService.ts`, y después `userService.ts`, etc.). Ese archivo concentra todo lo del recurso: el objeto service con sus métodos y los hooks que los ejecutan (`useProjects`, `useDeleteProject`). Los componentes usan los hooks; nunca llaman a un service directo.
-- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context`).
+- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context` o `/projects/{projectId}/architecture`).
 
 ---
 
@@ -102,7 +109,9 @@ Reglas:
   - Los `4xx` devuelven ProblemDetails (`type`, `title`, `status`, `traceId`).
   - Los `400` de validación son ValidationProblemDetails, con `errors` por campo.
   - Los `500` no tienen un formato garantizado.
-- `POST /api/projects/{projectId}/context` recibe `{ "prompt": string }` (`CreateProjectContextRequest`) y responde `ProjectContextResponse` (`contextId`, `projectId`, `initialPrompt`, `generatedContent`). Responde `201` la primera vez y `200` si el proyecto ya tenía contexto: en ese caso ignora el prompt nuevo y vuelve a generar con el inicial. Responde `404` si el proyecto no existe y `502` (`{ contextId, message }`) si falla la IA. Puede tardar hasta 60 s, por eso el service usa un timeout de 65 s.
+- `POST /api/projects/{projectId}/context` recibe `{ "prompt": string }` (`CreateProjectContextRequest`) y responde `ProjectContextResponse` (`contextId`, `projectId`, `initialPrompt`, `generatedContent`, `planner`, `nodes`, `relations`, `mapVersion`, `resumen`, `updatedAt`). Cada mensaje del chat va a este mismo endpoint: el backend corre el agente planificador (con el prompt inicial, el `resumen` y el mapa anterior) y después el resumidor. No genera código. `planner` trae `status` (`needs_clarification`, `ready` u `out_of_scope`), `reply` (la respuesta para el chat), `summary`, `questions`, `plan`, `assumptions` y `language`. `nodes` y `relations` son el mapa completo de la orquestación (los nodos `kind=system` son los que reciben código). `generatedContent` queda por compatibilidad, con `code: null`. Responde `201` la primera vez y `200` en los mensajes siguientes, `404` si el proyecto no existe, `409` si el contexto cambió durante la planificación y `502` (`{ contextId, message }`) si falla la IA. Puede tardar hasta 60 s, por eso el service usa un timeout de 65 s.
+- `GET /api/projects/{projectId}/context` devuelve solo `{ "initialPrompt": string }` (`InitialProjectPromptResponse`), o `404` si el proyecto no tiene contexto.
+- El backend no guarda la conversación. El front guarda el historial del chat en `localStorage` con una clave por proyecto (`useContextHistory`) y lo borra cuando se elimina el proyecto (`clearContextHistory`).
 
 ---
 
@@ -146,7 +155,7 @@ Reglas:
 - Los hooks viven en el mismo archivo que su service (`src/services/<recurso>Service.ts`), lo llaman y devuelven `{ run, status, error }` (más los datos, si la request trae alguno), con `status: RequestStatus`. Si el hook carga datos al montarse, cancela la request al desmontarse.
 - La descarga del ZIP se resuelve con `Blob` + `URL.createObjectURL`, y se revoca la URL al terminar.
 - Si más adelante se decide volver a Axios, solo cambia `httpClient.ts`.
-- Al usuario nunca se le muestran `error.message`, códigos HTTP ni textos del backend. Los componentes usan `getErrorMessage(error, MENSAJES_DE_LA_FEATURE)`: los mensajes generales (sin conexión, timeout, `500`, error desconocido) están en el helper, y cada feature agrega o reemplaza los suyos por código en su `errorMessages.ts`.
+- Al usuario nunca se le muestran `error.message`, códigos HTTP ni textos del backend. Los componentes usan `getErrorMessage(error, MENSAJES_DE_LA_FEATURE)`: los mensajes generales (sin conexión, timeout, `500`, error desconocido) están en el helper, y cada feature agrega o reemplaza los suyos por código en su `errorMessages.ts`. Excepción: una feature puede activar `preferBackendMessage` en su `errorMessages.ts` para mostrar el `message` que manda el backend en el body del error (lo usa Contexto Global). Si no viene `message`, se usa el mensaje por código.
 
 ### Mocks
 

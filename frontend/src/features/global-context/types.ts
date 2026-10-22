@@ -16,6 +16,8 @@ export type ProjectContextResponse = {
   projectId: number
   initialPrompt: string
   generatedContent: GeneratedCodeResponse
+  resumen: string | null
+  updatedAt: string | null
 }
 
 export type ProjectContextGenerationErrorResponse = {
