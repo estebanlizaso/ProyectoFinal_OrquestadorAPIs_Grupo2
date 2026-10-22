@@ -10,30 +10,30 @@ export type ConversationTurnProps = {
 }
 
 export function ConversationTurn({ turn }: ConversationTurnProps) {
-  const { prompt, generatedContent } = turn
+  const { prompt, planner } = turn
 
   return (
     <div className="space-y-4">
       <PromptBubble prompt={prompt} />
 
       <div className="flex max-w-4/5 flex-col items-start gap-2">
-        {isOutOfScope(generatedContent) ? (
+        {isOutOfScope(planner) ? (
           <div className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             <CircleAlert className="size-5 shrink-0" aria-hidden="true" />
             <div>
               <p className="font-semibold">{GLOBAL_CONTEXT_PAGE_TEXTS.rejectedTitle}</p>
-              <p>{generatedContent.summary}</p>
+              <p>{planner.reply}</p>
             </div>
           </div>
         ) : (
           <>
-            <AiBubble>{generatedContent.summary}</AiBubble>
+            <AiBubble>{planner.reply}</AiBubble>
 
-            {generatedContent.questions.length > 0 && (
+            {planner.questions.length > 0 && (
               <>
                 <h3 className="mt-2 text-sm font-semibold text-gray-900">{GLOBAL_CONTEXT_PAGE_TEXTS.questionsTitle}</h3>
                 <ol className="flex flex-col items-start gap-2">
-                  {generatedContent.questions.map((question, index) => (
+                  {planner.questions.map((question, index) => (
                     <li key={question}>
                       <AiBubble>
                         {index + 1}. {question}

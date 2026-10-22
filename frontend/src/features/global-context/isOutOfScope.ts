@@ -1,5 +1,5 @@
-import type { GeneratedCodeResponse } from './types'
+import type { PlannerContentResponse } from './types'
 
-export function isOutOfScope(generatedContent: GeneratedCodeResponse): boolean {
-  return generatedContent.status === 'out_of_scope'
+export function isOutOfScope(planner: PlannerContentResponse): boolean {
+  return planner.status === 'out_of_scope'
 }

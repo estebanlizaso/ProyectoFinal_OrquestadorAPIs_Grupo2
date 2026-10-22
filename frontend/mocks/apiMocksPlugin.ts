@@ -13,7 +13,7 @@ import type {
   ProjectsResponse,
 } from '../src/features/projects/types.ts'
 import { MOCK_INITIAL_PROMPTS } from './initialPrompts.ts'
-import { MOCK_GENERATED_CONTENT } from './projectContexts.ts'
+import { MOCK_GENERATED_CONTENT, MOCK_NODES, MOCK_PLANNER, MOCK_RELATIONS } from './projectContexts.ts'
 import { MOCK_PROJECTS } from './projects.ts'
 
 export type ApiMockScenario = 'success' | 'empty' | 'error'
@@ -282,6 +282,10 @@ function buildSeedContexts(): Map<number, ProjectContextResponse> {
       projectId,
       initialPrompt,
       generatedContent: MOCK_GENERATED_CONTENT,
+      planner: MOCK_PLANNER,
+      nodes: MOCK_NODES,
+      relations: MOCK_RELATIONS,
+      mapVersion: 1,
       resumen: null,
       updatedAt: null,
     })
@@ -343,6 +347,10 @@ async function sendCreateContextResult(
     projectId,
     initialPrompt: payload.prompt.trim(),
     generatedContent: MOCK_GENERATED_CONTENT,
+    planner: MOCK_PLANNER,
+    nodes: MOCK_NODES,
+    relations: MOCK_RELATIONS,
+    mapVersion: 1,
     resumen: null,
     updatedAt: new Date().toISOString(),
   }

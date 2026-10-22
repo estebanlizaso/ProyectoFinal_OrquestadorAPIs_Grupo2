@@ -11,7 +11,7 @@ export type ProposedArchitecturePageProps = {
 
 export function ProposedArchitecturePage({ projectId }: ProposedArchitecturePageProps) {
   const { turns } = useContextHistory(projectId)
-  const flowSummary = findLatestValidTurn(turns)?.generatedContent.summary ?? null
+  const flowSummary = findLatestValidTurn(turns)?.planner.summary ?? null
 
   return (
     <div className="p-8">

@@ -6,6 +6,7 @@ export type ErrorMessages = {
   network?: string
   timeout?: string
   byStatus?: Partial<Record<number, string>>
+  preferBackendMessage?: boolean
 }
 
 const DEFAULT_ERROR_MESSAGES = {
@@ -15,6 +16,19 @@ const DEFAULT_ERROR_MESSAGES = {
   byStatus: {
     [HTTP_STATUS.serverError]: 'Ocurrió un error en el servidor. Probá de nuevo en unos minutos.',
   },
+}
+
+function getBackendMessage(details: unknown): string | null {
+  if (
+    typeof details === 'object' &&
+    details !== null &&
+    'message' in details &&
+    typeof details.message === 'string' &&
+    details.message.trim() !== ''
+  ) {
+    return details.message
+  }
+  return null
 }
 
 export function getErrorMessage(error: Error, messages: ErrorMessages = {}): string {
@@ -31,7 +45,8 @@ export function getErrorMessage(error: Error, messages: ErrorMessages = {}): str
     return messages.timeout ?? DEFAULT_ERROR_MESSAGES.timeout
   }
   if (error.kind === 'http' && error.status !== null) {
-    return byStatus[error.status] ?? fallback
+    const backendMessage = messages.preferBackendMessage ? getBackendMessage(error.details) : null
+    return backendMessage ?? byStatus[error.status] ?? fallback
   }
   return fallback
 }

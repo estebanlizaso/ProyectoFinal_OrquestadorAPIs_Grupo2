@@ -20,18 +20,21 @@ export type GlobalContextPageProps = {
 export function GlobalContextPage({ projectId, onGenerateArchitecture }: GlobalContextPageProps) {
   const [draft, setDraft] = useState('')
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
-  const { turns, addTurn } = useContextHistory(projectId)
+  const { turns, map, addTurn } = useContextHistory(projectId)
   const { run, status, error } = useCreateProjectContext()
-  const latestPlan = findLatestValidTurn(turns)?.generatedContent.plan ?? []
-  const hasReadyTurn = turns.some((turn) => turn.generatedContent.status === 'ready')
+  const latestAssumptions = findLatestValidTurn(turns)?.planner.assumptions ?? []
+  const hasReadyTurn = turns.some((turn) => turn.planner.status === 'ready')
 
   async function handleSubmit(): Promise<void> {
     const prompt = draft.trim()
     setPendingPrompt(prompt)
     setDraft('')
     const createdContext = await run(projectId, prompt)
-    if (createdContext) {
-      addTurn({ prompt, generatedContent: createdContext.generatedContent })
+    if (createdContext?.planner) {
+      addTurn(
+        { prompt, planner: createdContext.planner },
+        { nodes: createdContext.nodes, relations: createdContext.relations },
+      )
       setPendingPrompt(null)
     } else {
       setDraft(prompt)
@@ -56,7 +59,6 @@ export function GlobalContextPage({ projectId, onGenerateArchitecture }: GlobalC
           <ContextConversation
             turns={turns}
             pendingPrompt={pendingPrompt}
-            status={status}
             errorMessage={error ? getErrorMessage(error, GLOBAL_CONTEXT_ERROR_MESSAGES) : null}
           />
           <PromptComposer
@@ -67,7 +69,7 @@ export function GlobalContextPage({ projectId, onGenerateArchitecture }: GlobalC
           />
         </Card>
 
-        <ContextDetailsPanel plan={latestPlan} />
+        <ContextDetailsPanel nodes={map.nodes} assumptions={latestAssumptions} />
       </div>
     </div>
   )

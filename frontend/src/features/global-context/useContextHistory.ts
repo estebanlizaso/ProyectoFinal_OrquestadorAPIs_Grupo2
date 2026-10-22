@@ -1,66 +1,160 @@
 import { useCallback, useState } from 'react'
-import type { GeneratedCodeResponse } from './types'
+import type { OrchestrationNodeResponse, OrchestrationRelationResponse, PlannerContentResponse } from './types'
 
 export type ContextTurn = {
   prompt: string
-  generatedContent: GeneratedCodeResponse
+  planner: PlannerContentResponse
+}
+
+export type ContextMap = {
+  nodes: OrchestrationNodeResponse[]
+  relations: OrchestrationRelationResponse[]
+}
+
+type ContextHistory = {
+  turns: ContextTurn[]
+  map: ContextMap
 }
 
 export type UseContextHistoryResult = {
   turns: ContextTurn[]
-  addTurn: (turn: ContextTurn) => void
+  map: ContextMap
+  addTurn: (turn: ContextTurn, map: ContextMap) => void
 }
+
+const EMPTY_HISTORY: ContextHistory = { turns: [], map: { nodes: [], relations: [] } }
 
 function buildStorageKey(projectId: number): string {
   return `global-context:${projectId}`
+}
+
+function isObject(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return typeof value === 'string' || value === null
 }
 
 function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
-function isGeneratedContent(value: unknown): value is GeneratedCodeResponse {
+function isPlannerContent(value: unknown): value is PlannerContentResponse {
   return (
-    typeof value === 'object' &&
-    value !== null &&
+    isObject(value) &&
     'status' in value &&
     typeof value.status === 'string' &&
-    'language' in value &&
-    typeof value.language === 'string' &&
+    'reply' in value &&
+    typeof value.reply === 'string' &&
     'summary' in value &&
     typeof value.summary === 'string' &&
     'questions' in value &&
     isStringList(value.questions) &&
     'plan' in value &&
     isStringList(value.plan) &&
-    'code' in value &&
-    (typeof value.code === 'string' || value.code === null)
+    'assumptions' in value &&
+    isStringList(value.assumptions) &&
+    'language' in value &&
+    isNullableString(value.language)
+  )
+}
+
+function isOrchestrationNode(value: unknown): value is OrchestrationNodeResponse {
+  return (
+    isObject(value) &&
+    'id' in value &&
+    typeof value.id === 'number' &&
+    'key' in value &&
+    typeof value.key === 'string' &&
+    'name' in value &&
+    typeof value.name === 'string' &&
+    'description' in value &&
+    isNullableString(value.description) &&
+    'kind' in value &&
+    typeof value.kind === 'string' &&
+    'role' in value &&
+    isNullableString(value.role) &&
+    'responsibility' in value &&
+    isNullableString(value.responsibility) &&
+    'status' in value &&
+    typeof value.status === 'string' &&
+    'userNotes' in value &&
+    isNullableString(value.userNotes) &&
+    'isActive' in value &&
+    typeof value.isActive === 'boolean' &&
+    'sortOrder' in value &&
+    typeof value.sortOrder === 'number'
+  )
+}
+
+function isOrchestrationRelation(value: unknown): value is OrchestrationRelationResponse {
+  return (
+    isObject(value) &&
+    'id' in value &&
+    typeof value.id === 'number' &&
+    'from' in value &&
+    typeof value.from === 'string' &&
+    'to' in value &&
+    typeof value.to === 'string' &&
+    'label' in value &&
+    typeof value.label === 'string' &&
+    'operation' in value &&
+    isNullableString(value.operation) &&
+    'description' in value &&
+    isNullableString(value.description) &&
+    'kind' in value &&
+    isNullableString(value.kind) &&
+    'sortOrder' in value &&
+    typeof value.sortOrder === 'number'
   )
 }
 
 function isContextTurn(value: unknown): value is ContextTurn {
   return (
-    typeof value === 'object' &&
-    value !== null &&
+    isObject(value) &&
     'prompt' in value &&
     typeof value.prompt === 'string' &&
-    'generatedContent' in value &&
-    isGeneratedContent(value.generatedContent)
+    'planner' in value &&
+    isPlannerContent(value.planner)
   )
 }
 
-function readTurns(projectId: number): ContextTurn[] {
+function isContextMap(value: unknown): value is ContextMap {
+  return (
+    isObject(value) &&
+    'nodes' in value &&
+    Array.isArray(value.nodes) &&
+    value.nodes.every(isOrchestrationNode) &&
+    'relations' in value &&
+    Array.isArray(value.relations) &&
+    value.relations.every(isOrchestrationRelation)
+  )
+}
+
+function isContextHistory(value: unknown): value is ContextHistory {
+  return (
+    isObject(value) &&
+    'turns' in value &&
+    Array.isArray(value.turns) &&
+    value.turns.every(isContextTurn) &&
+    'map' in value &&
+    isContextMap(value.map)
+  )
+}
+
+function readHistory(projectId: number): ContextHistory {
   try {
-    const storedTurns: unknown = JSON.parse(localStorage.getItem(buildStorageKey(projectId)) ?? '[]')
-    return Array.isArray(storedTurns) ? storedTurns.filter(isContextTurn) : []
+    const storedHistory: unknown = JSON.parse(localStorage.getItem(buildStorageKey(projectId)) ?? 'null')
+    return isContextHistory(storedHistory) ? storedHistory : EMPTY_HISTORY
   } catch {
-    return []
+    return EMPTY_HISTORY
   }
 }
 
-function writeTurns(projectId: number, turns: ContextTurn[]): void {
+function writeHistory(projectId: number, history: ContextHistory): void {
   try {
-    localStorage.setItem(buildStorageKey(projectId), JSON.stringify(turns))
+    localStorage.setItem(buildStorageKey(projectId), JSON.stringify(history))
   } catch {
     return
   }
@@ -75,18 +169,18 @@ export function clearContextHistory(projectId: number): void {
 }
 
 export function useContextHistory(projectId: number): UseContextHistoryResult {
-  const [turns, setTurns] = useState<ContextTurn[]>(() => readTurns(projectId))
+  const [history, setHistory] = useState<ContextHistory>(() => readHistory(projectId))
 
   const addTurn = useCallback(
-    (turn: ContextTurn): void => {
-      setTurns((currentTurns) => {
-        const nextTurns = [...currentTurns, turn]
-        writeTurns(projectId, nextTurns)
-        return nextTurns
+    (turn: ContextTurn, map: ContextMap): void => {
+      setHistory((currentHistory) => {
+        const nextHistory = { turns: [...currentHistory.turns, turn], map }
+        writeHistory(projectId, nextHistory)
+        return nextHistory
       })
     },
     [projectId],
   )
 
-  return { turns, addTurn }
+  return { turns: history.turns, map: history.map, addTurn }
 }

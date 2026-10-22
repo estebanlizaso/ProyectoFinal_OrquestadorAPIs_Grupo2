@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react'
-import type { RequestStatus } from '../../../shared/api/requestStatus'
 import { GLOBAL_CONTEXT_PAGE_TEXTS } from '../constants'
 import type { ContextTurn } from '../useContextHistory'
 import { ConversationTurn } from './ConversationTurn'
@@ -8,11 +7,10 @@ import { PromptBubble } from './PromptBubble'
 export type ContextConversationProps = {
   turns: ContextTurn[]
   pendingPrompt: string | null
-  status: RequestStatus
   errorMessage: string | null
 }
 
-export function ContextConversation({ turns, pendingPrompt, status, errorMessage }: ContextConversationProps) {
+export function ContextConversation({ turns, pendingPrompt, errorMessage }: ContextConversationProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -20,7 +18,7 @@ export function ContextConversation({ turns, pendingPrompt, status, errorMessage
     if (scrollContainer) {
       scrollContainer.scrollTop = scrollContainer.scrollHeight
     }
-  }, [turns, pendingPrompt, status])
+  }, [turns, pendingPrompt, errorMessage])
 
   if (turns.length === 0 && pendingPrompt === null) {
     return <p className="text-sm text-gray-400">{GLOBAL_CONTEXT_PAGE_TEXTS.goalEmpty}</p>
@@ -33,12 +31,6 @@ export function ContextConversation({ turns, pendingPrompt, status, errorMessage
       ))}
 
       {pendingPrompt !== null && <PromptBubble prompt={pendingPrompt} />}
-
-      {status === 'loading' && (
-        <p role="status" className="text-sm text-gray-500">
-          {GLOBAL_CONTEXT_PAGE_TEXTS.generating}
-        </p>
-      )}
 
       {errorMessage && (
         <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
