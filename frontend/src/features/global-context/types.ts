@@ -22,3 +22,7 @@ export type ProjectContextGenerationErrorResponse = {
   contextId: number
   message: string
 }
+
+export type InitialProjectPromptResponse = {
+  initialPrompt: string
+}
