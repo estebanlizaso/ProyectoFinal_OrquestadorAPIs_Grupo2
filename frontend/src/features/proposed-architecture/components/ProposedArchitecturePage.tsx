@@ -10,7 +10,7 @@ export type ProposedArchitecturePageProps = {
 }
 
 export function ProposedArchitecturePage({ projectId }: ProposedArchitecturePageProps) {
-  const { turns } = useContextHistory(projectId)
+  const { turns, map } = useContextHistory(projectId)
   const flowSummary = findLatestValidTurn(turns)?.planner.summary ?? null
 
   return (
@@ -22,7 +22,7 @@ export function ProposedArchitecturePage({ projectId }: ProposedArchitecturePage
       />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-        <ArchitectureDiagram />
+        <ArchitectureDiagram map={map} />
         <AiAssistantPanel flowSummary={flowSummary} />
       </div>
     </div>

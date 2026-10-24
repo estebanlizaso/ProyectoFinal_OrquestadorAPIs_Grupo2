@@ -5,6 +5,11 @@ export const PROPOSED_ARCHITECTURE_PAGE_TEXTS = {
   diagramEmpty: 'Todavía no hay un diagrama para mostrar.',
 }
 
+export const DIAGRAM_TEXTS = {
+  start: 'Inicio',
+  decision: 'Solicitud',
+}
+
 export const AI_ASSISTANT_TEXTS = {
   title: 'Asistente IA',
   flowSummaryTitle: 'Resumen del flujo',
