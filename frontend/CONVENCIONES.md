@@ -52,10 +52,11 @@ frontend/
         useContextHistory.ts  # historial del chat y último mapa (nodes + relations) en localStorage, una clave por proyecto, + clearContextHistory
         isOutOfScope.ts
         findLatestValidTurn.ts # última respuesta que no fue out_of_scope
-      proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama (vacío por ahora) y panel del asistente
-        components/           # ProposedArchitecturePage, ArchitectureDiagram, AiAssistantPanel
+      proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama de solo lectura con React Flow y panel del asistente
+        components/           # ProposedArchitecturePage, ArchitectureDiagram, AiAssistantPanel, ArchitectureNode, StartNode, DecisionNode
+        buildDiagram.ts       # arma nodes y edges de React Flow a partir del mapa (nodes + relations) con un layout propio de arriba hacia abajo
         constants.ts
-        index.ts
+        types.ts              # tipos de los nodos del diagrama
         index.ts
       canvas/                 # lienzo React Flow
         components/           # FlowCanvas, Toolbar, Sidebar
@@ -170,7 +171,7 @@ Reglas:
 ## 9. Estilos
 
 - Tailwind directo en `className`; helper `cn()` para clases condicionales.
-- Sin estilos inline ni CSS propio, salvo overrides puntuales de React Flow en un único archivo.
+- Sin estilos inline ni CSS propio, salvo overrides puntuales de React Flow en un único archivo: `src/app/reactFlow.css`, que también importa los estilos base de `@xyflow/react`.
 - Colores y espaciados salen de la configuración de Tailwind; sin valores mágicos repetidos.
 - La configuración de Tailwind vive en `src/app/index.css`, dentro de `@theme`. Ahí se agregan solo los valores del diseño que no existen en la paleta por defecto (por ejemplo `--color-primary-blue`, que genera `bg-primary-blue`, `text-primary-blue`, etc.) y la fuente (`Inter`, cargada desde Google Fonts en `index.html`). Se nombran por su función y su tono (`primary-blue`, `primary-blue-light`), para que se entienda sin abrir el CSS.
 - Íconos de `lucide-react`.
