@@ -14,6 +14,9 @@ public class Project
     [Column("project_name")]
     public required string ProjectName { get; set; }
 
+    [Column("project_name_normalized")]
+    public string ProjectNameNormalized { get; private set; } = null!;
+
     [Column("created_at")]
     public DateTime? CreatedAt { get; set; }
 

@@ -175,7 +175,18 @@ namespace OrquestadorApi.Migrations
                         .HasColumnType("text")
                         .HasColumnName("project_name");
 
+                    b.Property<string>("ProjectNameNormalized")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasColumnName("project_name_normalized")
+                        .HasComputedColumnSql("lower(btrim(project_name))", true);
+
                     b.HasKey("ProjectId");
+
+                    b.HasIndex("ProjectNameNormalized")
+                        .IsUnique()
+                        .HasDatabaseName("ux_projects_project_name_normalized");
 
                     b.ToTable("projects");
                 });

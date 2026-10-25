@@ -51,6 +51,41 @@ Si Gemini responde `401 API key not valid`, reemplazá `GEMINI_API_KEY` por una 
 
 ## Migraciones
 
+### Unicidad de nombres de proyecto
+
+`POST /api/projects` devuelve `409 Conflict` con
+`{ "message": "Ya existe un proyecto con ese nombre." }` si existe un nombre
+equivalente. Conserva las mayúsculas del nombre visible y recorta únicamente
+espacios comunes U+0020 exteriores. No elimina acentos ni espacios interiores.
+La columna interna `project_name_normalized` se calcula en PostgreSQL como
+`lower(btrim(project_name))`; las comprobaciones del servicio usan la misma
+expresión en PostgreSQL, con la configuración regional de la base.
+El índice único `ux_projects_project_name_normalized` protege también las
+inserciones concurrentes. Solo una violación de ese índice se traduce a `409`.
+
+Antes de aplicar la migración de unicidad (también antes de iniciar la API,
+que aplica migraciones automáticamente), ejecutar esta consulta de solo lectura:
+
+```sql
+SELECT lower(btrim(project_name)) AS normalized_name,
+       count(*) AS total,
+       array_agg(project_id ORDER BY project_id) AS project_ids,
+       array_agg(project_name ORDER BY project_id) AS original_names
+FROM projects
+GROUP BY lower(btrim(project_name))
+HAVING count(*) > 1;
+```
+
+Si devuelve filas, detener el despliegue y acordar cómo resolverlas sin pérdida
+de datos. La migración también comprueba duplicados antes de cambiar el esquema
+y aborta si los encuentra; no elimina, renombra ni fusiona proyectos.
+La creación de la columna almacenada y del índice requiere bloquear escrituras;
+coordinar la aplicación de la migración en una ventana de mantenimiento.
+
+La fábrica de diseño `AppDbContextFactory` permite generar migraciones y scripts
+desde `backend` sin ejecutar el arranque de la API ni su seed. Crear una migración
+no la aplica; `database update` y el arranque sí pueden modificar la base.
+
 Ejecutá estos comandos desde `backend`, porque el manifiesto local de herramientas está en `backend/.config/dotnet-tools.json`:
 
 ```bash
