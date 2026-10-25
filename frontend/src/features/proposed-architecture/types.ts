@@ -4,13 +4,15 @@ import type { AUTHENTICATION_TYPES, HTTP_METHODS, ROUTE_ERROR_TEXTS } from './co
 
 export type StartFlowNode = Node<Record<string, never>, 'start'>
 
+export type DecisionFlowNode = Node<Record<string, never>, 'decision'>
+
 export type ArchitectureNodeData = {
   node: OrchestrationNodeResponse
 }
 
 export type ArchitectureFlowNode = Node<ArchitectureNodeData, 'architecture'>
 
-export type DiagramNode = StartFlowNode | ArchitectureFlowNode
+export type DiagramNode = StartFlowNode | DecisionFlowNode | ArchitectureFlowNode
 
 export type OperationEdgeData = {
   label: string | null

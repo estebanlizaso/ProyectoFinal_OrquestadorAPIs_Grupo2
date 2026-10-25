@@ -7,6 +7,7 @@ export const PROPOSED_ARCHITECTURE_PAGE_TEXTS = {
 
 export const DIAGRAM_TEXTS = {
   start: 'Inicio',
+  decision: 'Solicitud',
 }
 
 export const AI_ASSISTANT_TEXTS = {

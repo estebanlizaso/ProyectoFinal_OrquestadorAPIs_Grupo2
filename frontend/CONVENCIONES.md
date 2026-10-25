@@ -53,7 +53,7 @@ frontend/
         isOutOfScope.ts
         findLatestValidTurn.ts # última respuesta que no fue out_of_scope
       proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama de solo lectura con React Flow, panel del asistente y modal de detalle del módulo (clic en una tarjeta)
-        components/           # ProposedArchitecturePage, ArchitectureDiagram, AiAssistantPanel, ArchitectureNode, StartNode, OperationEdge, ModuleDetailModal, BehaviorRuleField, EndpointConfiguration, EndpointRow, SpecificationImport
+        components/           # ProposedArchitecturePage, ArchitectureDiagram, AiAssistantPanel, ArchitectureNode, StartNode, DecisionNode, OperationEdge, ModuleDetailModal, BehaviorRuleField, EndpointConfiguration, EndpointRow, SpecificationImport
         buildDiagram.ts       # arma nodes y edges de React Flow a partir del mapa (nodes + relations) con un layout propio de arriba hacia abajo
         module-detail/        # funciones puras del modal de detalle del módulo, una por archivo
           validateRoute.ts    # valida el formato de una ruta de endpoint

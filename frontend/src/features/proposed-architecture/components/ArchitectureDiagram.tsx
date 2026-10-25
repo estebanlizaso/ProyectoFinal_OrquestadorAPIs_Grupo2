@@ -6,6 +6,7 @@ import { buildDiagram } from '../buildDiagram'
 import { PROPOSED_ARCHITECTURE_PAGE_TEXTS } from '../constants'
 import type { DiagramNode, OperationFlowEdge } from '../types'
 import { ArchitectureNode } from './ArchitectureNode'
+import { DecisionNode } from './DecisionNode'
 import { OperationEdge } from './OperationEdge'
 import { StartNode } from './StartNode'
 
@@ -16,6 +17,7 @@ export type ArchitectureDiagramProps = {
 
 const NODE_TYPES: NodeTypes = {
   start: StartNode,
+  decision: DecisionNode,
   architecture: ArchitectureNode,
 }
 
