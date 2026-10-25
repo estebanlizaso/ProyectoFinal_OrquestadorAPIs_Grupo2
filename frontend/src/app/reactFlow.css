@@ -1,0 +1,14 @@
+@import '@xyflow/react/dist/style.css';
+
+.react-flow__handle {
+  opacity: 0;
+}
+
+.react-flow__edge-textbg {
+  fill: var(--color-primary-blue-light);
+}
+
+.react-flow__edge-text {
+  fill: var(--color-primary-blue);
+  font-size: 11px;
+}
