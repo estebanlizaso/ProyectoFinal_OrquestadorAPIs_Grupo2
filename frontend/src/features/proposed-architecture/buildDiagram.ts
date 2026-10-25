@@ -1,21 +1,20 @@
-import { MarkerType, type Edge, type XYPosition } from '@xyflow/react'
+import { MarkerType, type XYPosition } from '@xyflow/react'
 import type { ContextMap, OrchestrationNodeResponse, OrchestrationRelationResponse } from '../global-context'
-import type { Diagram, DiagramNode } from './types'
+import type { Diagram, DiagramNode, OperationFlowEdge } from './types'
 
 type DiagramNodeType = DiagramNode['type']
 
 type TreeItem =
-  | { id: string; type: 'start' | 'decision'; children: TreeItem[] }
+  | { id: string; type: 'start'; children: TreeItem[] }
   | { id: string; type: 'architecture'; node: OrchestrationNodeResponse; children: TreeItem[] }
 
 const DIAGRAM_NODE_SIZES: Record<DiagramNodeType, { width: number; height: number }> = {
   start: { width: 56, height: 56 },
-  decision: { width: 56, height: 56 },
   architecture: { width: 240, height: 72 },
 }
 
 const HORIZONTAL_GAP = 32
-const VERTICAL_GAP = 56
+const VERTICAL_GAP = 88
 const START_ID = 'diagram-start'
 const EMPTY_DIAGRAM: Diagram = { nodes: [], edges: [] }
 
@@ -25,10 +24,6 @@ function bySortOrder(first: { sortOrder: number }, second: { sortOrder: number }
 
 function toNodeId(key: string): string {
   return `node-${key}`
-}
-
-function toDecisionId(key: string): string {
-  return `decision-${key}`
 }
 
 function groupBySource(relations: OrchestrationRelationResponse[]): Map<string, OrchestrationRelationResponse[]> {
@@ -59,10 +54,7 @@ function buildTree(
       }
     }
 
-    const decisionChildren: TreeItem[] =
-      outgoingRelations.length > 1 ? [{ id: toDecisionId(node.key), type: 'decision', children }] : children
-
-    return { id: toNodeId(node.key), type: 'architecture', node, children: decisionChildren }
+    return { id: toNodeId(node.key), type: 'architecture', node, children }
   }
 
   const rootCandidates = [...nodes.filter((node) => !targetKeys.has(node.key)), ...nodes]
@@ -77,36 +69,28 @@ function buildTree(
   return { id: START_ID, type: 'start', children: roots }
 }
 
-function buildEdge(id: string, source: string, target: string, label?: string): Edge {
+function buildEdge(id: string, source: string, target: string, label: string | null): OperationFlowEdge {
   return {
     id,
     source,
     target,
-    label,
-    type: 'smoothstep',
+    type: 'operation',
     markerEnd: { type: MarkerType.ArrowClosed },
-    labelBgPadding: [8, 4],
-    labelBgBorderRadius: 4,
+    data: { label },
   }
 }
 
 function buildEdges(
   tree: TreeItem,
   relationsBySource: Map<string, OrchestrationRelationResponse[]>,
-): Edge[] {
-  const startEdges = tree.children.map((root) => buildEdge(`${START_ID}-${root.id}`, START_ID, root.id))
-  const relationEdges = [...relationsBySource.entries()].flatMap(([sourceKey, relations]) => {
-    const hasDecision = relations.length > 1
-    const source = hasDecision ? toDecisionId(sourceKey) : toNodeId(sourceKey)
-    const edges = relations.map((relation) => ({
-      ...buildEdge(`relation-${relation.id}`, source, toNodeId(relation.to), relation.operation ?? relation.label),
+): OperationFlowEdge[] {
+  const startEdges = tree.children.map((root) => buildEdge(`${START_ID}-${root.id}`, START_ID, root.id, null))
+  const relationEdges = [...relationsBySource.entries()].flatMap(([sourceKey, relations]) =>
+    relations.map((relation) => ({
+      ...buildEdge(`relation-${relation.id}`, toNodeId(sourceKey), toNodeId(relation.to), relation.operation ?? relation.label),
       animated: relation.kind === 'async',
-    }))
-
-    return hasDecision
-      ? [buildEdge(`${toNodeId(sourceKey)}-${source}`, toNodeId(sourceKey), source), ...edges]
-      : edges
-  })
+    })),
+  )
 
   return [...startEdges, ...relationEdges]
 }
@@ -124,10 +108,11 @@ function measureChildren(children: TreeItem[]): number {
 }
 
 function toDiagramNode(item: TreeItem, position: XYPosition): DiagramNode {
+  const size = DIAGRAM_NODE_SIZES[item.type]
   if (item.type === 'architecture') {
-    return { id: item.id, type: 'architecture', position, data: { node: item.node } }
+    return { id: item.id, type: 'architecture', position, ...size, data: { node: item.node } }
   }
-  return { id: item.id, type: item.type, position, data: {} }
+  return { id: item.id, type: item.type, position, ...size, data: {} }
 }
 
 function placeSubtree(item: TreeItem, left: number, top: number): DiagramNode[] {

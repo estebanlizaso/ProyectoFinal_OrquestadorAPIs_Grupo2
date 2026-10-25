@@ -52,11 +52,24 @@ frontend/
         useContextHistory.ts  # historial del chat y último mapa (nodes + relations) en localStorage, una clave por proyecto, + clearContextHistory
         isOutOfScope.ts
         findLatestValidTurn.ts # última respuesta que no fue out_of_scope
-      proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama de solo lectura con React Flow y panel del asistente
-        components/           # ProposedArchitecturePage, ArchitectureDiagram, AiAssistantPanel, ArchitectureNode, StartNode, DecisionNode
+      proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama de solo lectura con React Flow, panel del asistente y modal de detalle del módulo (clic en una tarjeta)
+        components/           # ProposedArchitecturePage, ArchitectureDiagram, AiAssistantPanel, ArchitectureNode, StartNode, OperationEdge, ModuleDetailModal, BehaviorRuleField, EndpointConfiguration, EndpointRow, SpecificationImport
         buildDiagram.ts       # arma nodes y edges de React Flow a partir del mapa (nodes + relations) con un layout propio de arriba hacia abajo
+        module-detail/        # funciones puras del modal de detalle del módulo, una por archivo
+          validateRoute.ts    # valida el formato de una ruta de endpoint
+          validateEndpoint.ts # una fila de endpoint vacía es válida; con método y ruta, la ruta tiene que ser válida
+          isHttpMethod.ts, isAuthenticationType.ts
+          canHaveEndpoint.ts  # actores y pasos no tienen endpoint: su modal muestra solo la regla
+          findModuleEndpoints.ts # endpoints de un módulo a partir de las operation ("MÉTODO /ruta") de las relaciones que le llegan
+          buildConfigLines.ts # líneas "Endpoint: MÉTODO /ruta" y "Autenticación: ..." de la configuración del módulo
+          buildModuleNotes.ts # arma las userNotes del nodo: la regla y, si hay, las líneas de configuración
+          buildRuleUpdatedPrompt.ts # mensaje al chat: "Actualicé la regla de {nombre}, ahora: {regla}" + las líneas de configuración
+          extractRuleFromNotes.ts # saca la regla de las userNotes para volver a mostrarla en el modal
+          getModuleRule.ts    # regla que se muestra en la tarjeta y en el modal: la guardada en userNotes o, si no hay, la description
+        useModuleConfigs.ts   # endpoints y autenticación guardados por nodo en localStorage, una clave por proyecto, + clearModuleConfigs
+        errorMessages.ts      # errores al guardar la regla del módulo
         constants.ts
-        types.ts              # tipos de los nodos del diagrama
+        types.ts              # tipos de los nodos del diagrama y del modal de detalle
         index.ts
       canvas/                 # lienzo React Flow
         components/           # FlowCanvas, Toolbar, Sidebar
@@ -70,10 +83,10 @@ frontend/
         schema.ts             # contrato del JSON maestro (fuente única en el front)
     services/                 # un archivo por recurso del backend, con todo lo del recurso
       projectService.ts       # projectService (getAll, create, delete) + useProjects, useCreateProject, useDeleteProject
-      projectContextService.ts # projectContextService (create) + useCreateProjectContext
+      projectContextService.ts # projectContextService (create, getInitialPrompt, updateNodeNotes) + useCreateProjectContext, useInitialPrompt, useSaveNodeRule
       exportService.ts        # cuando exista el endpoint de exportación (service + useExportFlow)
     shared/
-      ui/                     # Button, Modal, Input, Card, SidePanel (sin lógica de negocio)
+      ui/                     # Button, Modal (size md/lg y closeLabel opcional para la X), Input, Select, Textarea, Card, SidePanel (sin lógica de negocio)
       api/httpClient.ts       # único lugar donde se usa fetch
       api/ApiError.ts
       api/requestStatus.ts    # 'idle' | 'loading' | 'success' | 'error'
@@ -112,6 +125,7 @@ Reglas:
   - Los `500` no tienen un formato garantizado.
 - `POST /api/projects/{projectId}/context` recibe `{ "prompt": string }` (`CreateProjectContextRequest`) y responde `ProjectContextResponse` (`contextId`, `projectId`, `initialPrompt`, `generatedContent`, `planner`, `nodes`, `relations`, `mapVersion`, `resumen`, `updatedAt`). Cada mensaje del chat va a este mismo endpoint: el backend corre el agente planificador (con el prompt inicial, el `resumen` y el mapa anterior) y después el resumidor. No genera código. `planner` trae `status` (`needs_clarification`, `ready` u `out_of_scope`), `reply` (la respuesta para el chat), `summary`, `questions`, `plan`, `assumptions` y `language`. `nodes` y `relations` son el mapa completo de la orquestación (los nodos `kind=system` son los que reciben código). `generatedContent` queda por compatibilidad, con `code: null`. Responde `201` la primera vez y `200` en los mensajes siguientes, `404` si el proyecto no existe, `409` si el contexto cambió durante la planificación y `502` (`{ contextId, message }`) si falla la IA. Puede tardar hasta 60 s, por eso el service usa un timeout de 65 s.
 - `GET /api/projects/{projectId}/context` devuelve solo `{ "initialPrompt": string }` (`InitialProjectPromptResponse`), o `404` si el proyecto no tiene contexto.
+- `PATCH /api/projects/{projectId}/context/nodes/{nodeKey}` recibe `{ "userNotes": string }` (`UpdateOrchestrationNodeRequest`, máximo 2000 caracteres) y responde `200` con el `OrchestrationNodeResponse` actualizado, `404` si el proyecto o el nodo no existen y `409` (`{ message }`) si el contexto cambió mientras se guardaba. No llama a la IA: el planificador y el generador de código (`POST /architecture`) toman las notas como requisitos confirmados. En el modal de detalle del módulo, "Regla en lenguaje natural" arranca con la regla guardada en `userNotes` o, si no hay, con la `description` del nodo, y pide al menos 10 caracteres. "Guardar regla" hace el `PATCH` con la regla y la configuración del endpoint (`buildModuleNotes`) y después un `POST /context` con el mensaje "Actualicé la regla de {nombre}, ahora: {regla}" (más el endpoint y la autenticación, si hay), que queda en el historial del chat y actualiza el mapa. El back no tiene campos para método, ruta y autenticación: el front los guarda además en `localStorage` (`useModuleConfigs`) para volver a llenar el modal, y los borra cuando se elimina el proyecto (`clearModuleConfigs`).
 - El backend no guarda la conversación. El front guarda el historial del chat en `localStorage` con una clave por proyecto (`useContextHistory`) y lo borra cuando se elimina el proyecto (`clearContextHistory`).
 
 ---
@@ -171,7 +185,7 @@ Reglas:
 ## 9. Estilos
 
 - Tailwind directo en `className`; helper `cn()` para clases condicionales.
-- Sin estilos inline ni CSS propio, salvo overrides puntuales de React Flow en un único archivo: `src/app/reactFlow.css`, que también importa los estilos base de `@xyflow/react`.
+- Sin estilos inline ni CSS propio, salvo overrides puntuales de React Flow en un único archivo: `src/app/reactFlow.css`, que también importa los estilos base de `@xyflow/react`. La única excepción a "sin estilos inline" es la posición de las etiquetas de las flechas (`OperationEdge`), que React Flow exige calcular con `transform` en `style`; el resto de esa etiqueta usa clases, como `text-diagram-edge` (definida en `@theme`). Los tamaños de los nodos del diagrama se definen una sola vez en `DIAGRAM_NODE_SIZES` (`buildDiagram.ts`) y los componentes de nodo ocupan ese tamaño con `size-full`.
 - Colores y espaciados salen de la configuración de Tailwind; sin valores mágicos repetidos.
 - La configuración de Tailwind vive en `src/app/index.css`, dentro de `@theme`. Ahí se agregan solo los valores del diseño que no existen en la paleta por defecto (por ejemplo `--color-primary-blue`, que genera `bg-primary-blue`, `text-primary-blue`, etc.) y la fuente (`Inter`, cargada desde Google Fonts en `index.html`). Se nombran por su función y su tono (`primary-blue`, `primary-blue-light`), para que se entienda sin abrir el CSS.
 - Íconos de `lucide-react`.

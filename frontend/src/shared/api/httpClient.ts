@@ -1,6 +1,6 @@
 import { ApiError } from './ApiError'
 
-type HttpMethod = 'GET' | 'POST' | 'DELETE'
+type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 
 export type RequestOptions = {
   signal?: AbortSignal
@@ -151,6 +151,14 @@ export async function postJson<T, B>(
   options?: RequestOptions,
 ): Promise<T> {
   return requireBody(await request<T>('POST', path, body, options))
+}
+
+export async function patchJson<T, B>(
+  path: string,
+  body: B,
+  options?: RequestOptions,
+): Promise<T> {
+  return requireBody(await request<T>('PATCH', path, body, options))
 }
 
 export async function deleteJson<T = undefined, B = undefined>(
