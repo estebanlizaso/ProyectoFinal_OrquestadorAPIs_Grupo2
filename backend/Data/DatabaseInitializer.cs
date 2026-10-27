@@ -17,6 +17,13 @@ public static class DatabaseInitializer
         {
             await dbContext.Database.MigrateAsync();
         }
+        catch (PostgresException exception)
+        {
+            throw new InvalidOperationException(
+                "No se pudieron aplicar las migraciones de PostgreSQL. " +
+                "Revisá el error original y verificá los nombres duplicados antes de reintentar.",
+                exception);
+        }
         catch (Exception exception) when (exception is NpgsqlException or TimeoutException)
         {
             throw new InvalidOperationException(
@@ -54,22 +61,15 @@ public static class DatabaseInitializer
             }
         };
 
-        var seedNames = seedProjects.Select(project => project.ProjectName).ToArray();
-        var existingNames = await dbContext.Projects
-            .Where(project => seedNames.Contains(project.ProjectName))
-            .Select(project => project.ProjectName)
-            .ToListAsync();
-
-        var missingProjects = seedProjects
-            .Where(project => !existingNames.Contains(project.ProjectName))
-            .ToArray();
-
-        if (missingProjects.Length == 0)
+        foreach (var project in seedProjects)
         {
-            return;
+            // PostgreSQL calculates the normalized key. Only this conflict is ignored,
+            // including when another application instance seeds the same name concurrently.
+            await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO projects (project_name, description, created_at)
+                VALUES ({project.ProjectName}, {project.Description}, {project.CreatedAt})
+                ON CONFLICT (project_name_normalized) DO NOTHING
+                """);
         }
-
-        dbContext.Projects.AddRange(missingProjects);
-        await dbContext.SaveChangesAsync();
     }
 }

@@ -18,15 +18,23 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpPost]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProjectResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ProjectResponse>> Create(
         [FromBody] CreateProjectRequest request,
         CancellationToken cancellationToken)
     {
-        var project = await _projectService.CreateAsync(request.Name, cancellationToken);
-
-        return StatusCode(StatusCodes.Status201Created, project);
+        var result = await _projectService.CreateAsync(request.Name, cancellationToken);
+        return result.Status switch
+        {
+            CreateProjectStatus.Created => StatusCode(StatusCodes.Status201Created, result.Project),
+            CreateProjectStatus.DuplicateName => Conflict(new
+            {
+                message = "Ya existe un proyecto con ese nombre."
+            }),
+            _ => throw new InvalidOperationException("Estado de creación de proyecto desconocido.")
+        };
     }
 
     [HttpGet]

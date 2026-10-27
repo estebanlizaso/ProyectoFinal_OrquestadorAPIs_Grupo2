@@ -4,7 +4,7 @@ namespace OrquestadorApi.Services.Projects;
 
 public interface IProjectService
 {
-    Task<ProjectResponse> CreateAsync(
+    Task<CreateProjectResult> CreateAsync(
         string projectName,
         CancellationToken cancellationToken = default);
 
@@ -15,6 +15,14 @@ public interface IProjectService
 
     Task<bool> DeleteAsync(int projectId, CancellationToken cancellationToken = default);
 }
+
+public enum CreateProjectStatus
+{
+    Created,
+    DuplicateName
+}
+
+public record CreateProjectResult(CreateProjectStatus Status, ProjectResponse? Project = null);
 
 /*
 1. El cliente solicita GET /api/projects.

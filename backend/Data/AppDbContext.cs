@@ -16,6 +16,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Project>()
+            .Property(project => project.ProjectNameNormalized)
+            .HasComputedColumnSql("lower(btrim(project_name))", stored: true)
+            .IsRequired();
+
+        modelBuilder.Entity<Project>()
+            .HasIndex(project => project.ProjectNameNormalized)
+            .HasDatabaseName(ProjectNameUniqueness.IndexName)
+            .IsUnique();
+
+        modelBuilder.Entity<Project>()
             .HasOne(project => project.Context)
             .WithOne(context => context.Project)
             .HasForeignKey<ProjectContext>(context => context.ProjectId)

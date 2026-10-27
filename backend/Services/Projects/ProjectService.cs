@@ -14,25 +14,38 @@ public class ProjectService : IProjectService
         _dbContext = dbContext;
     }
 
-    public async Task<ProjectResponse> CreateAsync(
+    public async Task<CreateProjectResult> CreateAsync(
         string projectName,
         CancellationToken cancellationToken = default)
     {
+        if (await ProjectNameUniqueness.ExistsAsync(_dbContext, projectName, cancellationToken))
+        {
+            return new(CreateProjectStatus.DuplicateName);
+        }
+
         var createdAt = DateTime.UtcNow;
         var project = new Project
         {
-            ProjectName = projectName.Trim(),
+            ProjectName = projectName.Trim(' '),
             CreatedAt = createdAt
         };
 
         _dbContext.Projects.Add(project);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (ProjectNameUniqueness.IsViolation(exception))
+        {
+            _dbContext.Entry(project).State = EntityState.Detached;
+            return new(CreateProjectStatus.DuplicateName);
+        }
 
-        return new ProjectResponse(
+        return new(CreateProjectStatus.Created, new ProjectResponse(
             project.ProjectName,
             project.Description,
             project.ProjectId,
-            DateOnly.FromDateTime(createdAt));
+            DateOnly.FromDateTime(createdAt)));
     }
 
     public async Task<ProjectPage> GetAllAsync(
