@@ -78,6 +78,7 @@ Los mocks respetan el contrato del backend:
 - `POST /api/projects` crea un proyecto en memoria: responde `201` con el proyecto, que queda primero en la lista. Un nombre vacío responde `400`.
 - `DELETE /api/projects` lo elimina: `204`, o `404` si no existe.
 - `POST /api/projects/{projectId}/context` responde `201` con un contexto de ejemplo en estado `ready` (plan y código). Si el proyecto ya tenía contexto, devuelve el mismo con `200`. Responde `404` si el proyecto no existe y `400` si el prompt está vacío.
+- `PATCH /api/projects/{projectId}/context/nodes/{nodeKey}` guarda las `userNotes` del nodo (la regla del modal de detalle del módulo) en el contexto en memoria: responde `200` con el nodo actualizado, `404` si el proyecto o el nodo no existen y `400` si falta `userNotes`.
 
 Los cambios se pierden al reiniciar Vite. Los mocks tardan 800 ms en responder para que se vea el estado de carga y viven en `frontend/mocks/`, fuera del build.
 

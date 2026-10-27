@@ -21,6 +21,10 @@ export type PlannerContentResponse = {
   language: string | null
 }
 
+export type UpdateOrchestrationNodeRequest = {
+  userNotes: string
+}
+
 export type OrchestrationNodeResponse = {
   id: number
   key: string
