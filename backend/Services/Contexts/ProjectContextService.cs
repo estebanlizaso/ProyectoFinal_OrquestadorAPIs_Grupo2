@@ -172,7 +172,9 @@ public class ProjectContextService : IProjectContextService
                         from = previousKeysById[relation.SourceNodeId],
                         to = previousKeysById[relation.TargetNodeId],
                         label = relation.Label,
-                        operation = relation.Operation,
+                        operation = relation.EffectiveOperation,
+                        httpMethod = relation.HttpMethod,
+                        path = relation.Path,
                         description = relation.Description,
                         kind = relation.Kind
                     })
@@ -239,7 +241,7 @@ public class ProjectContextService : IProjectContextService
                             previousKeysById[relation.SourceNodeId],
                             previousKeysById[relation.TargetNodeId],
                             relation.Label,
-                            relation.Operation,
+                            relation.EffectiveOperation,
                             relation.Description,
                             relation.Kind))
                         .ToList()
@@ -319,6 +321,99 @@ public class ProjectContextService : IProjectContextService
                 ContextId: projectContext.ContextId,
                 ErrorMessage: exception.Message);
         }
+    }
+
+    public async Task<SaveNodeInstructionsResult> SaveNodeInstructionsAsync(
+        int projectId,
+        string nodeKey,
+        SaveNodeInstructionsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedKey = PlannerResponseNormalizer.Slugify(nodeKey);
+        var projectContext = await _dbContext.Contexts
+            .SingleOrDefaultAsync(context => context.ProjectId == projectId, cancellationToken);
+        if (projectContext is null)
+        {
+            return new(SaveNodeInstructionsStatus.NotFound);
+        }
+
+        var node = await _dbContext.OrchestrationNodes.SingleOrDefaultAsync(
+            candidate => candidate.ContextId == projectContext.ContextId &&
+                candidate.Key == normalizedKey && candidate.IsActive,
+            cancellationToken);
+        if (node is null)
+        {
+            return new(SaveNodeInstructionsStatus.NotFound);
+        }
+
+        OrchestrationRelation? relation = null;
+        if (request.RelationId.HasValue)
+        {
+            relation = await _dbContext.OrchestrationRelations
+                .Include(candidate => candidate.SourceNode)
+                .Include(candidate => candidate.TargetNode)
+                .SingleOrDefaultAsync(candidate =>
+                    candidate.RelationId == request.RelationId.Value &&
+                    candidate.ContextId == projectContext.ContextId &&
+                    (candidate.SourceNodeId == node.NodeId || candidate.TargetNodeId == node.NodeId) &&
+                    candidate.SourceNode.IsActive && candidate.TargetNode.IsActive,
+                    cancellationToken);
+            if (relation is null)
+            {
+                return new(SaveNodeInstructionsStatus.NotFound);
+            }
+        }
+
+        if (projectContext.MapVersion != request.ExpectedMapVersion)
+        {
+            return new(SaveNodeInstructionsStatus.Conflict);
+        }
+
+        var notes = string.IsNullOrWhiteSpace(request.UserNotes) ? null : request.UserNotes.Trim();
+        var method = request.HttpMethod?.Trim().ToUpperInvariant();
+        var path = request.Path?.Trim();
+        var changed = node.UserNotes != notes ||
+            (relation is not null && (relation.HttpMethod != method || relation.Path != path));
+
+        if (changed)
+        {
+            node.UserNotes = notes;
+            if (relation is not null)
+            {
+                relation.HttpMethod = method;
+                relation.Path = path;
+                relation.Operation = relation.EffectiveOperation;
+            }
+
+            var now = DateTime.UtcNow;
+            node.UpdatedAt = now;
+            projectContext.UpdatedAt = now;
+            projectContext.MapVersion += 1;
+
+            // One SaveChanges transaction covers the note, operation and concurrency token.
+            try
+            {
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return new(SaveNodeInstructionsStatus.Conflict);
+            }
+        }
+
+        var relationResponse = relation is null ? null : new OrchestrationRelationResponse(
+            relation.RelationId,
+            relation.SourceNode.Key,
+            relation.TargetNode.Key,
+            relation.Label,
+            relation.EffectiveOperation,
+            relation.Description,
+            relation.Kind,
+            relation.SortOrder,
+            relation.HttpMethod,
+            relation.Path);
+        return new(SaveNodeInstructionsStatus.Saved, new NodeInstructionsResponse(
+            ProjectContextMapper.ToNodeResponse(node), relationResponse, projectContext.MapVersion));
     }
 
     public async Task<UpdateNodeNotesResult> UpdateNodeNotesAsync(
@@ -484,7 +579,10 @@ public class ProjectContextService : IProjectContextService
                     relationsByKey[relationKey] = relation;
                 }
 
-                relation.Operation = plannerRelation.Operation;
+                // Explicit user edits survive replanning of the same relation.
+                relation.Operation = relation.HttpMethod is not null && relation.Path is not null
+                    ? relation.EffectiveOperation
+                    : plannerRelation.Operation;
                 relation.Description = plannerRelation.Description;
                 relation.Kind = plannerRelation.Kind;
                 relation.SortOrder = index;

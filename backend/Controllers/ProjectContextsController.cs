@@ -72,6 +72,32 @@ public class ProjectContextsController : ControllerBase
         return Ok(new InitialProjectPromptResponse(initialPrompt));
     }
 
+    [HttpPost("nodes/{nodeKey}/instructions")]
+    [ProducesResponseType(typeof(NodeInstructionsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<NodeInstructionsResponse>> SaveNodeInstructions(
+        [FromRoute] int projectId,
+        [FromRoute] string nodeKey,
+        [FromBody] SaveNodeInstructionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _projectContextService.SaveNodeInstructionsAsync(
+            projectId, nodeKey, request, cancellationToken);
+
+        return result.Status switch
+        {
+            SaveNodeInstructionsStatus.Saved => Ok(result.Response),
+            SaveNodeInstructionsStatus.NotFound => NotFound(),
+            SaveNodeInstructionsStatus.Conflict => Conflict(new
+            {
+                message = "El mapa cambió. Recargá su versión actual antes de guardar las instrucciones."
+            }),
+            _ => throw new InvalidOperationException("Estado de guardado de instrucciones desconocido.")
+        };
+    }
+
     [HttpPatch("nodes/{nodeKey}")]
     [ProducesResponseType(typeof(OrchestrationNodeResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

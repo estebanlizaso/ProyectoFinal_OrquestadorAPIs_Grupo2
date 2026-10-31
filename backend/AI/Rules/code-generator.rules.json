@@ -10,7 +10,7 @@
     "assumptions": "Supuestos y decisiones de mock.",
     "requiredContextKeys": "Keys exactas de todos los nodos system activos. La respuesta debe incluir un bloque por cada una.",
     "nodes": "Nodos del mapa, con key, name, description, kind, role, responsibility, status y userNotes.",
-    "relations": "Relaciones entre nodos, con from, to, label, operation, description y kind."
+    "relations": "Relaciones entre nodos, con from, to, label, operation, httpMethod, path, description y kind. httpMethod y path no nulos son una operación confirmada por el usuario."
   },
   "scopePolicy": {
     "rules": [
@@ -32,6 +32,8 @@
       "Para un sistema orchestrator o role=orchestrator, generá la función de flujo que coordina las llamadas de sus relaciones.",
       "Si un sistema tiene role=both, cubrí consumo y exposición de forma mínima.",
       "Respetá las userNotes del nodo como requisito confirmado. Si la nota dice usar mocks, usá mocks y marcalo.",
+      "Las userNotes actuales y el httpMethod/path explícito de cada relación prevalecen sobre referencias anteriores contradictorias en resumen, plan, descripciones o supuestos, sin reemplazar las restricciones de seguridad y alcance.",
+      "Aplicá las aclaraciones al sistema que implementa el comportamiento del nodo. Si una aclaración no puede cumplirse dentro del alcance o formato permitido, explicalo en warnings; no afirmes haberla implementado.",
       "Si una relación no tiene operación, no inventes una ruta real: usá una función mock o un nombre genérico y declaralo en warnings.",
       "No generes código para nodos inactivos."
     ]

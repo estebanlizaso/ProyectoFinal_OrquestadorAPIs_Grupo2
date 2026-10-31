@@ -114,6 +114,11 @@ namespace OrquestadorApi.Migrations
                         .HasColumnType("text")
                         .HasColumnName("description");
 
+                    b.Property<string>("HttpMethod")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("http_method");
+
                     b.Property<string>("Kind")
                         .HasColumnType("text")
                         .HasColumnName("kind");
@@ -126,6 +131,11 @@ namespace OrquestadorApi.Migrations
                     b.Property<string>("Operation")
                         .HasColumnType("text")
                         .HasColumnName("operation");
+
+                    b.Property<string>("Path")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("path");
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer")
@@ -210,6 +220,7 @@ namespace OrquestadorApi.Migrations
                         .HasColumnName("language");
 
                     b.Property<int>("MapVersion")
+                        .IsConcurrencyToken()
                         .HasColumnType("integer")
                         .HasColumnName("map_version");
 

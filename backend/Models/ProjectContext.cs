@@ -41,6 +41,7 @@ public class ProjectContext
     [Column("language")]
     public string? Language { get; set; }
 
+    [ConcurrencyCheck]
     [Column("map_version")]
     public int MapVersion { get; set; }
 

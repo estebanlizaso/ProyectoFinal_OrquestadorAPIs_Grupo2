@@ -23,7 +23,8 @@
       "Las relaciones unen dos keys existentes. No inventes keys que no estén en nodes.",
       "Usá kind=system para los sistemas que después recibirán código. Usá actor, orchestrator o step solo cuando aporten al diagrama.",
       "Máximo 10 nodos, 5 nodos system y 15 relaciones. Si el pedido tiene más, agrupá o priorizá y explicá la decisión en summary.",
-      "Las notas del usuario en los nodos son requisitos confirmados. No las contradigas ni las borres. Si una nota ya no aplica, explicalo y pedí confirmación."
+      "Las notas del usuario en los nodos son requisitos confirmados. No las contradigas ni las borres. Si una nota ya no aplica, explicalo y pedí confirmación.",
+      "Cuando previousRelations incluya httpMethod y path no nulos, son ediciones manuales confirmadas: conservá su operation, from, to y label mientras siga existiendo esa relación. Prevalecen sobre referencias antiguas del resumen o supuestos. Para cambiar el método o la ruta de esa misma relación, indicá que se debe editar mediante las instrucciones del nodo."
     ]
   },
   "planningPolicy": {

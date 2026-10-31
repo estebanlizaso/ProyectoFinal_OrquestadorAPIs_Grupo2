@@ -10,4 +10,6 @@ public record OrchestrationRelationResponse(
     [property: JsonPropertyName("operation")] string? Operation,
     [property: JsonPropertyName("description")] string? Description,
     [property: JsonPropertyName("kind")] string? Kind,
-    [property: JsonPropertyName("sortOrder")] int SortOrder);
+    [property: JsonPropertyName("sortOrder")] int SortOrder,
+    [property: JsonPropertyName("httpMethod")] string? HttpMethod = null,
+    [property: JsonPropertyName("path")] string? Path = null);
