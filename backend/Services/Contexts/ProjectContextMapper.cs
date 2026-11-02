@@ -69,10 +69,12 @@ public static class ProjectContextMapper
                 keyById[relation.SourceNodeId],
                 keyById[relation.TargetNodeId],
                 relation.Label,
-                relation.Operation,
+                relation.EffectiveOperation,
                 relation.Description,
                 relation.Kind,
-                relation.SortOrder))
+                relation.SortOrder,
+                relation.HttpMethod,
+                relation.Path))
             .ToList();
 
         return new ProjectContextResponse(

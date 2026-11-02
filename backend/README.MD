@@ -296,6 +296,67 @@ Guarda una nota manual en el nodo. La nota se conserva en las siguientes iteraci
 
 Códigos: `200` con el nodo actualizado, `404` si el nodo no existe o está inactivo, `409` si el contexto cambió durante la operación.
 
+### `POST /api/projects/{projectId}/context/nodes/{nodeKey}/instructions`
+
+Guarda la aclaración vigente del nodo y, opcionalmente, cambia el método y la ruta
+de una relación identificada explícitamente. No llama a Gemini ni genera código.
+
+Solo nota:
+
+```json
+{
+  "userNotes": "Registrar los errores en un archivo de logs separado.",
+  "expectedMapVersion": 1
+}
+```
+
+Nota y operación:
+
+```json
+{
+  "userNotes": "Registrar los errores en un archivo de logs separado.",
+  "relationId": 23,
+  "httpMethod": "POST",
+  "path": "/polizas/consultar",
+  "expectedMapVersion": 1
+}
+```
+
+- `userNotes` es obligatorio (máximo 2000 caracteres); reemplaza la nota anterior.
+  Un string vacío o con espacios la elimina.
+- `expectedMapVersion` es obligatorio y debe coincidir con la versión vigente.
+- Para editar una operación se requieren juntos `relationId`, `httpMethod` y `path`.
+  La relación debe pertenecer al mismo contexto y estar conectada al nodo; ambos
+  extremos deben estar activos. No se infiere una relación automáticamente.
+- Métodos admitidos: GET, POST, PUT, PATCH, DELETE, HEAD y OPTIONS. Se normalizan
+  a mayúsculas. La ruta (máximo 2048 caracteres) debe comenzar con `/`; admite
+  parámetros como `{id}`, pero no URLs absolutas, query strings, fragmentos,
+  espacios interiores ni caracteres de control. No se modifica autenticación.
+- Nota, operación y versión se guardan atómicamente. Si hay cambios, se incrementa
+  `mapVersion`; repetir el contenido vigente con su versión actual no la incrementa.
+- Devuelve `200` con `{ "node": { ... }, "relation": { ... }, "mapVersion": 2 }`.
+  `relation` es `null` si solo se editó la nota. Una relación incluye los nuevos
+  campos `httpMethod` y `path`, además de `operation` por compatibilidad.
+- Devuelve `400` para datos inválidos, `404` para recursos inexistentes, ajenos o
+  inactivos, y `409` para versiones desactualizadas o escrituras concurrentes.
+
+La migración `AddRelationHttpInstructions` agrega columnas opcionales a las
+relaciones sin inferir datos del texto libre existente. Antes de una edición manual,
+se sigue usando `operation`. Después, `httpMethod` y `path` son la fuente de verdad
+y `operation` refleja ambos. Estas ediciones se conservan al replanificar la misma
+relación `(origen, destino, label)`; no se transfieren a relaciones nuevas.
+
+El guardado no reescribe `resumen`, descripciones ni planes. Las notas actuales y
+las operaciones explícitas se envían al generador y prevalecen sobre referencias
+antiguas de esos textos, sin reemplazar las restricciones de seguridad y alcance.
+Se aplican en la siguiente generación, no sobre código ya devuelto.
+
+Pruebas del backend (SQLite en memoria, sin usar la base configurada ni Gemini):
+
+```bash
+dotnet test ../backend.Tests/OrquestadorApi.Tests.csproj
+```
+
 ### `POST /api/projects/{projectId}/architecture`
 
 Body opcional:

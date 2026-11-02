@@ -4,6 +4,12 @@ namespace OrquestadorApi.Services.Contexts;
 
 public interface IProjectContextService
 {
+    Task<SaveNodeInstructionsResult> SaveNodeInstructionsAsync(
+        int projectId,
+        string nodeKey,
+        SaveNodeInstructionsRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<CreateProjectContextResult> CreateAsync(
         int projectId,
         string prompt,
@@ -49,3 +55,14 @@ public enum UpdateNodeNotesStatus
 public record UpdateNodeNotesResult(
     UpdateNodeNotesStatus Status,
     OrchestrationNodeResponse? Node = null);
+
+public enum SaveNodeInstructionsStatus
+{
+    Saved,
+    NotFound,
+    Conflict
+}
+
+public record SaveNodeInstructionsResult(
+    SaveNodeInstructionsStatus Status,
+    NodeInstructionsResponse? Response = null);

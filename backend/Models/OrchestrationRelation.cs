@@ -26,6 +26,19 @@ public class OrchestrationRelation
     [Column("operation")]
     public string? Operation { get; set; }
 
+    [MaxLength(10)]
+    [Column("http_method")]
+    public string? HttpMethod { get; set; }
+
+    [MaxLength(2048)]
+    [Column("path")]
+    public string? Path { get; set; }
+
+    [NotMapped]
+    public string? EffectiveOperation => HttpMethod is not null && Path is not null
+        ? $"{HttpMethod} {Path}"
+        : Operation;
+
     [Column("description")]
     public string? Description { get; set; }
 

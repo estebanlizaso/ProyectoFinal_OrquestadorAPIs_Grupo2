@@ -134,7 +134,9 @@ public class ArchitectureService : IArchitectureService
                         from = keysById[relation.SourceNodeId],
                         to = keysById[relation.TargetNodeId],
                         label = relation.Label,
-                        operation = relation.Operation,
+                        operation = relation.EffectiveOperation,
+                        httpMethod = relation.HttpMethod,
+                        path = relation.Path,
                         description = relation.Description,
                         kind = relation.Kind
                     })
