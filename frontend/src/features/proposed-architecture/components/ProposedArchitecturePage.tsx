@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  findLatestValidTurn,
+  ContextChatPanel,
   useContextHistory,
   type OrchestrationNodeResponse,
   type ProjectContextResponse,
@@ -10,7 +10,6 @@ import { PageHeader } from '../../../shared/ui/PageHeader'
 import { PROPOSED_ARCHITECTURE_PAGE_TEXTS } from '../constants'
 import type { ModuleConfig } from '../types'
 import { useModuleConfigs } from '../useModuleConfigs'
-import { AiAssistantPanel } from './AiAssistantPanel'
 import { ArchitectureDiagram } from './ArchitectureDiagram'
 import { ModuleDetailModal } from './ModuleDetailModal'
 
@@ -20,7 +19,6 @@ export type ProposedArchitecturePageProps = {
 
 export function ProposedArchitecturePage({ projectId }: ProposedArchitecturePageProps) {
   const { turns, map, addTurn } = useContextHistory(projectId)
-  const flowSummary = findLatestValidTurn(turns)?.planner.summary ?? null
   const { configs, saveConfig } = useModuleConfigs(projectId)
   const [openModule, setOpenModule] = useState<OrchestrationNodeResponse | null>(null)
 
@@ -40,17 +38,16 @@ export function ProposedArchitecturePage({ projectId }: ProposedArchitecturePage
   }
 
   return (
-    <div className="p-8">
-      <PageHeader
-        title={PROPOSED_ARCHITECTURE_PAGE_TEXTS.title}
-        subtitle={PROPOSED_ARCHITECTURE_PAGE_TEXTS.subtitle}
-        actions={<Button disabled>{PROPOSED_ARCHITECTURE_PAGE_TEXTS.confirmFlow}</Button>}
-      />
-
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
+    <div className="grid grid-cols-1 items-start gap-6 p-8 lg:h-full lg:grid-cols-3 lg:grid-rows-1">
+      <div className="flex flex-col lg:col-span-2 lg:h-full">
+        <PageHeader
+          title={PROPOSED_ARCHITECTURE_PAGE_TEXTS.title}
+          subtitle={PROPOSED_ARCHITECTURE_PAGE_TEXTS.subtitle}
+          actions={<Button disabled>{PROPOSED_ARCHITECTURE_PAGE_TEXTS.confirmFlow}</Button>}
+        />
         <ArchitectureDiagram map={map} onModuleOpen={setOpenModule} />
-        <AiAssistantPanel flowSummary={flowSummary} />
       </div>
+      <ContextChatPanel projectId={projectId} turns={turns} onTurnAdded={addTurn} />
 
       {openModule && (
         <ModuleDetailModal

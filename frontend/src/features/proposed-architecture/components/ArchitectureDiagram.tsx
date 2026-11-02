@@ -30,14 +30,14 @@ export function ArchitectureDiagram({ map, onModuleOpen }: ArchitectureDiagramPr
 
   if (diagram.nodes.length === 0) {
     return (
-      <Card className="flex min-h-[60vh] items-center justify-center p-6 lg:col-span-2">
+      <Card className="flex h-[60vh] items-center justify-center p-6 lg:h-auto lg:min-h-0 lg:flex-1">
         <p className="text-sm text-gray-400">{PROPOSED_ARCHITECTURE_PAGE_TEXTS.diagramEmpty}</p>
       </Card>
     )
   }
 
   return (
-    <Card className="h-[60vh] overflow-hidden p-0 lg:col-span-2">
+    <Card className="h-[60vh] overflow-hidden p-0 lg:h-auto lg:min-h-0 lg:flex-1">
       <ReactFlow<DiagramNode, OperationFlowEdge>
         nodes={diagram.nodes}
         edges={diagram.edges}

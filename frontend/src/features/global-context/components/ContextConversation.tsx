@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { GLOBAL_CONTEXT_PAGE_TEXTS } from '../constants'
+import { CONTEXT_CHAT_TEXTS } from '../constants'
 import type { ContextTurn } from '../useContextHistory'
 import { ConversationTurn } from './ConversationTurn'
 import { PromptBubble } from './PromptBubble'
@@ -21,11 +21,11 @@ export function ContextConversation({ turns, pendingPrompt, errorMessage }: Cont
   }, [turns, pendingPrompt, errorMessage])
 
   if (turns.length === 0 && pendingPrompt === null) {
-    return <p className="text-sm text-gray-400">{GLOBAL_CONTEXT_PAGE_TEXTS.goalEmpty}</p>
+    return <p className="text-sm text-gray-400">{CONTEXT_CHAT_TEXTS.goalEmpty}</p>
   }
 
   return (
-    <div ref={scrollContainerRef} className="max-h-[60vh] space-y-6 overflow-y-auto pr-2">
+    <div ref={scrollContainerRef} className="min-h-0 space-y-6 overflow-y-auto pr-2">
       {turns.map((turn, index) => (
         <ConversationTurn key={index} turn={turn} />
       ))}
@@ -34,7 +34,7 @@ export function ContextConversation({ turns, pendingPrompt, errorMessage }: Cont
 
       {errorMessage && (
         <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          <p className="font-semibold">{GLOBAL_CONTEXT_PAGE_TEXTS.errorTitle}</p>
+          <p className="font-semibold">{CONTEXT_CHAT_TEXTS.errorTitle}</p>
           <p>{errorMessage}</p>
         </div>
       )}

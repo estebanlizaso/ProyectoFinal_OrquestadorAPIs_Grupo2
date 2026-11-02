@@ -1,5 +1,5 @@
 import { CircleAlert } from 'lucide-react'
-import { GLOBAL_CONTEXT_PAGE_TEXTS } from '../constants'
+import { CONTEXT_CHAT_TEXTS } from '../constants'
 import { isOutOfScope } from '../isOutOfScope'
 import type { ContextTurn } from '../useContextHistory'
 import { AiBubble } from './AiBubble'
@@ -21,7 +21,7 @@ export function ConversationTurn({ turn }: ConversationTurnProps) {
           <div className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             <CircleAlert className="size-5 shrink-0" aria-hidden="true" />
             <div>
-              <p className="font-semibold">{GLOBAL_CONTEXT_PAGE_TEXTS.rejectedTitle}</p>
+              <p className="font-semibold">{CONTEXT_CHAT_TEXTS.rejectedTitle}</p>
               <p>{planner.reply}</p>
             </div>
           </div>
@@ -31,7 +31,7 @@ export function ConversationTurn({ turn }: ConversationTurnProps) {
 
             {planner.questions.length > 0 && (
               <>
-                <h3 className="mt-2 text-sm font-semibold text-gray-900">{GLOBAL_CONTEXT_PAGE_TEXTS.questionsTitle}</h3>
+                <h3 className="mt-2 text-sm font-semibold text-gray-900">{CONTEXT_CHAT_TEXTS.questionsTitle}</h3>
                 <ol className="flex flex-col items-start gap-2">
                   {planner.questions.map((question, index) => (
                     <li key={question}>

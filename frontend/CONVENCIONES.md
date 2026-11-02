@@ -44,15 +44,15 @@ frontend/
         errorMessages.ts      # mensajes de error de la feature para getErrorMessage
         types.ts              # espejo de los DTOs de proyectos
         index.ts
-      global-context/         # Contexto global: prompt inicial del proyecto (POST /api/projects/{projectId}/context)
-        components/           # GlobalContextPage, PromptComposer, ContextConversation, ConversationTurn, PromptBubble, AiBubble, ContextDetailsPanel, NodeCard
+      global-context/         # Contexto global: chat con la IA del proyecto (POST /api/projects/{projectId}/context), que se muestra en el panel derecho de arquitectura propuesta
+        components/           # ContextChatPanel, PromptComposer, ContextConversation, ConversationTurn, PromptBubble, AiBubble
         constants.ts
         errorMessages.ts
         types.ts              # espejo de los DTOs de contexto
         useContextHistory.ts  # historial del chat y último mapa (nodes + relations) en localStorage, una clave por proyecto, + clearContextHistory
         isOutOfScope.ts
         findLatestValidTurn.ts # última respuesta que no fue out_of_scope
-      proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama de solo lectura con React Flow, panel del asistente y modal de detalle del módulo (clic en una tarjeta)
+      proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama de solo lectura con React Flow, chat de contexto global en el panel derecho (ContextChatPanel de global-context) y modal de detalle del módulo (clic en una tarjeta). Crear un proyecto lleva directo a esta pantalla
         components/           # ProposedArchitecturePage, ArchitectureDiagram, AiAssistantPanel, ArchitectureNode, StartNode, DecisionNode, OperationEdge, ModuleDetailModal, BehaviorRuleField, EndpointConfiguration, EndpointRow, SpecificationImport
         buildDiagram.ts       # arma nodes y edges de React Flow a partir del mapa (nodes + relations) con un layout propio de arriba hacia abajo
         module-detail/        # funciones puras del modal de detalle del módulo, una por archivo
@@ -103,7 +103,7 @@ Reglas:
 - Una feature solo importa de otra a través de su `index.ts`, nunca de sus archivos internos.
 - `shared/` solo contiene código reutilizable sin conocimiento del dominio.
 - `services/` es global y tiene **un archivo por recurso del backend** (`projectService.ts`, y después `userService.ts`, etc.). Ese archivo concentra todo lo del recurso: el objeto service con sus métodos y los hooks que los ejecutan (`useProjects`, `useDeleteProject`). Los componentes usan los hooks; nunca llaman a un service directo.
-- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context` o `/projects/{projectId}/architecture`).
+- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/architecture`).
 
 ---
 
