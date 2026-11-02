@@ -2,9 +2,11 @@ import { useCallback, useState } from 'react'
 import type {
   CreateProjectContextRequest,
   InitialProjectPromptResponse,
+  OrchestrationNodeResponse,
   ProjectContextResponse,
+  UpdateOrchestrationNodeRequest,
 } from '../features/global-context'
-import { getJson, postJson, type RequestOptions } from '../shared/api/httpClient'
+import { getJson, patchJson, postJson, type RequestOptions } from '../shared/api/httpClient'
 import type { RequestStatus } from '../shared/api/requestStatus'
 import { toError } from '../shared/lib/toError'
 
@@ -34,9 +36,23 @@ async function getInitialPrompt(
   return initialPrompt
 }
 
+async function updateNodeNotes(
+  projectId: ProjectContextResponse['projectId'],
+  nodeKey: OrchestrationNodeResponse['key'],
+  userNotes: string,
+  options?: RequestOptions,
+): Promise<OrchestrationNodeResponse> {
+  return patchJson<OrchestrationNodeResponse, UpdateOrchestrationNodeRequest>(
+    `${buildContextPath(projectId)}/nodes/${encodeURIComponent(nodeKey)}`,
+    { userNotes },
+    options,
+  )
+}
+
 export const projectContextService = {
   create,
   getInitialPrompt,
+  updateNodeNotes,
 }
 
 export type UseCreateProjectContextResult = {
@@ -100,6 +116,47 @@ export function useInitialPrompt(): UseInitialPromptResult {
       return null
     }
   }, [])
+
+  return { run, status, error }
+}
+export type UseSaveNodeRuleResult = {
+  run: (
+    projectId: ProjectContextResponse['projectId'],
+    nodeKey: OrchestrationNodeResponse['key'],
+    rule: string,
+    prompt: string,
+  ) => Promise<ProjectContextResponse | null>
+  status: RequestStatus
+  error: Error | null
+}
+
+export function useSaveNodeRule(): UseSaveNodeRuleResult {
+  const [status, setStatus] = useState<RequestStatus>('idle')
+  const [error, setError] = useState<Error | null>(null)
+
+  const run = useCallback(
+    async (
+      projectId: ProjectContextResponse['projectId'],
+      nodeKey: OrchestrationNodeResponse['key'],
+      rule: string,
+      prompt: string,
+    ): Promise<ProjectContextResponse | null> => {
+      setStatus('loading')
+      setError(null)
+
+      try {
+        await projectContextService.updateNodeNotes(projectId, nodeKey, rule)
+        const updatedContext = await projectContextService.create(projectId, prompt)
+        setStatus('success')
+        return updatedContext
+      } catch (caught) {
+        setError(toError(caught))
+        setStatus('error')
+        return null
+      }
+    },
+    [],
+  )
 
   return { run, status, error }
 }

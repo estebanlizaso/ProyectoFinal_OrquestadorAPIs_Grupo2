@@ -12,4 +12,5 @@ export type {
   PlannerContentResponse,
   ProjectContextGenerationErrorResponse,
   ProjectContextResponse,
+  UpdateOrchestrationNodeRequest,
 } from './types'
