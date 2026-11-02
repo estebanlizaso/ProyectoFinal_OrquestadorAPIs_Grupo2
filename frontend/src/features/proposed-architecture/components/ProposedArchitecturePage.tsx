@@ -18,7 +18,7 @@ export type ProposedArchitecturePageProps = {
 }
 
 export function ProposedArchitecturePage({ projectId }: ProposedArchitecturePageProps) {
-  const { turns, map, addTurn } = useContextHistory(projectId)
+  const { turns, map, addTurn, addErrorTurn } = useContextHistory(projectId)
   const { configs, saveConfig } = useModuleConfigs(projectId)
   const [openModule, setOpenModule] = useState<OrchestrationNodeResponse | null>(null)
 
@@ -47,7 +47,12 @@ export function ProposedArchitecturePage({ projectId }: ProposedArchitecturePage
         />
         <ArchitectureDiagram map={map} onModuleOpen={setOpenModule} />
       </div>
-      <ContextChatPanel projectId={projectId} turns={turns} onTurnAdded={addTurn} />
+      <ContextChatPanel
+        projectId={projectId}
+        turns={turns}
+        onTurnAdded={addTurn}
+        onErrorTurnAdded={addErrorTurn}
+      />
 
       {openModule && (
         <ModuleDetailModal

@@ -2,13 +2,13 @@ import { CircleAlert } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { CONTEXT_CHAT_TEXTS } from '../constants'
 import { isOutOfScope } from '../isOutOfScope'
-import type { ContextTurn } from '../useContextHistory'
+import type { PlannerTurn } from '../useContextHistory'
 import { useTypewriter } from '../useTypewriter'
 import { AiBubble } from './AiBubble'
 import { PromptBubble } from './PromptBubble'
 
 export type ConversationTurnProps = {
-  turn: ContextTurn
+  turn: PlannerTurn
   isTyping: boolean
   onTypingEnd: () => void
 }

@@ -4,38 +4,37 @@ import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import { Card } from '../../../shared/ui/Card'
 import { CONTEXT_CHAT_TEXTS, PROMPT_COMPOSER_TEXTS } from '../constants'
 import { GLOBAL_CONTEXT_ERROR_MESSAGES } from '../errorMessages'
-import type { ContextMap, ContextTurn } from '../useContextHistory'
+import type { ContextMap, ContextTurn, ErrorTurn, PlannerTurn } from '../useContextHistory'
 import { ContextConversation } from './ContextConversation'
 import { PromptComposer } from './PromptComposer'
 
 export type ContextChatPanelProps = {
   projectId: number
   turns: ContextTurn[]
-  onTurnAdded: (turn: ContextTurn, map: ContextMap) => void
+  onTurnAdded: (turn: PlannerTurn, map: ContextMap) => void
+  onErrorTurnAdded: (turn: ErrorTurn) => void
 }
 
-export function ContextChatPanel({ projectId, turns, onTurnAdded }: ContextChatPanelProps) {
+export function ContextChatPanel({ projectId, turns, onTurnAdded, onErrorTurnAdded }: ContextChatPanelProps) {
   const [draft, setDraft] = useState('')
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
   const [typingTurnIndex, setTypingTurnIndex] = useState<number | null>(null)
-  const { run, status, error } = useCreateProjectContext()
+  const { run, status } = useCreateProjectContext()
   const handleTypingEnd = useCallback(() => setTypingTurnIndex(null), [])
 
   async function handleSubmit(): Promise<void> {
     const prompt = draft.trim()
     setPendingPrompt(prompt)
     setDraft('')
-    const createdContext = await run(projectId, prompt)
-    if (createdContext?.planner) {
+    const { context, error } = await run(projectId, prompt)
+    setPendingPrompt(null)
+    if (context?.planner) {
       setTypingTurnIndex(turns.length)
-      onTurnAdded(
-        { prompt, planner: createdContext.planner },
-        { nodes: createdContext.nodes, relations: createdContext.relations },
-      )
-      setPendingPrompt(null)
-    } else {
-      setDraft(prompt)
+      onTurnAdded({ prompt, planner: context.planner }, { nodes: context.nodes, relations: context.relations })
+      return
     }
+    onErrorTurnAdded({ prompt, errorMessage: getErrorMessage(error ?? new Error(), GLOBAL_CONTEXT_ERROR_MESSAGES) })
+    setDraft(prompt)
   }
 
   return (
@@ -44,7 +43,6 @@ export function ContextChatPanel({ projectId, turns, onTurnAdded }: ContextChatP
       <ContextConversation
         turns={turns}
         pendingPrompt={pendingPrompt}
-        errorMessage={error ? getErrorMessage(error, GLOBAL_CONTEXT_ERROR_MESSAGES) : null}
         typingTurnIndex={typingTurnIndex}
         onTypingEnd={handleTypingEnd}
       />

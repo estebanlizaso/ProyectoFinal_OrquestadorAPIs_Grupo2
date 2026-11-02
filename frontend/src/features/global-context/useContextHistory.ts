@@ -1,10 +1,17 @@
 import { useCallback, useState } from 'react'
 import type { OrchestrationNodeResponse, OrchestrationRelationResponse, PlannerContentResponse } from './types'
 
-export type ContextTurn = {
+export type PlannerTurn = {
   prompt: string
   planner: PlannerContentResponse
 }
+
+export type ErrorTurn = {
+  prompt: string
+  errorMessage: string
+}
+
+export type ContextTurn = PlannerTurn | ErrorTurn
 
 export type ContextMap = {
   nodes: OrchestrationNodeResponse[]
@@ -19,7 +26,8 @@ type ContextHistory = {
 export type UseContextHistoryResult = {
   turns: ContextTurn[]
   map: ContextMap
-  addTurn: (turn: ContextTurn, map: ContextMap) => void
+  addTurn: (turn: PlannerTurn, map: ContextMap) => void
+  addErrorTurn: (turn: ErrorTurn) => void
 }
 
 const EMPTY_HISTORY: ContextHistory = { turns: [], map: { nodes: [], relations: [] } }
@@ -115,8 +123,8 @@ function isContextTurn(value: unknown): value is ContextTurn {
     isObject(value) &&
     'prompt' in value &&
     typeof value.prompt === 'string' &&
-    'planner' in value &&
-    isPlannerContent(value.planner)
+    (('planner' in value && isPlannerContent(value.planner)) ||
+      ('errorMessage' in value && typeof value.errorMessage === 'string'))
   )
 }
 
@@ -172,7 +180,7 @@ export function useContextHistory(projectId: number): UseContextHistoryResult {
   const [history, setHistory] = useState<ContextHistory>(() => readHistory(projectId))
 
   const addTurn = useCallback(
-    (turn: ContextTurn, map: ContextMap): void => {
+    (turn: PlannerTurn, map: ContextMap): void => {
       setHistory((currentHistory) => {
         const nextHistory = { turns: [...currentHistory.turns, turn], map }
         writeHistory(projectId, nextHistory)
@@ -182,5 +190,16 @@ export function useContextHistory(projectId: number): UseContextHistoryResult {
     [projectId],
   )
 
-  return { turns: history.turns, map: history.map, addTurn }
+  const addErrorTurn = useCallback(
+    (turn: ErrorTurn): void => {
+      setHistory((currentHistory) => {
+        const nextHistory = { turns: [...currentHistory.turns, turn], map: currentHistory.map }
+        writeHistory(projectId, nextHistory)
+        return nextHistory
+      })
+    },
+    [projectId],
+  )
+
+  return { turns: history.turns, map: history.map, addTurn, addErrorTurn }
 }

@@ -2,23 +2,17 @@ import { useEffect, useRef } from 'react'
 import { CONTEXT_CHAT_TEXTS } from '../constants'
 import type { ContextTurn } from '../useContextHistory'
 import { ConversationTurn } from './ConversationTurn'
+import { ErrorConversationTurn } from './ErrorConversationTurn'
 import { PromptBubble } from './PromptBubble'
 
 export type ContextConversationProps = {
   turns: ContextTurn[]
   pendingPrompt: string | null
-  errorMessage: string | null
   typingTurnIndex: number | null
   onTypingEnd: () => void
 }
 
-export function ContextConversation({
-  turns,
-  pendingPrompt,
-  errorMessage,
-  typingTurnIndex,
-  onTypingEnd,
-}: ContextConversationProps) {
+export function ContextConversation({ turns, pendingPrompt, typingTurnIndex, onTypingEnd }: ContextConversationProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -26,7 +20,7 @@ export function ContextConversation({
     if (scrollContainer) {
       scrollContainer.scrollTop = scrollContainer.scrollHeight
     }
-  }, [turns, pendingPrompt, errorMessage])
+  }, [turns, pendingPrompt])
 
   if (turns.length === 0 && pendingPrompt === null) {
     return <p className="text-sm text-gray-400">{CONTEXT_CHAT_TEXTS.goalEmpty}</p>
@@ -34,18 +28,15 @@ export function ContextConversation({
 
   return (
     <div ref={scrollContainerRef} className="min-h-0 space-y-6 overflow-y-auto pr-2">
-      {turns.map((turn, index) => (
-        <ConversationTurn key={index} turn={turn} isTyping={index === typingTurnIndex} onTypingEnd={onTypingEnd} />
-      ))}
+      {turns.map((turn, index) =>
+        'planner' in turn ? (
+          <ConversationTurn key={index} turn={turn} isTyping={index === typingTurnIndex} onTypingEnd={onTypingEnd} />
+        ) : (
+          <ErrorConversationTurn key={index} turn={turn} />
+        ),
+      )}
 
       {pendingPrompt !== null && <PromptBubble prompt={pendingPrompt} />}
-
-      {errorMessage && (
-        <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          <p className="font-semibold">{CONTEXT_CHAT_TEXTS.errorTitle}</p>
-          <p>{errorMessage}</p>
-        </div>
-      )}
     </div>
   )
 }

@@ -55,9 +55,13 @@ export const projectContextService = {
   updateNodeNotes,
 }
 
+export type CreateProjectContextOutcome =
+  | { context: ProjectContextResponse; error: null }
+  | { context: null; error: Error }
+
 export type UseCreateProjectContextResult = {
   context: ProjectContextResponse | null
-  run: (projectId: ProjectContextResponse['projectId'], prompt: string) => Promise<ProjectContextResponse | null>
+  run: (projectId: ProjectContextResponse['projectId'], prompt: string) => Promise<CreateProjectContextOutcome>
   status: RequestStatus
   error: Error | null
 }
@@ -71,7 +75,7 @@ export function useCreateProjectContext(): UseCreateProjectContextResult {
     async (
       projectId: ProjectContextResponse['projectId'],
       prompt: string,
-    ): Promise<ProjectContextResponse | null> => {
+    ): Promise<CreateProjectContextOutcome> => {
       setStatus('loading')
       setError(null)
 
@@ -79,11 +83,12 @@ export function useCreateProjectContext(): UseCreateProjectContextResult {
         const createdContext = await projectContextService.create(projectId, prompt)
         setContext(createdContext)
         setStatus('success')
-        return createdContext
+        return { context: createdContext, error: null }
       } catch (caught) {
-        setError(toError(caught))
+        const caughtError = toError(caught)
+        setError(caughtError)
         setStatus('error')
-        return null
+        return { context: null, error: caughtError }
       }
     },
     [],
