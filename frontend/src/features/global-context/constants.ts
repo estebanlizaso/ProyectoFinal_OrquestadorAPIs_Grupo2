@@ -9,5 +9,7 @@ export const CONTEXT_CHAT_TEXTS = {
 export const PROMPT_COMPOSER_TEXTS = {
   label: 'Objetivo de la orquestación',
   placeholder: 'Escribí tu respuesta...',
+  examplePlaceholder:
+    'Ej: Quiero orquestar la consulta de pólizas de un cliente. El portal web llama al orquestador, que consulta el Core Legacy (SOAP) y Pólizas 360 (REST). Generá el código en C#. Reglas: si el Core Legacy tarda más de 3 segundos, usar solo Pólizas 360; no mostrar pólizas vencidas. Respuesta esperada: un JSON con la lista de pólizas activas y su estado.',
   send: 'Enviar',
 }

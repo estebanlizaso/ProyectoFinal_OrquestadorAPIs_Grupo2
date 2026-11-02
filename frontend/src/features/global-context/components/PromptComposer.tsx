@@ -8,9 +8,10 @@ export type PromptComposerProps = {
   onChange: (value: string) => void
   onSubmit: () => void
   isSending: boolean
+  placeholder: string
 }
 
-export function PromptComposer({ value, onChange, onSubmit, isSending }: PromptComposerProps) {
+export function PromptComposer({ value, onChange, onSubmit, isSending, placeholder }: PromptComposerProps) {
   const textareaId = useId()
   const canSubmit = !isSending && value.trim() !== ''
 
@@ -42,10 +43,10 @@ export function PromptComposer({ value, onChange, onSubmit, isSending }: PromptC
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={PROMPT_COMPOSER_TEXTS.placeholder}
+          placeholder={placeholder}
           disabled={isSending}
           rows={1}
-          className="field-sizing-content max-h-40 flex-1 resize-none bg-transparent py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+          className="field-sizing-content max-h-40 flex-1 placeholder-shown:max-h-none resize-none bg-transparent py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
         />
         <Button
           type="submit"

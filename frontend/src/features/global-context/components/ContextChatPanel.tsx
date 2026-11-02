@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useCreateProjectContext } from '../../../services/projectContextService'
 import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import { Card } from '../../../shared/ui/Card'
-import { CONTEXT_CHAT_TEXTS } from '../constants'
+import { CONTEXT_CHAT_TEXTS, PROMPT_COMPOSER_TEXTS } from '../constants'
 import { GLOBAL_CONTEXT_ERROR_MESSAGES } from '../errorMessages'
 import type { ContextMap, ContextTurn } from '../useContextHistory'
 import { ContextConversation } from './ContextConversation'
@@ -48,6 +48,7 @@ export function ContextChatPanel({ projectId, turns, onTurnAdded }: ContextChatP
         onChange={setDraft}
         onSubmit={() => void handleSubmit()}
         isSending={status === 'loading'}
+        placeholder={turns.length === 0 ? PROMPT_COMPOSER_TEXTS.examplePlaceholder : PROMPT_COMPOSER_TEXTS.placeholder}
       />
     </Card>
   )
