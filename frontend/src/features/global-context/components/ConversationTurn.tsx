@@ -43,24 +43,7 @@ export function ConversationTurn({ turn, isTyping, onTypingEnd }: ConversationTu
             </div>
           </div>
         ) : (
-          <>
-            <AiBubble>{typewriter.visibleText}</AiBubble>
-
-            {!typewriter.isTyping && planner.questions.length > 0 && (
-              <>
-                <h3 className="mt-2 text-sm font-semibold text-gray-900">{CONTEXT_CHAT_TEXTS.questionsTitle}</h3>
-                <ol className="flex flex-col items-start gap-2">
-                  {planner.questions.map((question, index) => (
-                    <li key={question}>
-                      <AiBubble>
-                        {index + 1}. {question}
-                      </AiBubble>
-                    </li>
-                  ))}
-                </ol>
-              </>
-            )}
-          </>
+          <AiBubble>{typewriter.visibleText}</AiBubble>
         )}
       </div>
     </div>
