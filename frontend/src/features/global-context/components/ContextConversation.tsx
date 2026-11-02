@@ -8,9 +8,17 @@ export type ContextConversationProps = {
   turns: ContextTurn[]
   pendingPrompt: string | null
   errorMessage: string | null
+  typingTurnIndex: number | null
+  onTypingEnd: () => void
 }
 
-export function ContextConversation({ turns, pendingPrompt, errorMessage }: ContextConversationProps) {
+export function ContextConversation({
+  turns,
+  pendingPrompt,
+  errorMessage,
+  typingTurnIndex,
+  onTypingEnd,
+}: ContextConversationProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -27,7 +35,7 @@ export function ContextConversation({ turns, pendingPrompt, errorMessage }: Cont
   return (
     <div ref={scrollContainerRef} className="min-h-0 space-y-6 overflow-y-auto pr-2">
       {turns.map((turn, index) => (
-        <ConversationTurn key={index} turn={turn} />
+        <ConversationTurn key={index} turn={turn} isTyping={index === typingTurnIndex} onTypingEnd={onTypingEnd} />
       ))}
 
       {pendingPrompt !== null && <PromptBubble prompt={pendingPrompt} />}

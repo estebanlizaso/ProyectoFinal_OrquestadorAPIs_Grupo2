@@ -50,6 +50,7 @@ frontend/
         errorMessages.ts
         types.ts              # espejo de los DTOs de contexto
         useContextHistory.ts  # historial del chat y último mapa (nodes + relations) en localStorage, una clave por proyecto, + clearContextHistory
+        useTypewriter.ts      # muestra la respuesta nueva de la IA letra por letra (TYPEWRITER_CHAR_INTERVAL_MS); el historial se ve completo
         isOutOfScope.ts
         findLatestValidTurn.ts # última respuesta que no fue out_of_scope
       proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama de solo lectura con React Flow, chat de contexto global en el panel derecho (ContextChatPanel de global-context) y modal de detalle del módulo (clic en una tarjeta). Crear un proyecto lleva directo a esta pantalla
