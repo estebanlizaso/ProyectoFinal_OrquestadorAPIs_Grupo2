@@ -2,11 +2,12 @@ import { useCallback, useState } from 'react'
 import { useCreateProjectContext } from '../../../services/projectContextService'
 import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import { Card } from '../../../shared/ui/Card'
-import { CONTEXT_CHAT_TEXTS, PROMPT_COMPOSER_TEXTS } from '../constants'
+import { CONTEXT_CHAT_TEXTS } from '../constants'
 import { GLOBAL_CONTEXT_ERROR_MESSAGES } from '../errorMessages'
 import type { ContextMap, ContextTurn, ErrorTurn, PlannerTurn } from '../useContextHistory'
 import { ContextConversation } from './ContextConversation'
 import { PromptComposer } from './PromptComposer'
+import { PromptExampleButton } from './PromptExampleButton'
 
 export type ContextChatPanelProps = {
   projectId: number
@@ -21,6 +22,7 @@ export function ContextChatPanel({ projectId, turns, onTurnAdded, onErrorTurnAdd
   const [typingTurnIndex, setTypingTurnIndex] = useState<number | null>(null)
   const { run, status } = useCreateProjectContext()
   const handleTypingEnd = useCallback(() => setTypingTurnIndex(null), [])
+  const isSending = status === 'loading' || typingTurnIndex !== null
 
   async function handleSubmit(): Promise<void> {
     const prompt = draft.trim()
@@ -50,8 +52,8 @@ export function ContextChatPanel({ projectId, turns, onTurnAdded, onErrorTurnAdd
         value={draft}
         onChange={setDraft}
         onSubmit={() => void handleSubmit()}
-        isSending={status === 'loading' || typingTurnIndex !== null}
-        placeholder={turns.length === 0 ? PROMPT_COMPOSER_TEXTS.examplePlaceholder : PROMPT_COMPOSER_TEXTS.placeholder}
+        isSending={isSending}
+        extraAction={turns.length === 0 && <PromptExampleButton disabled={isSending} onUse={setDraft} />}
       />
     </Card>
   )

@@ -45,7 +45,7 @@ frontend/
         types.ts              # espejo de los DTOs de proyectos
         index.ts
       global-context/         # Contexto global: chat con la IA del proyecto (POST /api/projects/{projectId}/context), que se muestra en el panel derecho de arquitectura propuesta
-        components/           # ContextChatPanel, PromptComposer, ContextConversation, ConversationTurn, ErrorConversationTurn, PromptBubble, AiBubble
+        components/           # ContextChatPanel, PromptComposer, PromptExampleButton, ContextConversation, ConversationTurn, ErrorConversationTurn, PromptBubble, AiBubble
         constants.ts
         errorMessages.ts
         types.ts              # espejo de los DTOs de contexto
