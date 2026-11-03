@@ -1,7 +1,7 @@
 import type { ComponentPropsWithoutRef } from 'react'
 import { cn } from '../lib/cn'
 
-export type ButtonVariant = 'primary' | 'secondary' | 'soft' | 'danger'
+export type ButtonVariant = 'primary' | 'secondary' | 'soft' | 'danger' | 'ghost'
 export type ButtonSize = 'md' | 'sm' | 'icon'
 
 export type ButtonProps = ComponentPropsWithoutRef<'button'> & {
@@ -15,6 +15,7 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     'border border-gray-200 bg-white font-medium text-primary-blue hover:bg-gray-100 disabled:opacity-50',
   soft: 'border border-primary-blue-light bg-primary-blue-light font-normal text-primary-blue hover:border-primary-blue',
   danger: 'bg-red-600 font-medium text-white hover:bg-red-700 disabled:opacity-50',
+  ghost: 'font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900',
 }
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {

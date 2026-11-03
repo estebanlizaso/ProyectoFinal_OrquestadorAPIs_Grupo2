@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   findLatestValidTurn,
   useContextHistory,
@@ -8,7 +8,7 @@ import {
 import { Button } from '../../../shared/ui/Button'
 import { PageHeader } from '../../../shared/ui/PageHeader'
 import { PROPOSED_ARCHITECTURE_PAGE_TEXTS } from '../constants'
-import type { ModuleConfig } from '../types'
+import type { AssistantPanelSide, ModuleConfig } from '../types'
 import { useModuleConfigs } from '../useModuleConfigs'
 import { AiAssistantPanel } from './AiAssistantPanel'
 import { ArchitectureDiagram } from './ArchitectureDiagram'
@@ -16,9 +16,15 @@ import { ModuleDetailModal } from './ModuleDetailModal'
 
 export type ProposedArchitecturePageProps = {
   projectId: number
+  backButton: ReactNode
+  assistantSide: AssistantPanelSide
 }
 
-export function ProposedArchitecturePage({ projectId }: ProposedArchitecturePageProps) {
+export function ProposedArchitecturePage({
+  projectId,
+  backButton,
+  assistantSide,
+}: ProposedArchitecturePageProps) {
   const { turns, map, addTurn } = useContextHistory(projectId)
   const flowSummary = findLatestValidTurn(turns)?.planner.summary ?? null
   const { configs, saveConfig } = useModuleConfigs(projectId)
@@ -39,17 +45,21 @@ export function ProposedArchitecturePage({ projectId }: ProposedArchitecturePage
     setOpenModule(null)
   }
 
+  const assistantPanel = <AiAssistantPanel flowSummary={flowSummary} />
+
   return (
     <div className="p-8">
       <PageHeader
         title={PROPOSED_ARCHITECTURE_PAGE_TEXTS.title}
         subtitle={PROPOSED_ARCHITECTURE_PAGE_TEXTS.subtitle}
+        backButton={backButton}
         actions={<Button disabled>{PROPOSED_ARCHITECTURE_PAGE_TEXTS.confirmFlow}</Button>}
       />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
+        {assistantSide === 'left' && assistantPanel}
         <ArchitectureDiagram map={map} onModuleOpen={setOpenModule} />
-        <AiAssistantPanel flowSummary={flowSummary} />
+        {assistantSide === 'right' && assistantPanel}
       </div>
 
       {openModule && (

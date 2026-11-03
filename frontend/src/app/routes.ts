@@ -1,3 +1,5 @@
+import { SCREEN_NAMES } from './constants'
+
 export type AppRoute =
   | { name: 'projects' }
   | { name: 'projectContext'; projectId: number }
@@ -33,4 +35,25 @@ export function resolveRoute(pathname: string): AppRoute {
     return { name: 'projectArchitecture', projectId: architectureProjectId }
   }
   return { name: 'projects' }
+}
+
+export const PROJECTS_PATH = '/'
+
+export type BackTarget = {
+  path: string
+  screenName: string
+}
+
+export function resolveBackTarget(route: AppRoute): BackTarget | null {
+  switch (route.name) {
+    case 'projects':
+      return null
+    case 'projectContext':
+      return { path: PROJECTS_PATH, screenName: SCREEN_NAMES.projects }
+    case 'projectArchitecture':
+      return {
+        path: buildProjectContextPath(route.projectId),
+        screenName: SCREEN_NAMES.projectContext,
+      }
+  }
 }

@@ -2,6 +2,14 @@ export const APP_TEXTS = {
   title: 'Orquestador IA',
   navigation: 'Navegación',
   newOrchestration: 'Nueva orquestación',
+  hideSidebar: 'Ocultar menú',
+  showSidebar: 'Mostrar menú',
+  backTo: 'Volver a ',
+}
+
+export const SCREEN_NAMES = {
+  projects: 'proyectos',
+  projectContext: 'contexto global',
 }
 
 export type NavItemId = 'projects'
