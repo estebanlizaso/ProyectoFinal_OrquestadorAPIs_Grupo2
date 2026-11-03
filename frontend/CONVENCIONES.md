@@ -71,6 +71,14 @@ frontend/
         constants.ts
         types.ts              # tipos de los nodos del diagrama y del modal de detalle
         index.ts
+      generation-execution/   # Generación y ejecución (/projects/{projectId}/generation): se abre con "Confirmar flujo"; muestra el mismo diagrama y el progreso de generación (por ahora una simulación solo visual)
+        components/           # GenerationExecutionPage, GenerationProgressPanel
+        useSimulatedProgress.ts # avanza el progreso de 0 a 100 en GENERATION_DURATION_MS
+        getGenerationStage.ts # etapa que corresponde a un porcentaje de progreso
+        formatSolutionLanguage.ts # traduce el language del planificador (python, dotnet) a su nombre visible
+        buildSolutionStatus.ts # "Generando solución {lenguaje}" o "Solución {lenguaje} generada"
+        constants.ts
+        index.ts
       canvas/                 # lienzo React Flow
         components/           # FlowCanvas, Toolbar, Sidebar
         nodes/                # TriggerNode, LegacyApiNode, MergeNode, MockNode
@@ -86,7 +94,7 @@ frontend/
       projectContextService.ts # projectContextService (create, getInitialPrompt, updateNodeNotes) + useCreateProjectContext, useInitialPrompt, useSaveNodeRule
       exportService.ts        # cuando exista el endpoint de exportación (service + useExportFlow)
     shared/
-      ui/                     # Button, Modal (size md/lg y closeLabel opcional para la X), Input, Select, Textarea, Card, SidePanel (sin lógica de negocio)
+      ui/                     # Button, Modal (size md/lg y closeLabel opcional para la X), Input, Select, Textarea, Card, SidePanel, ProgressBar (sin lógica de negocio)
       api/httpClient.ts       # único lugar donde se usa fetch
       api/ApiError.ts
       api/requestStatus.ts    # 'idle' | 'loading' | 'success' | 'error'
@@ -103,7 +111,7 @@ Reglas:
 - Una feature solo importa de otra a través de su `index.ts`, nunca de sus archivos internos.
 - `shared/` solo contiene código reutilizable sin conocimiento del dominio.
 - `services/` es global y tiene **un archivo por recurso del backend** (`projectService.ts`, y después `userService.ts`, etc.). Ese archivo concentra todo lo del recurso: el objeto service con sus métodos y los hooks que los ejecutan (`useProjects`, `useDeleteProject`). Los componentes usan los hooks; nunca llaman a un service directo.
-- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context` o `/projects/{projectId}/architecture`).
+- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context`, `/projects/{projectId}/architecture` o `/projects/{projectId}/generation`).
 
 ---
 

@@ -16,9 +16,10 @@ import { ModuleDetailModal } from './ModuleDetailModal'
 
 export type ProposedArchitecturePageProps = {
   projectId: number
+  onConfirmFlow: () => void
 }
 
-export function ProposedArchitecturePage({ projectId }: ProposedArchitecturePageProps) {
+export function ProposedArchitecturePage({ projectId, onConfirmFlow }: ProposedArchitecturePageProps) {
   const { turns, map, addTurn } = useContextHistory(projectId)
   const flowSummary = findLatestValidTurn(turns)?.planner.summary ?? null
   const { configs, saveConfig } = useModuleConfigs(projectId)
@@ -44,7 +45,11 @@ export function ProposedArchitecturePage({ projectId }: ProposedArchitecturePage
       <PageHeader
         title={PROPOSED_ARCHITECTURE_PAGE_TEXTS.title}
         subtitle={PROPOSED_ARCHITECTURE_PAGE_TEXTS.subtitle}
-        actions={<Button disabled>{PROPOSED_ARCHITECTURE_PAGE_TEXTS.confirmFlow}</Button>}
+        actions={
+          <Button disabled={map.nodes.length === 0} onClick={onConfirmFlow}>
+            {PROPOSED_ARCHITECTURE_PAGE_TEXTS.confirmFlow}
+          </Button>
+        }
       />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">

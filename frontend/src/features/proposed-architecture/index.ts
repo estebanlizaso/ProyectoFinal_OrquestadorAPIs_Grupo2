@@ -1,3 +1,5 @@
 export { ProposedArchitecturePage } from './components/ProposedArchitecturePage'
 export type { ProposedArchitecturePageProps } from './components/ProposedArchitecturePage'
+export { ArchitectureDiagram } from './components/ArchitectureDiagram'
+export type { ArchitectureDiagramProps } from './components/ArchitectureDiagram'
 export { clearModuleConfigs } from './useModuleConfigs'
