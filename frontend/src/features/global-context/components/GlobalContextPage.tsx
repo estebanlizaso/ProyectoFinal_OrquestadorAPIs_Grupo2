@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useCreateProjectContext } from '../../../services/projectContextService'
 import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import { Button } from '../../../shared/ui/Button'
@@ -14,10 +14,15 @@ import { PromptComposer } from './PromptComposer'
 
 export type GlobalContextPageProps = {
   projectId: number
+  backButton: ReactNode
   onGenerateArchitecture: () => void
 }
 
-export function GlobalContextPage({ projectId, onGenerateArchitecture }: GlobalContextPageProps) {
+export function GlobalContextPage({
+  projectId,
+  backButton,
+  onGenerateArchitecture,
+}: GlobalContextPageProps) {
   const [draft, setDraft] = useState('')
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
   const { turns, map, addTurn } = useContextHistory(projectId)
@@ -46,6 +51,7 @@ export function GlobalContextPage({ projectId, onGenerateArchitecture }: GlobalC
       <PageHeader
         title={GLOBAL_CONTEXT_PAGE_TEXTS.title}
         subtitle={GLOBAL_CONTEXT_PAGE_TEXTS.subtitle}
+        backButton={backButton}
         actions={
           <Button disabled={!hasReadyTurn} onClick={onGenerateArchitecture}>
             {GLOBAL_CONTEXT_PAGE_TEXTS.generateArchitecture}
