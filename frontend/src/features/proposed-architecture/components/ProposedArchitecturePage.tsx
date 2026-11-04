@@ -4,6 +4,7 @@ import {
   findLatestValidTurn,
   useContextHistory,
   type ContextMap,
+  type ErrorTurn,
   type OrchestrationNodeResponse,
   type PlannerTurn,
 } from '../../global-context'
@@ -13,6 +14,7 @@ import { PageHeader } from '../../../shared/ui/PageHeader'
 import { PROPOSED_ARCHITECTURE_PAGE_TEXTS } from '../constants'
 import { findProposedEndpoints } from '../findProposedEndpoints'
 import type { AssistantPanelTab } from '../types'
+import { useDiagramUpdate } from '../useDiagramUpdate'
 import { useModuleNotesSync } from '../useModuleNotesSync'
 import { ArchitectureDiagram } from './ArchitectureDiagram'
 import { AssistantPanelTabs } from './AssistantPanelTabs'
@@ -29,6 +31,7 @@ export function ProposedArchitecturePage({ projectId, backButton, onConfirmFlow 
   const { turns, map, addTurn, addErrorTurn, updateNode } = useContextHistory(projectId)
   const flowSummary = findLatestValidTurn(turns)?.planner.summary ?? null
   const syncModuleNotes = useModuleNotesSync()
+  const { isUpdating, startUpdate, finishUpdate } = useDiagramUpdate()
   const [openModule, setOpenModule] = useState<OrchestrationNodeResponse | null>(null)
   const [activeTab, setActiveTab] = useState<AssistantPanelTab>('chat')
   const tabs = <AssistantPanelTabs activeTab={activeTab} onTabChange={setActiveTab} />
@@ -36,7 +39,13 @@ export function ProposedArchitecturePage({ projectId, backButton, onConfirmFlow 
   function handleTurnAdded(turn: PlannerTurn, nextMap: ContextMap): void {
     const previousMap = map
     addTurn(turn, nextMap)
+    finishUpdate(JSON.stringify(previousMap) !== JSON.stringify(nextMap))
     void syncModuleNotes(projectId, previousMap, nextMap).then((updatedNodes) => updatedNodes.forEach(updateNode))
+  }
+
+  function handleErrorTurnAdded(turn: ErrorTurn): void {
+    addErrorTurn(turn)
+    finishUpdate(false)
   }
 
   function handleConfigSaved(node: OrchestrationNodeResponse): void {
@@ -57,14 +66,15 @@ export function ProposedArchitecturePage({ projectId, backButton, onConfirmFlow 
             </Button>
           }
         />
-        <ArchitectureDiagram map={map} onModuleOpen={setOpenModule} />
+        <ArchitectureDiagram map={map} onModuleOpen={setOpenModule} isUpdating={isUpdating} />
       </div>
       <div className={activeTab === 'chat' ? 'contents' : 'hidden'}>
         <ContextChatPanel
           projectId={projectId}
           turns={turns}
           onTurnAdded={handleTurnAdded}
-          onErrorTurnAdded={addErrorTurn}
+          onErrorTurnAdded={handleErrorTurnAdded}
+          onSendStart={startUpdate}
           header={tabs}
         />
       </div>

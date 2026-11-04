@@ -3,7 +3,10 @@ export const PROPOSED_ARCHITECTURE_PAGE_TEXTS = {
   subtitle: 'Revisá y ajustá lo que sea necesario en el diagrama.',
   confirmFlow: 'Confirmar flujo',
   diagramEmpty: 'Todavía no hay un diagrama para mostrar.',
+  diagramUpdating: 'Actualizando el diagrama',
 }
+
+export const DIAGRAM_UPDATE_REVEAL_MS = 600
 
 export const DIAGRAM_TEXTS = {
   start: 'Inicio',

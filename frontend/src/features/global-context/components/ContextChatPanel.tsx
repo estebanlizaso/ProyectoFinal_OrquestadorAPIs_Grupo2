@@ -15,6 +15,7 @@ export type ContextChatPanelProps = {
   onTurnAdded: (turn: PlannerTurn, map: ContextMap) => void
   onErrorTurnAdded: (turn: ErrorTurn) => void
   header?: ReactNode
+  onSendStart?: () => void
 }
 
 export function ContextChatPanel({
@@ -22,6 +23,7 @@ export function ContextChatPanel({
   turns,
   onTurnAdded,
   onErrorTurnAdded,
+  onSendStart,
   header = <h2 className="text-lg leading-none font-bold text-gray-900">{CONTEXT_CHAT_TEXTS.title}</h2>,
 }: ContextChatPanelProps) {
   const [draft, setDraft] = useState('')
@@ -35,6 +37,7 @@ export function ContextChatPanel({
     const prompt = draft.trim()
     setPendingPrompt(prompt)
     setDraft('')
+    onSendStart?.()
     const { context, error } = await run(projectId, prompt)
     setPendingPrompt(null)
     if (context?.planner) {

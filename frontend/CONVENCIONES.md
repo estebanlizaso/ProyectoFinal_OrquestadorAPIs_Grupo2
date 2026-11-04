@@ -54,7 +54,7 @@ frontend/
         isOutOfScope.ts
         findLatestValidTurn.ts # última respuesta que no fue out_of_scope
       proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama de solo lectura con React Flow, panel derecho con dos pestañas, "Asistente IA" (el chat, ContextChatPanel de global-context, que sigue montado al cambiar de pestaña) y "Resumen" (resumen del flujo y endpoints propuestos), y modal de detalle del módulo (clic en una tarjeta)
-        components/           # ProposedArchitecturePage, ArchitectureDiagram, AssistantPanelTabs, FlowSummaryContent, FlowSummaryPanel, ArchitectureNode, StartNode, DecisionNode, OperationEdge, ModuleDetailModal, ModuleDescription, EndpointConfiguration, EndpointRow
+        components/           # ProposedArchitecturePage, ArchitectureDiagram, DiagramUpdatingOverlay, AssistantPanelTabs, FlowSummaryContent, FlowSummaryPanel, ArchitectureNode, StartNode, DecisionNode, OperationEdge, ModuleDetailModal, ModuleDescription, EndpointConfiguration, EndpointRow
         buildDiagram.ts       # arma nodes y edges de React Flow a partir del mapa (nodes + relations) con un layout propio de arriba hacia abajo
         findProposedEndpoints.ts # endpoints propuestos del resumen: el texto de cada flecha (findRelationOperation), sin repetir, en el orden del diagrama
         module-detail/        # funciones puras del modal de detalle del módulo, una por archivo
@@ -73,6 +73,7 @@ frontend/
           findRelationOperation.ts # texto de la flecha: lo guardado en la nota del nodo destino o, si no hay, la operation de la IA
           findNotesToSync.ts  # notas a reescribir cuando la IA cambió las flechas de un nodo que tiene endpoints guardados
         useModuleNotesSync.ts # después de cada respuesta del chat, reescribe esas notas (PATCH) para que coincidan con la IA
+        useDiagramUpdate.ts   # capa de carga del diagrama: se muestra al mandar un mensaje al chat y se va DIAGRAM_UPDATE_REVEAL_MS después de la respuesta si el mapa cambió, o enseguida si no cambió o hubo error
         errorMessages.ts      # errores al guardar la configuración del módulo
         constants.ts
         types.ts              # tipos de los nodos del diagrama y del modal de detalle
