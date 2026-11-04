@@ -28,7 +28,8 @@ const EDGE_TYPES: EdgeTypes = {
 }
 
 export function ArchitectureDiagram({ map, onModuleOpen, isUpdating = false }: ArchitectureDiagramProps) {
-  const diagram = useMemo(() => buildDiagram(map), [map])
+  const areModulesClickable = onModuleOpen !== undefined
+  const diagram = useMemo(() => buildDiagram(map, areModulesClickable), [map, areModulesClickable])
 
   if (diagram.nodes.length === 0) {
     return (

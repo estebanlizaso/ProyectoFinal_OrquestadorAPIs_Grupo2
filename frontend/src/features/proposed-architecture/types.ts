@@ -8,6 +8,7 @@ export type DecisionFlowNode = Node<Record<string, never>, 'decision'>
 
 export type ArchitectureNodeData = {
   node: OrchestrationNodeResponse
+  isClickable: boolean
 }
 
 export type ArchitectureFlowNode = Node<ArchitectureNodeData, 'architecture'>

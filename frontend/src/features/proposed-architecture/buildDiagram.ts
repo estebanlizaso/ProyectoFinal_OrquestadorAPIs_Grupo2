@@ -128,31 +128,31 @@ function measureChildren(children: TreeItem[]): number {
   return childrenWidth + HORIZONTAL_GAP * (children.length - 1)
 }
 
-function toDiagramNode(item: TreeItem, position: XYPosition): DiagramNode {
+function toDiagramNode(item: TreeItem, position: XYPosition, isClickable: boolean): DiagramNode {
   const size = DIAGRAM_NODE_SIZES[item.type]
   if (item.type === 'architecture') {
-    return { id: item.id, type: 'architecture', position, ...size, data: { node: item.node } }
+    return { id: item.id, type: 'architecture', position, ...size, data: { node: item.node, isClickable } }
   }
   return { id: item.id, type: item.type, position, ...size, data: {} }
 }
 
-function placeSubtree(item: TreeItem, left: number, top: number): DiagramNode[] {
+function placeSubtree(item: TreeItem, left: number, top: number, isClickable: boolean): DiagramNode[] {
   const size = DIAGRAM_NODE_SIZES[item.type]
   const subtreeWidth = measureSubtree(item)
-  const placedNode = toDiagramNode(item, { x: left + (subtreeWidth - size.width) / 2, y: top })
+  const placedNode = toDiagramNode(item, { x: left + (subtreeWidth - size.width) / 2, y: top }, isClickable)
   const childrenTop = top + size.height + VERTICAL_GAP
   let childLeft = left + (subtreeWidth - measureChildren(item.children)) / 2
   const placedChildren: DiagramNode[] = []
 
   for (const child of item.children) {
-    placedChildren.push(...placeSubtree(child, childLeft, childrenTop))
+    placedChildren.push(...placeSubtree(child, childLeft, childrenTop, isClickable))
     childLeft += measureSubtree(child) + HORIZONTAL_GAP
   }
 
   return [placedNode, ...placedChildren]
 }
 
-export function buildDiagram({ nodes, relations }: ContextMap): Diagram {
+export function buildDiagram({ nodes, relations }: ContextMap, areModulesClickable: boolean): Diagram {
   if (nodes.length === 0) {
     return EMPTY_DIAGRAM
   }
@@ -167,5 +167,8 @@ export function buildDiagram({ nodes, relations }: ContextMap): Diagram {
 
   const nodesByKey = new Map(sortedNodes.map((node) => [node.key, node]))
 
-  return { nodes: placeSubtree(tree, 0, 0), edges: buildEdges(tree, relationsBySource, nodesByKey) }
+  return {
+    nodes: placeSubtree(tree, 0, 0, areModulesClickable),
+    edges: buildEdges(tree, relationsBySource, nodesByKey),
+  }
 }

@@ -20,13 +20,14 @@ function renderKindIcon(kind: string): ReactNode {
 }
 
 export function ArchitectureNode({ data }: ArchitectureNodeProps) {
-  const { node } = data
+  const { node, isClickable } = data
   const { description } = node
 
   return (
     <div
       className={cn(
-        'flex size-full cursor-pointer items-center gap-3 rounded-xl border px-4 transition hover:border-primary-blue hover:shadow-md',
+        'flex size-full items-center gap-3 rounded-xl border px-4',
+        isClickable && 'cursor-pointer transition hover:border-primary-blue hover:shadow-md',
         node.kind === 'step' ? 'border-primary-blue/30 bg-primary-blue-light' : 'border-gray-200 bg-white',
       )}
     >
