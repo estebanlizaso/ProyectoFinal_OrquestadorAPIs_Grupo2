@@ -63,7 +63,6 @@ export function App() {
             key={currentRoute.projectId}
             projectId={currentRoute.projectId}
             backButton={backButton}
-            assistantSide={assistantSide}
             onConfirmFlow={() => navigate(buildProjectGenerationPath(currentRoute.projectId))}
           />
         )

@@ -48,3 +48,5 @@ export type ModuleConfig = {
   authentication: AuthenticationType | ''
 }
 export type AssistantPanelSide = 'left' | 'right'
+
+export type AssistantPanelTab = 'chat' | 'summary'

@@ -10,12 +10,18 @@ export const DIAGRAM_TEXTS = {
   decision: 'Solicitud',
 }
 
-export const AI_ASSISTANT_TEXTS = {
-  title: 'Asistente IA',
+export const FLOW_SUMMARY_TEXTS = {
+  title: 'Resumen',
   flowSummaryTitle: 'Resumen del flujo',
   flowSummaryEmpty: 'Todavía no hay un resumen para mostrar.',
-  temporalRuleTitle: 'Regla temporal',
   proposedEndpointsTitle: 'Endpoints propuestos',
+  proposedEndpointsEmpty: 'Todavía no hay endpoints propuestos.',
+}
+
+export const ASSISTANT_PANEL_TABS_TEXTS = {
+  label: 'Panel del asistente',
+  chat: 'Asistente IA',
+  summary: 'Resumen',
 }
 
 export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const

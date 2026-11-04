@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react'
 import { findLatestValidTurn, useContextHistory } from '../../global-context'
-import { AiAssistantPanel, ArchitectureDiagram, type AssistantPanelSide } from '../../proposed-architecture'
+import {
+  ArchitectureDiagram,
+  findProposedEndpoints,
+  FlowSummaryPanel,
+  type AssistantPanelSide,
+} from '../../proposed-architecture'
 import { cn } from '../../../shared/lib/cn'
 import { PageHeader } from '../../../shared/ui/PageHeader'
 import { GENERATION_DURATION_MS, GENERATION_PAGE_TEXTS } from '../constants'
@@ -31,7 +36,9 @@ export function GenerationExecutionPage({
         isAssistantVisible ? 'lg:grid-cols-4' : 'lg:grid-cols-3',
       )}
     >
-      {isAssistantVisible && <AiAssistantPanel flowSummary={latestPlanner?.summary ?? null} />}
+      {isAssistantVisible && (
+        <FlowSummaryPanel flowSummary={latestPlanner?.summary ?? null} endpoints={findProposedEndpoints(map)} />
+      )}
       <div className="flex flex-col lg:col-span-2 lg:h-full">
         <PageHeader
           title={GENERATION_PAGE_TEXTS.title}

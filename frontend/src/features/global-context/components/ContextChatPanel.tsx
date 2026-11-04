@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { useCreateProjectContext } from '../../../services/projectContextService'
 import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import { Card } from '../../../shared/ui/Card'
@@ -14,9 +14,16 @@ export type ContextChatPanelProps = {
   turns: ContextTurn[]
   onTurnAdded: (turn: PlannerTurn, map: ContextMap) => void
   onErrorTurnAdded: (turn: ErrorTurn) => void
+  header?: ReactNode
 }
 
-export function ContextChatPanel({ projectId, turns, onTurnAdded, onErrorTurnAdded }: ContextChatPanelProps) {
+export function ContextChatPanel({
+  projectId,
+  turns,
+  onTurnAdded,
+  onErrorTurnAdded,
+  header = <h2 className="text-lg leading-none font-bold text-gray-900">{CONTEXT_CHAT_TEXTS.title}</h2>,
+}: ContextChatPanelProps) {
   const [draft, setDraft] = useState('')
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
   const [typingTurnIndex, setTypingTurnIndex] = useState<number | null>(null)
@@ -41,7 +48,7 @@ export function ContextChatPanel({ projectId, turns, onTurnAdded, onErrorTurnAdd
 
   return (
     <Card className="flex max-h-[60vh] flex-col gap-6 p-6 lg:max-h-full">
-      <h2 className="text-lg leading-none font-bold text-gray-900">{CONTEXT_CHAT_TEXTS.title}</h2>
+      {header}
       <ContextConversation
         turns={turns}
         pendingPrompt={pendingPrompt}
