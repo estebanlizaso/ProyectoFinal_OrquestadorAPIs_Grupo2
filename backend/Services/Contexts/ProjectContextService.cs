@@ -97,25 +97,6 @@ public class ProjectContextService : IProjectContextService
                 ProjectId = projectId,
                 InitialPrompt = prompt.Trim()
             };
-
-            _dbContext.Contexts.Add(projectContext);
-
-            try
-            {
-                await _dbContext.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateException exception) when (
-                exception.InnerException is PostgresException
-                {
-                    SqlState: PostgresErrorCodes.UniqueViolation
-                })
-            {
-                _dbContext.Entry(projectContext).State = EntityState.Detached;
-                projectContext = await _dbContext.Contexts
-                    .AsNoTracking()
-                    .SingleAsync(context => context.ProjectId == projectId, cancellationToken);
-                contextWasCreated = false;
-            }
         }
 
         var previousNodes = await _dbContext.OrchestrationNodes
@@ -188,6 +169,13 @@ public class ProjectContextService : IProjectContextService
 
             if (planner.Status == "out_of_scope")
             {
+                // A valid out-of-scope response is not a failed generation. Preserve
+                // the existing 201 contract, but create its context only after validation.
+                if (contextWasCreated)
+                {
+                    await PersistAsync(projectContext, planner, string.Empty, cancellationToken);
+                }
+
                 var plannerContent = new PlannerContentResponse(
                     planner.Status,
                     planner.Reply,
@@ -266,6 +254,11 @@ public class ProjectContextService : IProjectContextService
                 nodeNotes,
                 cancellationToken);
 
+            if (string.IsNullOrWhiteSpace(resumen))
+            {
+                throw new AiProviderException("El resumidor devolvió un resumen vacío o inválido.");
+            }
+
             var persistedContext = await PersistAsync(
                 projectContext,
                 planner,
@@ -318,7 +311,7 @@ public class ProjectContextService : IProjectContextService
 
             return new CreateProjectContextResult(
                 CreateProjectContextStatus.AiProviderFailed,
-                ContextId: projectContext.ContextId,
+                ContextId: contextWasCreated ? null : projectContext.ContextId,
                 ErrorMessage: exception.Message);
         }
     }
@@ -372,6 +365,17 @@ public class ProjectContextService : IProjectContextService
         var notes = string.IsNullOrWhiteSpace(request.UserNotes) ? null : request.UserNotes.Trim();
         var method = request.HttpMethod?.Trim().ToUpperInvariant();
         var path = request.Path?.Trim();
+        if (relation is not null)
+        {
+            var operationKey = RelationIdentity.OperationKey($"{method} {path}");
+            if (await _dbContext.OrchestrationRelations.AnyAsync(candidate =>
+                    candidate.ContextId == relation.ContextId && candidate.RelationId != relation.RelationId &&
+                    candidate.SourceNodeId == relation.SourceNodeId && candidate.TargetNodeId == relation.TargetNodeId &&
+                    candidate.Label == relation.Label && candidate.OperationKey == operationKey, cancellationToken))
+            {
+                return new(SaveNodeInstructionsStatus.Conflict);
+            }
+        }
         var changed = node.UserNotes != notes ||
             (relation is not null && (relation.HttpMethod != method || relation.Path != path));
 
@@ -397,6 +401,13 @@ public class ProjectContextService : IProjectContextService
             }
             catch (DbUpdateConcurrencyException)
             {
+                return new(SaveNodeInstructionsStatus.Conflict);
+            }
+            catch (DbUpdateException exception) when (
+                exception.InnerException is PostgresException
+                { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: RelationIdentity.IndexName })
+            {
+                _dbContext.ChangeTracker.Clear();
                 return new(SaveNodeInstructionsStatus.Conflict);
             }
         }
@@ -487,133 +498,169 @@ public class ProjectContextService : IProjectContextService
     {
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        if (_dbContext.Entry(projectContext).State == EntityState.Detached)
+        try
         {
-            _dbContext.Contexts.Attach(projectContext);
-        }
-
-        var now = DateTime.UtcNow;
-        var existingNodes = await _dbContext.OrchestrationNodes
-            .Where(node => node.ContextId == projectContext.ContextId)
-            .ToListAsync(cancellationToken);
-
-        var preserveMap =
-            planner.Status == "needs_clarification" &&
-            planner.Nodes.Count == 0 &&
-            existingNodes.Any(node => node.IsActive);
-
-        if (!preserveMap)
-        {
-            var nodesByKey = existingNodes.ToDictionary(node => node.Key, StringComparer.Ordinal);
-            var activeKeys = new HashSet<string>(StringComparer.Ordinal);
-
-            foreach (var (plannerNode, index) in planner.Nodes.Select((node, index) => (node, index)))
+            if (projectContext.ContextId == 0)
             {
-                activeKeys.Add(plannerNode.Key);
-
-                if (!nodesByKey.TryGetValue(plannerNode.Key, out var node))
-                {
-                    node = new OrchestrationNode
-                    {
-                        ContextId = projectContext.ContextId,
-                        Key = plannerNode.Key,
-                        Name = plannerNode.Name,
-                        Kind = plannerNode.Kind,
-                        Status = plannerNode.Status,
-                        CreatedAt = now
-                    };
-
-                    _dbContext.OrchestrationNodes.Add(node);
-                    nodesByKey[plannerNode.Key] = node;
-                }
-
-                node.Name = plannerNode.Name;
-                node.Description = plannerNode.Description;
-                node.Kind = plannerNode.Kind;
-                node.Role = plannerNode.Role;
-                node.Responsibility = plannerNode.Responsibility;
-                node.Status = plannerNode.Status;
-                node.IsActive = true;
-                node.SortOrder = index;
-                node.UpdatedAt = now;
+                _dbContext.Contexts.Add(projectContext);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            else if (_dbContext.Entry(projectContext).State == EntityState.Detached)
+            {
+                _dbContext.Contexts.Attach(projectContext);
             }
 
-            foreach (var node in existingNodes)
-            {
-                if (!activeKeys.Contains(node.Key))
-                {
-                    node.IsActive = false;
-                    node.UpdatedAt = now;
-                }
-            }
-
-            await _dbContext.SaveChangesAsync(cancellationToken);
-
-            var existingRelations = await _dbContext.OrchestrationRelations
-                .Where(relation => relation.ContextId == projectContext.ContextId)
+            var now = DateTime.UtcNow;
+            var existingNodes = await _dbContext.OrchestrationNodes
+                .Where(node => node.ContextId == projectContext.ContextId)
                 .ToListAsync(cancellationToken);
 
-            var relationsByKey = existingRelations
-                .ToDictionary(
-                    relation => (relation.SourceNodeId, relation.TargetNodeId, relation.Label));
-            var activeRelationKeys = new HashSet<(int, int, string)>();
+            var preserveMap =
+                planner.Status == "needs_clarification" &&
+                planner.Nodes.Count == 0 &&
+                existingNodes.Any(node => node.IsActive);
 
-            foreach (var (plannerRelation, index) in planner.Relations.Select((relation, index) => (relation, index)))
+            if (!preserveMap)
             {
-                var source = nodesByKey[plannerRelation.From];
-                var target = nodesByKey[plannerRelation.To];
-                var relationKey = (source.NodeId, target.NodeId, plannerRelation.Label);
-                activeRelationKeys.Add(relationKey);
+                var nodesByKey = existingNodes.ToDictionary(node => node.Key, StringComparer.Ordinal);
+                var activeKeys = new HashSet<string>(StringComparer.Ordinal);
 
-                if (!relationsByKey.TryGetValue(relationKey, out var relation))
+                foreach (var (plannerNode, index) in planner.Nodes.Select((node, index) => (node, index)))
                 {
-                    relation = new OrchestrationRelation
+                    activeKeys.Add(plannerNode.Key);
+
+                    if (!nodesByKey.TryGetValue(plannerNode.Key, out var node))
                     {
-                        ContextId = projectContext.ContextId,
-                        SourceNodeId = source.NodeId,
-                        TargetNodeId = target.NodeId,
-                        Label = plannerRelation.Label
-                    };
+                        node = new OrchestrationNode
+                        {
+                            ContextId = projectContext.ContextId,
+                            Key = plannerNode.Key,
+                            Name = plannerNode.Name,
+                            Kind = plannerNode.Kind,
+                            Status = plannerNode.Status,
+                            CreatedAt = now
+                        };
 
-                    _dbContext.OrchestrationRelations.Add(relation);
-                    relationsByKey[relationKey] = relation;
+                        _dbContext.OrchestrationNodes.Add(node);
+                        nodesByKey[plannerNode.Key] = node;
+                    }
+
+                    node.Name = plannerNode.Name;
+                    node.Description = plannerNode.Description;
+                    node.Kind = plannerNode.Kind;
+                    node.Role = plannerNode.Role;
+                    node.Responsibility = plannerNode.Responsibility;
+                    node.Status = plannerNode.Status;
+                    node.IsActive = true;
+                    node.SortOrder = index;
+                    node.UpdatedAt = now;
                 }
 
-                // Explicit user edits survive replanning of the same relation.
-                relation.Operation = relation.HttpMethod is not null && relation.Path is not null
-                    ? relation.EffectiveOperation
-                    : plannerRelation.Operation;
-                relation.Description = plannerRelation.Description;
-                relation.Kind = plannerRelation.Kind;
-                relation.SortOrder = index;
-            }
-
-            foreach (var relation in existingRelations)
-            {
-                if (!activeRelationKeys.Contains(
-                        (relation.SourceNodeId, relation.TargetNodeId, relation.Label)))
+                foreach (var node in existingNodes)
                 {
-                    _dbContext.OrchestrationRelations.Remove(relation);
+                    if (!activeKeys.Contains(node.Key))
+                    {
+                        node.IsActive = false;
+                        node.UpdatedAt = now;
+                    }
                 }
+
+                await _dbContext.SaveChangesAsync(cancellationToken);
+
+                var existingRelations = await _dbContext.OrchestrationRelations
+                    .Where(relation => relation.ContextId == projectContext.ContextId)
+                    .ToListAsync(cancellationToken);
+
+                var relationsByKey = existingRelations
+                    .ToDictionary(
+                        relation => (relation.SourceNodeId, relation.TargetNodeId, relation.Label,
+                            RelationIdentity.OperationKey(relation.EffectiveOperation)));
+                var activeRelations = new HashSet<OrchestrationRelation>();
+
+                foreach (var (plannerRelation, index) in planner.Relations.Select((relation, index) => (relation, index)))
+                {
+                    var source = nodesByKey[plannerRelation.From];
+                    var target = nodesByKey[plannerRelation.To];
+                    var relationKey = (source.NodeId, target.NodeId, plannerRelation.Label,
+                        RelationIdentity.OperationKey(plannerRelation.Operation));
+
+                    if (!relationsByKey.TryGetValue(relationKey, out var relation))
+                    {
+                        // Preserve a manual operation from an older single-relation plan only
+                        // when neither the old nor the new map contains ambiguous siblings.
+                        var candidates = existingRelations.Where(candidate =>
+                            candidate.SourceNodeId == source.NodeId && candidate.TargetNodeId == target.NodeId &&
+                            candidate.Label == plannerRelation.Label).ToList();
+                        var plannedCount = planner.Relations.Count(candidate =>
+                            candidate.From == plannerRelation.From && candidate.To == plannerRelation.To &&
+                            candidate.Label == plannerRelation.Label);
+                        relation = candidates.Count == 1 && plannedCount == 1 &&
+                            candidates[0].HttpMethod is not null && candidates[0].Path is not null
+                            ? candidates[0]
+                            : new OrchestrationRelation
+                        {
+                            ContextId = projectContext.ContextId,
+                            SourceNodeId = source.NodeId,
+                            TargetNodeId = target.NodeId,
+                            Label = plannerRelation.Label
+                        };
+
+                        if (relation.RelationId == 0)
+                        {
+                            _dbContext.OrchestrationRelations.Add(relation);
+                        }
+                        relationsByKey[relationKey] = relation;
+                    }
+
+                    activeRelations.Add(relation);
+                    // Explicit user edits survive replanning of the same relation.
+                    relation.Operation = relation.HttpMethod is not null && relation.Path is not null
+                        ? relation.EffectiveOperation
+                        : plannerRelation.Operation;
+                    relation.Description = plannerRelation.Description;
+                    relation.Kind = plannerRelation.Kind;
+                    relation.SortOrder = index;
+                }
+
+                foreach (var relation in existingRelations)
+                {
+                    if (!activeRelations.Contains(relation))
+                    {
+                        _dbContext.OrchestrationRelations.Remove(relation);
+                    }
+                }
+
+                await _dbContext.SaveChangesAsync(cancellationToken);
             }
+
+            projectContext.Resumen = resumen;
+            projectContext.PlannerStatus = planner.Status;
+            projectContext.PlannerReply = planner.Reply;
+            projectContext.PlannerSummary = planner.Summary;
+            projectContext.PlannerPlan = planner.Plan.ToArray();
+            projectContext.PlannerQuestions = planner.Questions.ToArray();
+            projectContext.PlannerAssumptions = planner.Assumptions.ToArray();
+            projectContext.Language = planner.Language ?? projectContext.Language;
+            projectContext.MapVersion += 1;
+            projectContext.UpdatedAt = now;
 
             await _dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return projectContext;
         }
-
-        projectContext.Resumen = resumen;
-        projectContext.PlannerStatus = planner.Status;
-        projectContext.PlannerReply = planner.Reply;
-        projectContext.PlannerSummary = planner.Summary;
-        projectContext.PlannerPlan = planner.Plan.ToArray();
-        projectContext.PlannerQuestions = planner.Questions.ToArray();
-        projectContext.PlannerAssumptions = planner.Assumptions.ToArray();
-        projectContext.Language = planner.Language ?? projectContext.Language;
-        projectContext.MapVersion += 1;
-        projectContext.UpdatedAt = now;
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
-        return projectContext;
+        catch
+        {
+            try
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+            }
+            finally
+            {
+                // A later save on this scoped context must not persist rolled-back changes.
+                _dbContext.ChangeTracker.Clear();
+            }
+            throw;
+        }
     }
 }
