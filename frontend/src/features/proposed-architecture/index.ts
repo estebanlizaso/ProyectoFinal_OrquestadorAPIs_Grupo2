@@ -1,3 +1,8 @@
 export { ProposedArchitecturePage } from './components/ProposedArchitecturePage'
 export type { ProposedArchitecturePageProps } from './components/ProposedArchitecturePage'
+export type { AssistantPanelSide } from './types'
+export { AiAssistantPanel } from './components/AiAssistantPanel'
+export type { AiAssistantPanelProps } from './components/AiAssistantPanel'
+export { ArchitectureDiagram } from './components/ArchitectureDiagram'
+export type { ArchitectureDiagramProps } from './components/ArchitectureDiagram'
 export { clearModuleConfigs } from './useModuleConfigs'

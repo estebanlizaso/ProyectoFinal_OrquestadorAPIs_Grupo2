@@ -12,7 +12,7 @@ import { StartNode } from './StartNode'
 
 export type ArchitectureDiagramProps = {
   map: ContextMap
-  onModuleOpen: (node: OrchestrationNodeResponse) => void
+  onModuleOpen?: (node: OrchestrationNodeResponse) => void
 }
 
 const NODE_TYPES: NodeTypes = {
@@ -48,7 +48,7 @@ export function ArchitectureDiagram({ map, onModuleOpen }: ArchitectureDiagramPr
         elementsSelectable={false}
         onNodeClick={(_event, diagramNode) => {
           if (diagramNode.type === 'architecture') {
-            onModuleOpen(diagramNode.data.node)
+            onModuleOpen?.(diagramNode.data.node)
           }
         }}
         fitView

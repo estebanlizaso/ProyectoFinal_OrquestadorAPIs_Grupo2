@@ -42,3 +42,5 @@ export type ModuleConfig = {
   endpoints: ModuleEndpoint[]
   authentication: AuthenticationType | ''
 }
+
+export type AssistantPanelSide = 'left' | 'right'

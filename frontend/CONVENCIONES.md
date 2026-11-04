@@ -44,8 +44,8 @@ frontend/
         errorMessages.ts      # mensajes de error de la feature para getErrorMessage
         types.ts              # espejo de los DTOs de proyectos
         index.ts
-      global-context/         # Contexto global: chat con la IA del proyecto (POST /api/projects/{projectId}/context), que se muestra en el panel derecho de arquitectura propuesta
-        components/           # ContextChatPanel, PromptComposer, PromptExampleButton, ContextConversation, ConversationTurn, ErrorConversationTurn, PromptBubble, AiBubble
+      global-context/         # Contexto global (/projects/{projectId}/context): chat con la IA del proyecto (POST /api/projects/{projectId}/context) y panel "Contexto detectado" (sistemas y suposiciones). Crear un proyecto lleva a esta pantalla. El mismo chat (ContextChatPanel) se muestra en el panel derecho de arquitectura propuesta, con el mismo historial
+        components/           # GlobalContextPage, ContextChatPanel, ContextDetailsPanel, NodeCard, PromptComposer, PromptExampleButton, ContextConversation, ConversationTurn, ErrorConversationTurn, PromptBubble, AiBubble
         constants.ts
         errorMessages.ts
         types.ts              # espejo de los DTOs de contexto
@@ -53,7 +53,7 @@ frontend/
         useTypewriter.ts      # muestra la respuesta nueva de la IA letra por letra (TYPEWRITER_CHAR_INTERVAL_MS); el historial se ve completo
         isOutOfScope.ts
         findLatestValidTurn.ts # última respuesta que no fue out_of_scope
-      proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama de solo lectura con React Flow, chat de contexto global en el panel derecho (ContextChatPanel de global-context) y modal de detalle del módulo (clic en una tarjeta). Crear un proyecto lleva directo a esta pantalla
+      proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama de solo lectura con React Flow, chat de contexto global en el panel derecho (ContextChatPanel de global-context), panel del asistente a la izquierda cuando la sidebar está oculta y modal de detalle del módulo (clic en una tarjeta)
         components/           # ProposedArchitecturePage, ArchitectureDiagram, AiAssistantPanel, ArchitectureNode, StartNode, DecisionNode, OperationEdge, ModuleDetailModal, BehaviorRuleField, EndpointConfiguration, EndpointRow, SpecificationImport
         buildDiagram.ts       # arma nodes y edges de React Flow a partir del mapa (nodes + relations) con un layout propio de arriba hacia abajo
         module-detail/        # funciones puras del modal de detalle del módulo, una por archivo
@@ -72,6 +72,14 @@ frontend/
         constants.ts
         types.ts              # tipos de los nodos del diagrama y del modal de detalle
         index.ts
+      generation-execution/   # Generación y ejecución (/projects/{projectId}/generation): se abre con "Confirmar flujo"; muestra el mismo diagrama y el progreso de generación (por ahora una simulación solo visual)
+        components/           # GenerationExecutionPage, GenerationProgressPanel
+        useSimulatedProgress.ts # avanza el progreso de 0 a 100 en GENERATION_DURATION_MS
+        getGenerationStage.ts # etapa que corresponde a un porcentaje de progreso
+        formatSolutionLanguage.ts # traduce el language del planificador (python, dotnet) a su nombre visible
+        buildSolutionStatus.ts # "Generando solución {lenguaje}" o "Solución {lenguaje} generada"
+        constants.ts
+        index.ts
       canvas/                 # lienzo React Flow
         components/           # FlowCanvas, Toolbar, Sidebar
         nodes/                # TriggerNode, LegacyApiNode, MergeNode, MockNode
@@ -87,7 +95,7 @@ frontend/
       projectContextService.ts # projectContextService (create, getInitialPrompt, updateNodeNotes) + useCreateProjectContext, useInitialPrompt, useSaveNodeRule
       exportService.ts        # cuando exista el endpoint de exportación (service + useExportFlow)
     shared/
-      ui/                     # Button, Modal (size md/lg y closeLabel opcional para la X), Input, Select, Textarea, Card, SidePanel (sin lógica de negocio)
+      ui/                     # Button, Modal (size md/lg y closeLabel opcional para la X), Input, Select, Textarea, Card, SidePanel, PageHeader, BackButton, ProgressBar (sin lógica de negocio)
       api/httpClient.ts       # único lugar donde se usa fetch
       api/ApiError.ts
       api/requestStatus.ts    # 'idle' | 'loading' | 'success' | 'error'
@@ -104,7 +112,10 @@ Reglas:
 - Una feature solo importa de otra a través de su `index.ts`, nunca de sus archivos internos.
 - `shared/` solo contiene código reutilizable sin conocimiento del dominio.
 - `services/` es global y tiene **un archivo por recurso del backend** (`projectService.ts`, y después `userService.ts`, etc.). Ese archivo concentra todo lo del recurso: el objeto service con sus métodos y los hooks que los ejecutan (`useProjects`, `useDeleteProject`). Los componentes usan los hooks; nunca llaman a un service directo.
-- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/architecture`).
+- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context`, `/projects/{projectId}/architecture` o `/projects/{projectId}/generation`).
+- Cada pantalla, menos Proyectos (que es el inicio), muestra arriba a la izquierda, junto al título, un `BackButton` ("Volver a {pantalla}") que lleva al paso anterior del flujo (Generación y ejecución → Arquitectura propuesta → Contexto global → Proyectos), no al historial del navegador. A dónde vuelve cada ruta se define en un solo lugar, `resolveBackTarget` (`app/routes.ts`), y `App.tsx` le pasa el botón armado a la pantalla por la prop `backButton`, que la pantalla pone en su `PageHeader`.
+- La sidebar ("Orquestador IA" y "Proyectos") se oculta y se muestra con el botón de su encabezado; oculta, queda una barra angosta con los botones para mostrarla y para crear una orquestación. El estado vive en `App.tsx`, que se lo pasa a las pantallas que lo necesitan (por ejemplo, Arquitectura propuesta y Generación y ejecución reciben `assistantSide` y muestran el panel del asistente a la izquierda).
+- Arquitectura propuesta y Generación y ejecución usan todo el alto de la pantalla: el título va arriba del diagrama, el diagrama ocupa el resto del alto (`ArchitectureDiagram` crece con `flex-1` dentro de una columna `flex-col`) y los paneles laterales llegan hasta abajo.
 
 ---
 
