@@ -132,6 +132,13 @@ namespace OrquestadorApi.Migrations
                         .HasColumnType("text")
                         .HasColumnName("operation");
 
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasColumnName("operation_key")
+                        .HasComputedColumnSql("coalesce(nullif(btrim(case when http_method is not null and path is not null then http_method || ' ' || path else operation end, ' ' || chr(9) || chr(10) || chr(11) || chr(12) || chr(13)), ''), '')", true);
+
                     b.Property<string>("Path")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)")
@@ -157,8 +164,9 @@ namespace OrquestadorApi.Migrations
 
                     b.HasIndex("TargetNodeId");
 
-                    b.HasIndex("ContextId", "SourceNodeId", "TargetNodeId", "Label")
-                        .IsUnique();
+                    b.HasIndex("ContextId", "SourceNodeId", "TargetNodeId", "Label", "OperationKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_relations_context_endpoints_label_operation");
 
                     b.ToTable("orchestration_relations");
                 });

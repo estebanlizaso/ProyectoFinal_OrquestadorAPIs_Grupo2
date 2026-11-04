@@ -172,7 +172,13 @@ Un **contexto** es un sistema, por ejemplo `API Legacy` o `API Pólizas`. Las fl
 Reglas de reconciliación:
 
 - Los nodos se reconcilian por `key` estable. Un nodo existente conserva su ID.
-- Las relaciones se reconcilian por `(origen, destino, label)`.
+- Las relaciones se reconcilian por `(origen, destino, label, operation)`.
+  Se permiten operaciones diferentes entre los mismos extremos y con la misma
+  etiqueta. Se rechazan duplicados de los cuatro campos, incluso si la operación
+  es nula o vacía. Se recortan espacios U+0020, tabulaciones, CR, LF, VT y FF
+  exteriores de la operación; se conservan mayúsculas y espacios interiores.
+  PostgreSQL aplica la misma regla mediante `operation_key`, una columna calculada
+  no nula, y el índice único `ux_relations_context_endpoints_label_operation`.
 - Si el usuario dice “al final”, “en vez de”, “cambiá” o “reemplazá”, la relación anterior se reemplaza.
 - Si dice “además”, “sumá” o “también”, las relaciones anteriores se conservan y se agrega la nueva.
 - Los nodos que no vuelven en el mapa completo quedan con `is_active=false`; no se borran físicamente.
@@ -212,6 +218,27 @@ Códigos:
 - `404 Not Found`: el proyecto no existe.
 - `409 Conflict`: el contexto cambió durante la planificación; hay que reenviar el mensaje.
 - `502 Bad Gateway`: falló Gemini. El `message` distingue rate limit/cuota, mensaje demasiado largo para el contexto del modelo y otros errores. La memoria y el mapa anteriores se conservan.
+
+El contexto inicial y su `initialPrompt` se guardan únicamente después de generar
+y validar el plan y el resumen. Contexto, nodos, relaciones y metadatos se confirman
+en una única transacción. Un fallo de IA, validación o persistencia no deja datos
+nuevos del intento; si ya había contexto, se conserva. Si falla el primer intento,
+el siguiente mensaje establece un objetivo inicial nuevo. No se reparan contextos
+históricos incompletos automáticamente.
+
+Las respuestas `502` mantienen `{ "contextId": ..., "message": "..." }`:
+`contextId` ahora es `null` si el intento inicial falló antes de crear un contexto;
+si ya existía, conserva su ID. Los errores de persistencia no concurrentes siguen
+propagándose como errores de servidor, con rollback. Dos creaciones iniciales
+concurrentes no se reinterpretan como continuación: la perdedora devuelve `409`.
+Una respuesta válida `out_of_scope` inicial conserva el contrato `201` con un ID
+persistido después de validar la respuesta; sobre un contexto existente no escribe.
+
+La migración `IncludeOperationInRelationIdentity` agrega la clave calculada y
+reemplaza el índice anterior; no elimina ni repara filas. Su reversión falla si
+ya existen operaciones paralelas que el índice antiguo no admite. Coordinar su
+aplicación con el backend actualizado: la versión anterior no puede reconciliar
+mapas con varias operaciones para los mismos extremos y etiqueta.
 
 Respuesta resumida:
 
@@ -344,7 +371,11 @@ La migración `AddRelationHttpInstructions` agrega columnas opcionales a las
 relaciones sin inferir datos del texto libre existente. Antes de una edición manual,
 se sigue usando `operation`. Después, `httpMethod` y `path` son la fuente de verdad
 y `operation` refleja ambos. Estas ediciones se conservan al replanificar la misma
-relación `(origen, destino, label)`; no se transfieren a relaciones nuevas.
+relación `(origen, destino, label, operación efectiva)`. Por compatibilidad con
+planes antiguos que repiten una operación anterior, se conserva la edición manual
+si hay exactamente una relación con esos extremos y etiqueta tanto en el mapa
+anterior como en el nuevo; no se usa esa coincidencia si hay operaciones paralelas.
+Editar una operación para duplicar otra relación devuelve `409` sin guardar la nota.
 
 El guardado no reescribe `resumen`, descripciones ni planes. Las notas actuales y
 las operaciones explícitas se envían al generador y prevalecen sobre referencias
@@ -356,6 +387,11 @@ Pruebas del backend (SQLite en memoria, sin usar la base configurada ni Gemini):
 ```bash
 dotnet test ../backend.Tests/OrquestadorApi.Tests.csproj
 ```
+
+Las pruebas de PostgreSQL requieren habilitación explícita mediante
+`ORQUESTADOR_PG_TEST_DATABASE` y una base descartable con el nombre permitido.
+Sin esa variable se omiten y no abren conexiones. No usan `.env`, no ejecutan el
+seed y no eliminan datos. Ver el [informe y las instrucciones de reproducción](../backend.Tests/POSTGRESQL_VALIDATION.md).
 
 ### `POST /api/projects/{projectId}/architecture`
 

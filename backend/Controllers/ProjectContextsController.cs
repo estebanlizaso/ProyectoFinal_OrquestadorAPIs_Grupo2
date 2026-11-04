@@ -46,7 +46,7 @@ public class ProjectContextsController : ControllerBase
             CreateProjectContextStatus.AiProviderFailed => StatusCode(
                 StatusCodes.Status502BadGateway,
                 new ProjectContextGenerationErrorResponse(
-                    result.ContextId!.Value,
+                    result.ContextId,
                     result.ErrorMessage ??
                     "No se pudo planificar la orquestación o actualizar el resumen con Gemini. La memoria anterior se conserva; reenviá el mensaje para reintentar.")),
             _ => throw new InvalidOperationException("Estado de creación de contexto desconocido.")

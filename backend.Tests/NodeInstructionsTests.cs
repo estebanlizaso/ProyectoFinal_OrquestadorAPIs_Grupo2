@@ -230,6 +230,8 @@ public class NodeInstructionsTests
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.Entity<OrchestrationRelation>().Property(relation => relation.OperationKey)
+                .HasComputedColumnSql("trim(coalesce(case when http_method is not null and path is not null then http_method || ' ' || path else operation end, ''), char(32, 9, 10, 11, 12, 13))", stored: true);
             modelBuilder.Entity<Project>().Property(project => project.ProjectNameNormalized)
                 .HasComputedColumnSql("lower(project_name)", stored: true);
         }
