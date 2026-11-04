@@ -13,7 +13,6 @@ import type { ModuleConfig, ModuleEndpoint } from '../types'
 import { validateEndpoint } from '../module-detail/validateEndpoint'
 import { EndpointConfiguration } from './EndpointConfiguration'
 import { ModuleDescription } from './ModuleDescription'
-import { SpecificationImport } from './SpecificationImport'
 
 export type ModuleDetailModalProps = {
   projectId: number
@@ -89,7 +88,7 @@ export function ModuleDetailModal({
       <ModuleDescription description={node.description} />
 
       {hasEndpoint && (
-        <fieldset disabled={isSaving} className="mt-6 grid min-w-0 grid-cols-1 gap-6 md:grid-cols-2">
+        <fieldset disabled={isSaving} className="mt-6 min-w-0">
           <EndpointConfiguration
             endpoints={config.endpoints}
             authentication={config.authentication}
@@ -103,7 +102,6 @@ export function ModuleDetailModal({
             }
             onAuthenticationChange={(authentication) => setConfig((current) => ({ ...current, authentication }))}
           />
-          <SpecificationImport />
         </fieldset>
       )}
 
