@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { GenerationExecutionPage } from '../features/generation-execution'
 import { GlobalContextPage } from '../features/global-context'
 import { CreateProjectModal, ProjectsPage, type ProjectResponse } from '../features/projects'
-import { ProposedArchitecturePage } from '../features/proposed-architecture'
+import { ProposedArchitecturePage, useModuleNotesSync } from '../features/proposed-architecture'
 import { navigate } from '../shared/lib/navigate'
 import { usePathname } from '../shared/lib/usePathname'
 import { BackButton } from '../shared/ui/BackButton'
@@ -22,6 +22,7 @@ export function App() {
   const backTarget = resolveBackTarget(route)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const syncModuleNotes = useModuleNotesSync()
   const assistantSide = isSidebarOpen ? 'right' : 'left'
 
   function openCreateModal(): void {
@@ -53,6 +54,7 @@ export function App() {
             projectId={currentRoute.projectId}
             backButton={backButton}
             onGenerateArchitecture={() => navigate(buildProjectArchitecturePath(currentRoute.projectId))}
+            onMapChanged={(previousMap, nextMap) => syncModuleNotes(currentRoute.projectId, previousMap, nextMap)}
           />
         )
       case 'projectArchitecture':

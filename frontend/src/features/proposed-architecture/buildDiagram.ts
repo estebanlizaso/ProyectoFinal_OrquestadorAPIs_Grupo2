@@ -1,5 +1,6 @@
 import { MarkerType, type XYPosition } from '@xyflow/react'
 import type { ContextMap, OrchestrationNodeResponse, OrchestrationRelationResponse } from '../global-context'
+import { findRelationOperation } from './module-detail/findRelationOperation'
 import type { Diagram, DiagramNode, OperationFlowEdge } from './types'
 
 type DiagramNodeType = DiagramNode['type']
@@ -91,13 +92,19 @@ function buildEdge(id: string, source: string, target: string, label: string | n
 function buildEdges(
   tree: TreeItem,
   relationsBySource: Map<string, OrchestrationRelationResponse[]>,
+  nodesByKey: Map<string, OrchestrationNodeResponse>,
 ): OperationFlowEdge[] {
   const startEdges = tree.children.map((root) => buildEdge(`${START_ID}-${root.id}`, START_ID, root.id, null))
   const relationEdges = [...relationsBySource.entries()].flatMap(([sourceKey, relations]) => {
     const hasDecision = relations.length > 1
     const source = hasDecision ? toDecisionId(sourceKey) : toNodeId(sourceKey)
     const edges = relations.map((relation) => ({
-      ...buildEdge(`relation-${relation.id}`, source, toNodeId(relation.to), relation.operation ?? relation.label),
+      ...buildEdge(
+        `relation-${relation.id}`,
+        source,
+        toNodeId(relation.to),
+        findRelationOperation(relation, nodesByKey) ?? relation.label,
+      ),
       animated: relation.kind === 'async',
     }))
 
@@ -158,5 +165,7 @@ export function buildDiagram({ nodes, relations }: ContextMap): Diagram {
   const relationsBySource = groupBySource(validRelations)
   const tree = buildTree(sortedNodes, relationsBySource)
 
-  return { nodes: placeSubtree(tree, 0, 0), edges: buildEdges(tree, relationsBySource) }
+  const nodesByKey = new Map(sortedNodes.map((node) => [node.key, node]))
+
+  return { nodes: placeSubtree(tree, 0, 0), edges: buildEdges(tree, relationsBySource, nodesByKey) }
 }

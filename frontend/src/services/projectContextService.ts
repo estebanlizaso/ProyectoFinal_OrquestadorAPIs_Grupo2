@@ -162,3 +162,47 @@ export function useUpdateNodeNotes(): UseUpdateNodeNotesResult {
 
   return { run, status, error }
 }
+
+export type NodeNotesChange = {
+  nodeKey: OrchestrationNodeResponse['key']
+  userNotes: string
+}
+
+export type UseSyncNodeNotesResult = {
+  run: (
+    projectId: ProjectContextResponse['projectId'],
+    changes: NodeNotesChange[],
+  ) => Promise<OrchestrationNodeResponse[]>
+  status: RequestStatus
+  error: Error | null
+}
+
+export function useSyncNodeNotes(): UseSyncNodeNotesResult {
+  const [status, setStatus] = useState<RequestStatus>('idle')
+  const [error, setError] = useState<Error | null>(null)
+
+  const run = useCallback(
+    async (
+      projectId: ProjectContextResponse['projectId'],
+      changes: NodeNotesChange[],
+    ): Promise<OrchestrationNodeResponse[]> => {
+      setStatus('loading')
+      setError(null)
+      const updatedNodes: OrchestrationNodeResponse[] = []
+
+      try {
+        for (const { nodeKey, userNotes } of changes) {
+          updatedNodes.push(await projectContextService.updateNodeNotes(projectId, nodeKey, userNotes))
+        }
+        setStatus('success')
+      } catch (caught) {
+        setError(toError(caught))
+        setStatus('error')
+      }
+      return updatedNodes
+    },
+    [],
+  )
+
+  return { run, status, error }
+}

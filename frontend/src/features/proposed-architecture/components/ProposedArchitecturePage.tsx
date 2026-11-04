@@ -3,14 +3,16 @@ import {
   ContextChatPanel,
   findLatestValidTurn,
   useContextHistory,
+  type ContextMap,
   type OrchestrationNodeResponse,
+  type PlannerTurn,
 } from '../../global-context'
 import { cn } from '../../../shared/lib/cn'
 import { Button } from '../../../shared/ui/Button'
 import { PageHeader } from '../../../shared/ui/PageHeader'
 import { PROPOSED_ARCHITECTURE_PAGE_TEXTS } from '../constants'
-import type { AssistantPanelSide, ModuleConfig } from '../types'
-import { useModuleConfigs } from '../useModuleConfigs'
+import type { AssistantPanelSide } from '../types'
+import { useModuleNotesSync } from '../useModuleNotesSync'
 import { AiAssistantPanel } from './AiAssistantPanel'
 import { ArchitectureDiagram } from './ArchitectureDiagram'
 import { ModuleDetailModal } from './ModuleDetailModal'
@@ -30,12 +32,17 @@ export function ProposedArchitecturePage({
 }: ProposedArchitecturePageProps) {
   const { turns, map, addTurn, addErrorTurn, updateNode } = useContextHistory(projectId)
   const flowSummary = findLatestValidTurn(turns)?.planner.summary ?? null
-  const { configs, saveConfig } = useModuleConfigs(projectId)
+  const syncModuleNotes = useModuleNotesSync()
   const [openModule, setOpenModule] = useState<OrchestrationNodeResponse | null>(null)
   const isAssistantVisible = assistantSide === 'left'
 
-  function handleConfigSaved(node: OrchestrationNodeResponse, config: ModuleConfig): void {
-    saveConfig(node.key, config)
+  function handleTurnAdded(turn: PlannerTurn, nextMap: ContextMap): void {
+    const previousMap = map
+    addTurn(turn, nextMap)
+    void syncModuleNotes(projectId, previousMap, nextMap).then((updatedNodes) => updatedNodes.forEach(updateNode))
+  }
+
+  function handleConfigSaved(node: OrchestrationNodeResponse): void {
     updateNode(node)
     setOpenModule(null)
   }
@@ -64,7 +71,7 @@ export function ProposedArchitecturePage({
       <ContextChatPanel
         projectId={projectId}
         turns={turns}
-        onTurnAdded={addTurn}
+        onTurnAdded={handleTurnAdded}
         onErrorTurnAdded={addErrorTurn}
       />
 
@@ -73,8 +80,7 @@ export function ProposedArchitecturePage({
           key={openModule.key}
           projectId={projectId}
           node={openModule}
-          relations={map.relations}
-          savedConfig={configs[openModule.key] ?? null}
+          map={map}
           onClose={() => setOpenModule(null)}
           onConfigSaved={handleConfigSaved}
         />

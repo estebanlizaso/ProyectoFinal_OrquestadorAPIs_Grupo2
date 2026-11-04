@@ -61,9 +61,17 @@ frontend/
           validateEndpoint.ts # una fila de endpoint vacía es válida; con método y ruta, la ruta tiene que ser válida
           isHttpMethod.ts, isAuthenticationType.ts
           canHaveEndpoint.ts  # actores y pasos no tienen endpoint: su modal muestra solo la descripción
-          findModuleEndpoints.ts # endpoints de un módulo a partir de las operation ("MÉTODO /ruta") de las relaciones que le llegan
-          buildConfigLines.ts # líneas "Endpoint: MÉTODO /ruta" y "Autenticación: ..." de la configuración del módulo
-        useModuleConfigs.ts   # endpoints y autenticación guardados por nodo en localStorage, una clave por proyecto, + clearModuleConfigs
+          parseOperation.ts   # "MÉTODO /ruta" a endpoint, o null si no es válida
+          formatEndpoint.ts   # endpoint a "MÉTODO /ruta"
+          findIncomingRelations.ts # relaciones (flechas) que llegan a un nodo, en orden
+          findSourceName.ts   # nombre del nodo de origen de una flecha
+          parseModuleNotes.ts # lee de las userNotes los endpoints ("Endpoint desde {origen}: MÉTODO /ruta" o "Endpoint: MÉTODO /ruta") y la autenticación
+          buildConfigLines.ts # arma esas mismas líneas a partir de la configuración del módulo
+          findSavedEndpoint.ts # endpoint guardado en la nota para un origen
+          buildEndpointSlots.ts # filas del modal: una por flecha que llega al nodo, con lo guardado en la nota o, si no hay, la operation de la IA
+          findRelationOperation.ts # texto de la flecha: lo guardado en la nota del nodo destino o, si no hay, la operation de la IA
+          findNotesToSync.ts  # notas a reescribir cuando la IA cambió las flechas de un nodo que tiene endpoints guardados
+        useModuleNotesSync.ts # después de cada respuesta del chat, reescribe esas notas (PATCH) para que coincidan con la IA
         errorMessages.ts      # errores al guardar la configuración del módulo
         constants.ts
         types.ts              # tipos de los nodos del diagrama y del modal de detalle
@@ -88,7 +96,7 @@ frontend/
         schema.ts             # contrato del JSON maestro (fuente única en el front)
     services/                 # un archivo por recurso del backend, con todo lo del recurso
       projectService.ts       # projectService (getAll, create, delete) + useProjects, useCreateProject, useDeleteProject
-      projectContextService.ts # projectContextService (create, getInitialPrompt, updateNodeNotes) + useCreateProjectContext, useInitialPrompt, useUpdateNodeNotes
+      projectContextService.ts # projectContextService (create, getInitialPrompt, updateNodeNotes) + useCreateProjectContext, useInitialPrompt, useUpdateNodeNotes, useSyncNodeNotes
       exportService.ts        # cuando exista el endpoint de exportación (service + useExportFlow)
     shared/
       ui/                     # Button, Modal (size md/lg y closeLabel opcional para la X), Input, Select, Textarea, Card, SidePanel, PageHeader, BackButton, ProgressBar (sin lógica de negocio)
@@ -133,7 +141,7 @@ Reglas:
   - Los `500` no tienen un formato garantizado.
 - `POST /api/projects/{projectId}/context` recibe `{ "prompt": string }` (`CreateProjectContextRequest`) y responde `ProjectContextResponse` (`contextId`, `projectId`, `initialPrompt`, `generatedContent`, `planner`, `nodes`, `relations`, `mapVersion`, `resumen`, `updatedAt`). Cada mensaje del chat va a este mismo endpoint: el backend corre el agente planificador (con el prompt inicial, el `resumen` y el mapa anterior) y después el resumidor. No genera código. `planner` trae `status` (`needs_clarification`, `ready` u `out_of_scope`), `reply` (la respuesta para el chat), `summary`, `questions`, `plan`, `assumptions` y `language`. El chat muestra solo `reply`, porque las preguntas ya vienen en ese texto. `nodes` y `relations` son el mapa completo de la orquestación (los nodos `kind=system` son los que reciben código). `generatedContent` queda por compatibilidad, con `code: null`. Responde `201` la primera vez y `200` en los mensajes siguientes, `404` si el proyecto no existe, `409` si el contexto cambió durante la planificación y `502` (`{ contextId, message }`) si falla la IA. Puede tardar hasta 60 s, por eso el service usa un timeout de 65 s.
 - `GET /api/projects/{projectId}/context` devuelve solo `{ "initialPrompt": string }` (`InitialProjectPromptResponse`), o `404` si el proyecto no tiene contexto.
-- `PATCH /api/projects/{projectId}/context/nodes/{nodeKey}` recibe `{ "userNotes": string }` (`UpdateOrchestrationNodeRequest`, máximo 2000 caracteres) y responde `200` con el `OrchestrationNodeResponse` actualizado, `404` si el proyecto o el nodo no existen y `409` (`{ message }`) si el contexto cambió mientras se guardaba. No llama a la IA: el planificador y el generador de código (`POST /architecture`) toman las notas como requisitos confirmados. En el modal de detalle del módulo, "Descripción" muestra la `description` del nodo y no se puede editar (la tarjeta del diagrama muestra la misma). "Guardar" hace solo el `PATCH` con las líneas de configuración del endpoint y la autenticación (`buildConfigLines`), sin mandar un mensaje al chat ni llamar a la IA, y actualiza el nodo en el mapa guardado (`updateNode` de `useContextHistory`). Actores y pasos no tienen configuración: su modal muestra solo la descripción y "Cerrar". El back no tiene campos para método, ruta y autenticación: el front los guarda además en `localStorage` (`useModuleConfigs`) para volver a llenar el modal, y los borra cuando se elimina el proyecto (`clearModuleConfigs`).
+- `PATCH /api/projects/{projectId}/context/nodes/{nodeKey}` recibe `{ "userNotes": string }` (`UpdateOrchestrationNodeRequest`, máximo 2000 caracteres) y responde `200` con el `OrchestrationNodeResponse` actualizado, `404` si el proyecto o el nodo no existen y `409` (`{ message }`) si el contexto cambió mientras se guardaba. No llama a la IA: el planificador y el generador de código (`POST /architecture`) toman las notas como requisitos confirmados. En el modal de detalle del módulo, "Descripción" muestra la `description` del nodo y no se puede editar (la tarjeta del diagrama muestra la misma). "Guardar" hace solo el `PATCH` con las líneas de configuración del endpoint y la autenticación (`buildConfigLines`), sin mandar un mensaje al chat ni llamar a la IA, y actualiza el nodo en el mapa guardado (`updateNode` de `useContextHistory`). Actores y pasos no tienen configuración: su modal muestra solo la descripción y "Cerrar". El back no tiene campos para la autenticación ni deja que la IA cambie por chat un método y ruta guardados en la relación, así que la única copia de la configuración del módulo son sus `userNotes`, con una línea por flecha que le llega ("Endpoint desde {origen}: MÉTODO /ruta") y "Autenticación: ...". El modal y el texto de las flechas leen de ahí y, si no hay nada guardado, de la `operation` de la IA. Después de cada respuesta del chat (en Arquitectura propuesta o en Contexto global), si la IA cambió las flechas de un nodo que tiene endpoints guardados, el front reescribe su nota con lo de la IA (`useModuleNotesSync`); si no las tocó, se respeta lo guardado a mano, que la IA toma como requisito confirmado.
 - El backend no guarda la conversación. El front guarda el historial del chat en `localStorage` con una clave por proyecto (`useContextHistory`), incluidos los mensajes que dieron error, que quedan en el chat con su aviso y no cambian el mapa, y lo borra cuando se elimina el proyecto (`clearContextHistory`).
 
 ---

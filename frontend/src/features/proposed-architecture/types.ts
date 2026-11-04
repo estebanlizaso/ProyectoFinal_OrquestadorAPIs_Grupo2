@@ -38,9 +38,13 @@ export type RouteError = keyof typeof ROUTE_ERROR_TEXTS
 
 export type EndpointError = RouteError | 'incomplete'
 
-export type ModuleConfig = {
-  endpoints: ModuleEndpoint[]
-  authentication: AuthenticationType | ''
+export type EndpointSlot = {
+  sourceName: string | null
+  endpoint: ModuleEndpoint
 }
 
+export type ModuleConfig = {
+  endpoints: EndpointSlot[]
+  authentication: AuthenticationType | ''
+}
 export type AssistantPanelSide = 'left' | 'right'

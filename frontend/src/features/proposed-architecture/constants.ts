@@ -48,10 +48,13 @@ export const MODULE_DETAIL_TEXTS = {
   saving: 'Guardando...',
   saveErrorTitle: 'No se pudo guardar la configuración',
   endpointIncomplete: 'Completá el método y la ruta.',
+  endpointSourcePrefix: 'Desde ',
 }
 
 export const MODULE_NOTE_PREFIXES = {
   endpoint: 'Endpoint: ',
+  endpointFrom: 'Endpoint desde ',
+  endpointSourceSeparator: ': ',
   authentication: 'Autenticación: ',
 }
 

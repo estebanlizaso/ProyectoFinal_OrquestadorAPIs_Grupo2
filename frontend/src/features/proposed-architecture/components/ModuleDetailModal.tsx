@@ -1,15 +1,16 @@
 import { useState } from 'react'
-import type { OrchestrationNodeResponse, OrchestrationRelationResponse } from '../../global-context'
+import type { ContextMap, OrchestrationNodeResponse } from '../../global-context'
 import { useUpdateNodeNotes } from '../../../services/projectContextService'
 import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import { Button } from '../../../shared/ui/Button'
 import { Modal } from '../../../shared/ui/Modal'
 import { buildConfigLines } from '../module-detail/buildConfigLines'
+import { buildEndpointSlots } from '../module-detail/buildEndpointSlots'
 import { canHaveEndpoint } from '../module-detail/canHaveEndpoint'
+import { parseModuleNotes } from '../module-detail/parseModuleNotes'
 import { MODULE_DETAIL_TEXTS } from '../constants'
 import { MODULE_CONFIG_ERROR_MESSAGES } from '../errorMessages'
-import { findModuleEndpoints } from '../module-detail/findModuleEndpoints'
-import type { ModuleConfig, ModuleEndpoint } from '../types'
+import type { ModuleConfig } from '../types'
 import { validateEndpoint } from '../module-detail/validateEndpoint'
 import { EndpointConfiguration } from './EndpointConfiguration'
 import { ModuleDescription } from './ModuleDescription'
@@ -17,58 +18,35 @@ import { ModuleDescription } from './ModuleDescription'
 export type ModuleDetailModalProps = {
   projectId: number
   node: OrchestrationNodeResponse
-  relations: OrchestrationRelationResponse[]
-  savedConfig: ModuleConfig | null
+  map: ContextMap
   onClose: () => void
-  onConfigSaved: (node: OrchestrationNodeResponse, config: ModuleConfig) => void
+  onConfigSaved: (node: OrchestrationNodeResponse) => void
 }
 
-const EMPTY_ENDPOINT: ModuleEndpoint = { method: '', route: '' }
-
-function buildInitialConfig(
-  nodeKey: string,
-  relations: OrchestrationRelationResponse[],
-  savedConfig: ModuleConfig | null,
-): ModuleConfig {
-  const endpoints = savedConfig ? savedConfig.endpoints : findModuleEndpoints(nodeKey, relations)
+function buildInitialConfig(node: OrchestrationNodeResponse, map: ContextMap): ModuleConfig {
   return {
-    endpoints: endpoints.length > 0 ? endpoints : [EMPTY_ENDPOINT],
-    authentication: savedConfig?.authentication ?? '',
-  }
-}
-
-function toSavedConfig({ endpoints, authentication }: ModuleConfig): ModuleConfig {
-  return {
-    endpoints: endpoints.filter(({ method, route }) => method !== '' && route !== ''),
-    authentication,
+    endpoints: buildEndpointSlots(node, map),
+    authentication: parseModuleNotes(node.userNotes).authentication,
   }
 }
 
 function isSameConfig(first: ModuleConfig, second: ModuleConfig): boolean {
-  return JSON.stringify(toSavedConfig(first)) === JSON.stringify(toSavedConfig(second))
+  return JSON.stringify(buildConfigLines(first)) === JSON.stringify(buildConfigLines(second))
 }
 
-export function ModuleDetailModal({
-  projectId,
-  node,
-  relations,
-  savedConfig,
-  onClose,
-  onConfigSaved,
-}: ModuleDetailModalProps) {
+export function ModuleDetailModal({ projectId, node, map, onClose, onConfigSaved }: ModuleDetailModalProps) {
   const hasEndpoint = canHaveEndpoint(node)
-  const [initialConfig] = useState(() => buildInitialConfig(node.key, relations, savedConfig))
+  const [initialConfig] = useState(() => buildInitialConfig(node, map))
   const [config, setConfig] = useState(initialConfig)
   const { run, status, error } = useUpdateNodeNotes()
   const isSaving = status === 'loading'
-  const areEndpointsValid = config.endpoints.every((endpoint) => validateEndpoint(endpoint) === null)
+  const areEndpointsValid = config.endpoints.every(({ endpoint }) => validateEndpoint(endpoint) === null)
   const canSave = !isSaving && areEndpointsValid && !isSameConfig(config, initialConfig)
 
   async function handleSave(): Promise<void> {
-    const configToSave = toSavedConfig(config)
-    const updatedNode = await run(projectId, node.key, buildConfigLines(configToSave).join('\n'))
+    const updatedNode = await run(projectId, node.key, buildConfigLines(config).join('\n'))
     if (updatedNode) {
-      onConfigSaved(updatedNode, configToSave)
+      onConfigSaved(updatedNode)
     }
   }
 
@@ -95,8 +73,8 @@ export function ModuleDetailModal({
             onEndpointChange={(index, changedEndpoint) =>
               setConfig((current) => ({
                 ...current,
-                endpoints: current.endpoints.map((endpoint, position) =>
-                  position === index ? changedEndpoint : endpoint,
+                endpoints: current.endpoints.map((slot, position) =>
+                  position === index ? { ...slot, endpoint: changedEndpoint } : slot,
                 ),
               }))
             }
