@@ -1,0 +1,534 @@
+{
+  "info": {
+    "name": "Orquestador APIs - Guía de uso",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Recorrido manual para crear un proyecto de prueba, planificar una integración, consultar su objetivo inicial, editar notas e instrucciones y generar arquitectura. Consultar postman/README.md para preparar el backend y las variables. Usar una base de pruebas: varias peticiones guardan datos y las de contexto/arquitectura llaman a Gemini. La eliminación es manual y está al final. No ejecutar toda la colección con Runner sin revisar sus efectos. La colección no incluye credenciales del servidor. Los ejemplos son ilustrativos; no son respuestas HTTP capturadas."
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5257",
+      "description": "URL del backend, sin barra final; configurable para el entorno de pruebas.",
+      "type": "string"
+    },
+    {
+      "key": "projectName",
+      "value": "BDT prueba de integración",
+      "description": "Prefijo configurable. Cada creación agrega un UUID para evitar nombres repetidos.",
+      "type": "string"
+    },
+    {
+      "key": "projectId",
+      "value": "",
+      "description": "Capturado solo tras crear correctamente un proyecto. No definirlo también en un entorno.",
+      "type": "string"
+    },
+    {
+      "key": "nodeKey",
+      "value": "",
+      "description": "Copiar nodes[].key de un nodo activo del POST de contexto. No se elige automáticamente.",
+      "type": "string"
+    },
+    {
+      "key": "expectedMapVersion",
+      "value": "",
+      "description": "Capturada del POST de contexto o de instrucciones; no adivinar ni reutilizar tras un conflicto.",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Crear proyecto de prueba",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "function stop(message) {",
+              "  pm.execution.skipRequest();",
+              "  throw new Error(message);",
+              "}",
+              "for (const key of ['projectId', 'nodeKey', 'expectedMapVersion']) pm.collectionVariables.set(key, '');",
+              "for (const key of ['projectId', 'nodeKey', 'expectedMapVersion']) {",
+              "  if (String(pm.variables.get(key) || '') !== '') stop('Quitá ' + key + ' de otros ámbitos antes de crear el proyecto.');",
+              "}",
+              "const prefix = String(pm.variables.get('projectName') || '').trim();",
+              "if (!prefix) stop('Configurá projectName con un nombre de prueba.');",
+              "const uniqueName = prefix + ' - ' + pm.variables.replaceIn('{{$guid}}');",
+              "pm.variables.set('projectCreateBody', JSON.stringify({ name: uniqueName }));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('projectId', '');",
+              "let data;",
+              "try { data = pm.response.json(); } catch (_) { data = null; }",
+              "const valid = pm.response.code === 201 && data && Number.isInteger(data.projectId) && data.projectId > 0 && data.projectId <= 2147483647;",
+              "pm.test('Proyecto creado con un projectId válido', function () { pm.expect(Boolean(valid)).to.eql(true); });",
+              "if (valid) pm.collectionVariables.set('projectId', String(data.projectId));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/projects",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "projects"
+          ]
+        },
+        "description": "Crea un proyecto nuevo con un nombre generado a partir de projectName y un sufijo único. Solo requiere el backend y PostgreSQL; no llama a Gemini. El cuerpo final contiene {name: string no vacío}.\n\n201: ProjectResponse {name, description, projectId, created_at}; created_at es una fecha o null. El script guarda projectId únicamente si la respuesta 201 contiene un entero positivo válido. Antes de enviar se borran el ID, el nodo y la versión anteriores. Un error de red, un 409 o una respuesta inválida no deja un ID anterior disponible para otras peticiones.\n\n400: nombre/body inválido. 409: nombre equivalente existente (se ignoran mayúsculas y espacios comunes exteriores; no se eliminan acentos ni espacios interiores). Cambiar projectName y volver a crear si es necesario.",
+        "body": {
+          "mode": "raw",
+          "raw": "{{projectCreateBody}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "02 - Listar, buscar y paginar proyectos",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/projects?page=1",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "projects"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Página positiva, predeterminada 1."
+            },
+            {
+              "key": "search",
+              "value": "prueba",
+              "disabled": true,
+              "description": "Activar para buscar por nombre."
+            }
+          ]
+        },
+        "description": "Lista proyectos sin llamar a Gemini ni modificar datos. page es opcional, entero >= 1; se devuelven hasta 12 elementos por página. search es un filtro opcional por nombre, sin distinguir mayúsculas y con espacios exteriores recortados; activarlo en Params.\n\n200: ProjectsResponse {body: ProjectResponse[], next: string|null, prev: string|null}, ordenado por fecha e ID descendentes. 400: page inválido o fuera de rango. Para trabajar con un proyecto ya existente, copiar conscientemente su projectId a la variable de colección; evitar usarlo para el recorrido de eliminación de pruebas."
+      },
+      "response": []
+    },
+    {
+      "name": "03 - Generar contexto o continuar conversación",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "function stop(message) {",
+              "  pm.execution.skipRequest();",
+              "  throw new Error(message);",
+              "}",
+              "const projectId = String(pm.collectionVariables.get('projectId') || '');",
+              "if (String(pm.variables.get('projectId') || '') !== projectId) stop('Quitá la variable projectId de otros ámbitos; usá la variable de colección.');",
+              "if (!/^[1-9][0-9]*$/.test(projectId) || !Number.isSafeInteger(Number(projectId)) || Number(projectId) > 2147483647) stop('Configurá projectId con un valor real y vigente.');",
+              "pm.collectionVariables.set('nodeKey', '');",
+              "pm.collectionVariables.set('expectedMapVersion', '');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('nodeKey', '');",
+              "pm.collectionVariables.set('expectedMapVersion', '');",
+              "let data;",
+              "try { data = pm.response.json(); } catch (_) { data = null; }",
+              "const valid = [200, 201].includes(pm.response.code) && data && data.projectId === Number(pm.collectionVariables.get('projectId')) && Number.isInteger(data.mapVersion) && data.mapVersion >= 0 && data.mapVersion <= 2147483647;",
+              "pm.test('Contexto recibido con una versión válida del proyecto seleccionado', function () { pm.expect(Boolean(valid)).to.eql(true); });",
+              "if (valid) pm.collectionVariables.set('expectedMapVersion', String(data.mapVersion));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/projects/{{projectId}}/context",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "projects",
+            "{{projectId}}",
+            "context"
+          ]
+        },
+        "description": "Requiere projectId de un proyecto existente, prompt no vacío y Gemini configurado en el backend. Ejecuta el planificador y, salvo una respuesta fuera de alcance, el resumidor. Cambiar prompt y reenviar para continuar. Estas llamadas pueden consumir cuota de IA.\n\n201: contexto creado. 200: contexto reutilizado. ProjectContextResponse incluye contextId, projectId, initialPrompt, generatedContent, planner, nodes, relations, mapVersion, resumen y updatedAt. planner.status puede ser needs_clarification, ready u out_of_scope; responder las preguntas antes de generar arquitectura. generatedContent no contiene código en esta etapa.\n\nEl script captura mapVersion como expectedMapVersion. Revisar nodes y copiar una key real de un nodo activo a nodeKey; no se selecciona un nodo automáticamente. Las relaciones contienen id, from, to, label, operation, httpMethod, path, description, kind y sortOrder. httpMethod/path pueden ser null; cuando están definidos representan la operación editada manualmente.\n\n400: prompt/body inválido. 404: proyecto inexistente. 409: el contexto cambió durante la planificación; revisar y reenviar. 502: error de IA con {contextId, message}; no continuar el recorrido suponiendo que se generó un mapa válido.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"prompt\": \"Quiero integrar una API de pedidos con una API de inventario para consultar disponibilidad antes de confirmar un pedido. Usar Python.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "04 - Consultar el prompt inicial",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "function stop(message) {",
+              "  pm.execution.skipRequest();",
+              "  throw new Error(message);",
+              "}",
+              "const projectId = String(pm.collectionVariables.get('projectId') || '');",
+              "if (String(pm.variables.get('projectId') || '') !== projectId) stop('Quitá la variable projectId de otros ámbitos; usá la variable de colección.');",
+              "if (!/^[1-9][0-9]*$/.test(projectId) || !Number.isSafeInteger(Number(projectId)) || Number(projectId) > 2147483647) stop('Configurá projectId con un valor real y vigente.');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/projects/{{projectId}}/context",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "projects",
+            "{{projectId}}",
+            "context"
+          ]
+        },
+        "description": "Requiere projectId con contexto. Sin body, sin escrituras ni llamadas a Gemini.\n\n200: InitialProjectPromptResponse {initialPrompt: string}. Devuelve solamente el objetivo inicial: no devuelve nodos, relaciones, resumen ni mapVersion. 404: proyecto o contexto inexistente. Para consultar el mapa y la versión, conservar la respuesta del POST de contexto."
+      },
+      "response": []
+    },
+    {
+      "name": "05 - Guardar instrucciones del nodo",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "function stop(message) {",
+              "  pm.execution.skipRequest();",
+              "  throw new Error(message);",
+              "}",
+              "const projectId = String(pm.collectionVariables.get('projectId') || '');",
+              "if (String(pm.variables.get('projectId') || '') !== projectId) stop('Quitá la variable projectId de otros ámbitos; usá la variable de colección.');",
+              "if (!/^[1-9][0-9]*$/.test(projectId) || !Number.isSafeInteger(Number(projectId)) || Number(projectId) > 2147483647) stop('Configurá projectId con un valor real y vigente.');",
+              "const nodeKey = String(pm.collectionVariables.get('nodeKey') || '');",
+              "if (String(pm.variables.get('nodeKey') || '') !== nodeKey) stop('Quitá nodeKey de otros ámbitos; usá la variable de colección.');",
+              "if (!nodeKey || /[\\s/?#]/.test(nodeKey)) stop('Copiá una key real de nodes en nodeKey.');",
+              "const expectedMapVersion = String(pm.collectionVariables.get('expectedMapVersion') || '');",
+              "if (String(pm.variables.get('expectedMapVersion') || '') !== expectedMapVersion) stop('Quitá la variable expectedMapVersion de otros ámbitos; usá la variable de colección.');",
+              "if (!/^[0-9]+$/.test(expectedMapVersion) || !Number.isSafeInteger(Number(expectedMapVersion)) || Number(expectedMapVersion) > 2147483647) stop('Configurá expectedMapVersion con un valor real y vigente.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const previousVersion = Number(pm.collectionVariables.get('expectedMapVersion'));",
+              "pm.collectionVariables.set('expectedMapVersion', '');",
+              "let data;",
+              "try { data = pm.response.json(); } catch (_) { data = null; }",
+              "const valid = pm.response.code === 200 && data && data.node && data.node.key === pm.collectionVariables.get('nodeKey') && Number.isInteger(data.mapVersion) && data.mapVersion >= previousVersion && data.mapVersion <= 2147483647;",
+              "pm.test('Instrucciones guardadas con una versión válida', function () { pm.expect(Boolean(valid)).to.eql(true); });",
+              "if (valid) pm.collectionVariables.set('expectedMapVersion', String(data.mapVersion));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/projects/{{projectId}}/context/nodes/{{nodeKey}}/instructions",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "projects",
+            "{{projectId}}",
+            "context",
+            "nodes",
+            "{{nodeKey}}",
+            "instructions"
+          ]
+        },
+        "description": "Requiere projectId, nodeKey real de un nodo activo y expectedMapVersion obtenido del último POST de contexto o de una respuesta exitosa de esta petición. No llama a Gemini. La nota reemplaza la anterior; userNotes es obligatorio, máximo 2000 caracteres, y vacío/blanco la elimina.\n\nEl cuerpo inicial edita solo la nota. Para editar también una operación, agregar juntos relationId (entero positivo tomado de relations[].id), httpMethod y path. La relación debe pertenecer al contexto, estar conectada al nodo y tener extremos activos. No se infiere una relación ni se debe inventar su ID.\n\nMétodos: GET, POST, PUT, PATCH, DELETE, HEAD y OPTIONS; se normalizan a mayúsculas. path tiene hasta 2048 caracteres, comienza con / y no admite URL absoluta, query, fragmentos, espacios interiores ni caracteres de control.\n\n200: NodeInstructionsResponse {node, relation, mapVersion}; relation es null cuando solo se edita la nota. Nota, operación y versión se guardan juntas. Si hubo cambios aumenta mapVersion; repetir los mismos valores con la versión vigente no la aumenta. El script actualiza expectedMapVersion con la respuesta.\n\n400: cuerpo inválido, versión ausente o campos de operación incompletos. 404: contexto/nodo/relación inexistente, ajeno o inactivo. 409: versión desactualizada o escritura concurrente; se vacía la versión local. Obtener el mapa vigente mediante una nueva interacción POST de contexto, revisar la respuesta y reintentar; GET de contexto no devuelve la versión.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userNotes\": \"Usar un mock local y timeout de 10 segundos.\",\n  \"expectedMapVersion\": {{expectedMapVersion}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "06 - Actualizar solo notas del nodo (alternativa PATCH)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "function stop(message) {",
+              "  pm.execution.skipRequest();",
+              "  throw new Error(message);",
+              "}",
+              "const projectId = String(pm.collectionVariables.get('projectId') || '');",
+              "if (String(pm.variables.get('projectId') || '') !== projectId) stop('Quitá la variable projectId de otros ámbitos; usá la variable de colección.');",
+              "if (!/^[1-9][0-9]*$/.test(projectId) || !Number.isSafeInteger(Number(projectId)) || Number(projectId) > 2147483647) stop('Configurá projectId con un valor real y vigente.');",
+              "const nodeKey = String(pm.collectionVariables.get('nodeKey') || '');",
+              "if (String(pm.variables.get('nodeKey') || '') !== nodeKey) stop('Quitá nodeKey de otros ámbitos; usá la variable de colección.');",
+              "if (!nodeKey || /[\\s/?#]/.test(nodeKey)) stop('Copiá una key real de nodes en nodeKey.');",
+              "pm.collectionVariables.set('expectedMapVersion', '');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/projects/{{projectId}}/context/nodes/{{nodeKey}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "projects",
+            "{{projectId}}",
+            "context",
+            "nodes",
+            "{{nodeKey}}"
+          ]
+        },
+        "description": "Alternativa a guardar instrucciones si solo se necesita cambiar una nota. Requiere projectId y nodeKey de un nodo activo. userNotes admite hasta 2000 caracteres; omitirlo equivale a una cadena vacía; vacío o blanco elimina la nota. No llama a Gemini ni edita operaciones.\n\n200: OrchestrationNodeResponse {id, key, name, description, kind, role, responsibility, status, userNotes, isActive, sortOrder}. Puede incrementar mapVersion, pero la respuesta no la incluye: el script invalida expectedMapVersion al enviar para impedir reutilizar una versión posiblemente anterior. Antes de usar instrucciones, obtener una versión vigente con POST de contexto.\n\n400: body inválido. 404: contexto/nodo inexistente o nodo inactivo. 409: conflicto concurrente. No es necesario ejecutar este PATCH si ya se guardó la nota mediante instrucciones.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userNotes\": \"Usar un mock local y timeout de 10 segundos.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "07 - Generar arquitectura",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "function stop(message) {",
+              "  pm.execution.skipRequest();",
+              "  throw new Error(message);",
+              "}",
+              "const projectId = String(pm.collectionVariables.get('projectId') || '');",
+              "if (String(pm.variables.get('projectId') || '') !== projectId) stop('Quitá la variable projectId de otros ámbitos; usá la variable de colección.');",
+              "if (!/^[1-9][0-9]*$/.test(projectId) || !Number.isSafeInteger(Number(projectId)) || Number(projectId) > 2147483647) stop('Configurá projectId con un valor real y vigente.');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/projects/{{projectId}}/architecture",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "projects",
+            "{{projectId}}",
+            "architecture"
+          ]
+        },
+        "description": "Requiere projectId con contexto, al menos un nodo activo kind=system y Gemini configurado. Conviene terminar las aclaraciones del planificador antes de enviarla. Genera código para cada sistema y no persiste el código generado. Puede consumir cuota de IA.\n\nBody opcional: language acepta python o dotnet. Quitar el body o enviar {} utiliza el lenguaje guardado o Python. El ejemplo fija Python; quitar language para respetar la elección guardada.\n\n200: ArchitectureResponse {contextId, projectId, language, mapVersion, generatedAt, summary, envExample, contexts, warnings, contextChanged}. Cada contexto incluye key, name, summary, code, dependencies, env, assumptions y warnings. Si contextChanged=true, revisar el mapa y considerar regenerar; no tratar esta versión como la vigente para editar instrucciones.\n\n400: lenguaje/body inválido. 404: proyecto/contexto inexistente. 409: no hay sistemas activos detectados. 422: límite de sistemas o código superado. 502: error de IA con {message}. La espera del servidor es configurable; el valor predeterminado de arquitectura es 120 segundos. Ajustar el timeout del cliente según la configuración del backend.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"language\": \"python\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "08 - Eliminar proyecto de prueba (manual, al final)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "function stop(message) {",
+              "  pm.execution.skipRequest();",
+              "  throw new Error(message);",
+              "}",
+              "const projectId = String(pm.collectionVariables.get('projectId') || '');",
+              "if (String(pm.variables.get('projectId') || '') !== projectId) stop('Quitá la variable projectId de otros ámbitos; usá la variable de colección.');",
+              "if (!/^[1-9][0-9]*$/.test(projectId) || !Number.isSafeInteger(Number(projectId)) || Number(projectId) > 2147483647) stop('Configurá projectId con un valor real y vigente.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Proyecto eliminado', function () { pm.response.to.have.status(204); });",
+              "if (pm.response.code === 204) {",
+              "  for (const key of ['projectId', 'nodeKey', 'expectedMapVersion']) pm.collectionVariables.set(key, '');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/projects",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "projects"
+          ]
+        },
+        "description": "Ejecutar manualmente solo cuando ya no se necesita el proyecto de prueba. Revisar el valor de projectId antes de pulsar Send. El ID se envía en el body JSON, no en la ruta. Elimina el proyecto y sus datos asociados, incluido contexto, nodos y relaciones.\n\n204: eliminado, sin body de respuesta. 404: proyecto inexistente. 400: projectId/body inválido; el ID debe ser un entero entre 1 e int.MaxValue. El script solo valida el ID antes del envío y limpia las variables tras un 204; nunca dispara la petición automáticamente.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"projectId\": {{projectId}}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    }
+  ]
+}
