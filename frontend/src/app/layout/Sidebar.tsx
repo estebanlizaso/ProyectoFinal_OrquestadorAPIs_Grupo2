@@ -26,9 +26,6 @@ export function Sidebar({ activeNavItem, isOpen, onToggle, onNewOrchestration }:
         >
           <PanelLeftOpen className="size-4.5" aria-hidden="true" />
         </Button>
-        <Button size="icon" aria-label={APP_TEXTS.newOrchestration} onClick={onNewOrchestration}>
-          <Plus className="size-4.5" aria-hidden="true" />
-        </Button>
       </aside>
     )
   }
