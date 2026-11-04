@@ -1,44 +1,34 @@
-import { useState } from 'react'
-import { useCreateProjectContext } from '../../../services/projectContextService'
-import { getErrorMessage } from '../../../shared/api/getErrorMessage'
+import type { ReactNode } from 'react'
 import { Button } from '../../../shared/ui/Button'
-import { Card } from '../../../shared/ui/Card'
 import { PageHeader } from '../../../shared/ui/PageHeader'
 import { GLOBAL_CONTEXT_PAGE_TEXTS } from '../constants'
-import { GLOBAL_CONTEXT_ERROR_MESSAGES } from '../errorMessages'
 import { findLatestValidTurn } from '../findLatestValidTurn'
-import { useContextHistory } from '../useContextHistory'
-import { ContextConversation } from './ContextConversation'
+import type { OrchestrationNodeResponse } from '../types'
+import { useContextHistory, type ContextMap, type PlannerTurn } from '../useContextHistory'
+import { ContextChatPanel } from './ContextChatPanel'
 import { ContextDetailsPanel } from './ContextDetailsPanel'
-import { PromptComposer } from './PromptComposer'
 
 export type GlobalContextPageProps = {
   projectId: number
+  backButton: ReactNode
   onGenerateArchitecture: () => void
+  onMapChanged: (previousMap: ContextMap, nextMap: ContextMap) => Promise<OrchestrationNodeResponse[]>
 }
 
-export function GlobalContextPage({ projectId, onGenerateArchitecture }: GlobalContextPageProps) {
-  const [draft, setDraft] = useState('')
-  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
-  const { turns, map, addTurn } = useContextHistory(projectId)
-  const { run, status, error } = useCreateProjectContext()
+export function GlobalContextPage({
+  projectId,
+  backButton,
+  onGenerateArchitecture,
+  onMapChanged,
+}: GlobalContextPageProps) {
+  const { turns, map, addTurn, addErrorTurn, updateNode } = useContextHistory(projectId)
   const latestAssumptions = findLatestValidTurn(turns)?.planner.assumptions ?? []
-  const hasReadyTurn = turns.some((turn) => turn.planner.status === 'ready')
+  const hasReadyTurn = turns.some((turn) => 'planner' in turn && turn.planner.status === 'ready')
 
-  async function handleSubmit(): Promise<void> {
-    const prompt = draft.trim()
-    setPendingPrompt(prompt)
-    setDraft('')
-    const createdContext = await run(projectId, prompt)
-    if (createdContext?.planner) {
-      addTurn(
-        { prompt, planner: createdContext.planner },
-        { nodes: createdContext.nodes, relations: createdContext.relations },
-      )
-      setPendingPrompt(null)
-    } else {
-      setDraft(prompt)
-    }
+  function handleTurnAdded(turn: PlannerTurn, nextMap: ContextMap): void {
+    const previousMap = map
+    addTurn(turn, nextMap)
+    void onMapChanged(previousMap, nextMap).then((updatedNodes) => updatedNodes.forEach(updateNode))
   }
 
   return (
@@ -46,6 +36,7 @@ export function GlobalContextPage({ projectId, onGenerateArchitecture }: GlobalC
       <PageHeader
         title={GLOBAL_CONTEXT_PAGE_TEXTS.title}
         subtitle={GLOBAL_CONTEXT_PAGE_TEXTS.subtitle}
+        backButton={backButton}
         actions={
           <Button disabled={!hasReadyTurn} onClick={onGenerateArchitecture}>
             {GLOBAL_CONTEXT_PAGE_TEXTS.generateArchitecture}
@@ -54,21 +45,14 @@ export function GlobalContextPage({ projectId, onGenerateArchitecture }: GlobalC
       />
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-        <Card className="flex flex-col gap-6 p-6 lg:col-span-2">
-          <h2 className="text-lg leading-none font-bold text-gray-900">{GLOBAL_CONTEXT_PAGE_TEXTS.goalTitle}</h2>
-          <ContextConversation
+        <div className="lg:col-span-2">
+          <ContextChatPanel
+            projectId={projectId}
             turns={turns}
-            pendingPrompt={pendingPrompt}
-            errorMessage={error ? getErrorMessage(error, GLOBAL_CONTEXT_ERROR_MESSAGES) : null}
+            onTurnAdded={handleTurnAdded}
+            onErrorTurnAdded={addErrorTurn}
           />
-          <PromptComposer
-            value={draft}
-            onChange={setDraft}
-            onSubmit={() => void handleSubmit()}
-            isSending={status === 'loading'}
-          />
-        </Card>
-
+        </div>
         <ContextDetailsPanel nodes={map.nodes} assumptions={latestAssumptions} />
       </div>
     </div>

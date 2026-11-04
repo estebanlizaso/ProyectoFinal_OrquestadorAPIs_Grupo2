@@ -55,9 +55,13 @@ export const projectContextService = {
   updateNodeNotes,
 }
 
+export type CreateProjectContextOutcome =
+  | { context: ProjectContextResponse; error: null }
+  | { context: null; error: Error }
+
 export type UseCreateProjectContextResult = {
   context: ProjectContextResponse | null
-  run: (projectId: ProjectContextResponse['projectId'], prompt: string) => Promise<ProjectContextResponse | null>
+  run: (projectId: ProjectContextResponse['projectId'], prompt: string) => Promise<CreateProjectContextOutcome>
   status: RequestStatus
   error: Error | null
 }
@@ -71,7 +75,7 @@ export function useCreateProjectContext(): UseCreateProjectContextResult {
     async (
       projectId: ProjectContextResponse['projectId'],
       prompt: string,
-    ): Promise<ProjectContextResponse | null> => {
+    ): Promise<CreateProjectContextOutcome> => {
       setStatus('loading')
       setError(null)
 
@@ -79,11 +83,12 @@ export function useCreateProjectContext(): UseCreateProjectContextResult {
         const createdContext = await projectContextService.create(projectId, prompt)
         setContext(createdContext)
         setStatus('success')
-        return createdContext
+        return { context: createdContext, error: null }
       } catch (caught) {
-        setError(toError(caught))
+        const caughtError = toError(caught)
+        setError(caughtError)
         setStatus('error')
-        return null
+        return { context: null, error: caughtError }
       }
     },
     [],
@@ -119,18 +124,17 @@ export function useInitialPrompt(): UseInitialPromptResult {
 
   return { run, status, error }
 }
-export type UseSaveNodeRuleResult = {
+export type UseUpdateNodeNotesResult = {
   run: (
     projectId: ProjectContextResponse['projectId'],
     nodeKey: OrchestrationNodeResponse['key'],
-    rule: string,
-    prompt: string,
-  ) => Promise<ProjectContextResponse | null>
+    userNotes: string,
+  ) => Promise<OrchestrationNodeResponse | null>
   status: RequestStatus
   error: Error | null
 }
 
-export function useSaveNodeRule(): UseSaveNodeRuleResult {
+export function useUpdateNodeNotes(): UseUpdateNodeNotesResult {
   const [status, setStatus] = useState<RequestStatus>('idle')
   const [error, setError] = useState<Error | null>(null)
 
@@ -138,22 +142,64 @@ export function useSaveNodeRule(): UseSaveNodeRuleResult {
     async (
       projectId: ProjectContextResponse['projectId'],
       nodeKey: OrchestrationNodeResponse['key'],
-      rule: string,
-      prompt: string,
-    ): Promise<ProjectContextResponse | null> => {
+      userNotes: string,
+    ): Promise<OrchestrationNodeResponse | null> => {
       setStatus('loading')
       setError(null)
 
       try {
-        await projectContextService.updateNodeNotes(projectId, nodeKey, rule)
-        const updatedContext = await projectContextService.create(projectId, prompt)
+        const updatedNode = await projectContextService.updateNodeNotes(projectId, nodeKey, userNotes)
         setStatus('success')
-        return updatedContext
+        return updatedNode
       } catch (caught) {
         setError(toError(caught))
         setStatus('error')
         return null
       }
+    },
+    [],
+  )
+
+  return { run, status, error }
+}
+
+export type NodeNotesChange = {
+  nodeKey: OrchestrationNodeResponse['key']
+  userNotes: string
+}
+
+export type UseSyncNodeNotesResult = {
+  run: (
+    projectId: ProjectContextResponse['projectId'],
+    changes: NodeNotesChange[],
+  ) => Promise<OrchestrationNodeResponse[]>
+  status: RequestStatus
+  error: Error | null
+}
+
+export function useSyncNodeNotes(): UseSyncNodeNotesResult {
+  const [status, setStatus] = useState<RequestStatus>('idle')
+  const [error, setError] = useState<Error | null>(null)
+
+  const run = useCallback(
+    async (
+      projectId: ProjectContextResponse['projectId'],
+      changes: NodeNotesChange[],
+    ): Promise<OrchestrationNodeResponse[]> => {
+      setStatus('loading')
+      setError(null)
+      const updatedNodes: OrchestrationNodeResponse[] = []
+
+      try {
+        for (const { nodeKey, userNotes } of changes) {
+          updatedNodes.push(await projectContextService.updateNodeNotes(projectId, nodeKey, userNotes))
+        }
+        setStatus('success')
+      } catch (caught) {
+        setError(toError(caught))
+        setStatus('error')
+      }
+      return updatedNodes
     },
     [],
   )

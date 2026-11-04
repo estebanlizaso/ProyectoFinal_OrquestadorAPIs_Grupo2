@@ -112,9 +112,11 @@ export function useProjects(search: string, page: number): UseProjectsResult {
   }, [startRequest])
 
   useEffect(() => {
-    void startRequest()
-    return () => controllerRef.current?.abort()
-  }, [startRequest])
+    const controller = new AbortController()
+    controllerRef.current = controller
+    projectService.getAll(search, page, { signal: controller.signal }).then(handleSuccess, handleFailure)
+    return () => controller.abort()
+  }, [search, page, handleSuccess, handleFailure])
 
   return { ...projectPage, run, status, error }
 }

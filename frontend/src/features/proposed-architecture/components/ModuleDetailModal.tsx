@@ -1,87 +1,52 @@
 import { useState } from 'react'
-import type {
-  OrchestrationNodeResponse,
-  OrchestrationRelationResponse,
-  ProjectContextResponse,
-} from '../../global-context'
-import { useSaveNodeRule } from '../../../services/projectContextService'
+import type { ContextMap, OrchestrationNodeResponse } from '../../global-context'
+import { useUpdateNodeNotes } from '../../../services/projectContextService'
 import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import { Button } from '../../../shared/ui/Button'
 import { Modal } from '../../../shared/ui/Modal'
-import { buildModuleNotes } from '../module-detail/buildModuleNotes'
-import { buildRuleUpdatedPrompt } from '../module-detail/buildRuleUpdatedPrompt'
+import { buildConfigLines } from '../module-detail/buildConfigLines'
+import { buildEndpointSlots } from '../module-detail/buildEndpointSlots'
 import { canHaveEndpoint } from '../module-detail/canHaveEndpoint'
-import { MODULE_DETAIL_TEXTS, RULE_MIN_LENGTH } from '../constants'
-import { MODULE_RULE_ERROR_MESSAGES } from '../errorMessages'
-import { findModuleEndpoints } from '../module-detail/findModuleEndpoints'
-import { getModuleRule } from '../module-detail/getModuleRule'
-import type { ModuleConfig, ModuleEndpoint } from '../types'
+import { parseModuleNotes } from '../module-detail/parseModuleNotes'
+import { MODULE_DETAIL_TEXTS } from '../constants'
+import { MODULE_CONFIG_ERROR_MESSAGES } from '../errorMessages'
+import type { ModuleConfig } from '../types'
 import { validateEndpoint } from '../module-detail/validateEndpoint'
-import { BehaviorRuleField } from './BehaviorRuleField'
 import { EndpointConfiguration } from './EndpointConfiguration'
-import { SpecificationImport } from './SpecificationImport'
+import { ModuleDescription } from './ModuleDescription'
 
 export type ModuleDetailModalProps = {
   projectId: number
   node: OrchestrationNodeResponse
-  relations: OrchestrationRelationResponse[]
-  savedConfig: ModuleConfig | null
+  map: ContextMap
   onClose: () => void
-  onRuleSaved: (prompt: string, context: ProjectContextResponse, config: ModuleConfig | null) => void
+  onConfigSaved: (node: OrchestrationNodeResponse) => void
 }
 
-const EMPTY_ENDPOINT: ModuleEndpoint = { method: '', route: '' }
-
-function buildInitialConfig(
-  nodeKey: string,
-  relations: OrchestrationRelationResponse[],
-  savedConfig: ModuleConfig | null,
-): ModuleConfig {
-  const endpoints = savedConfig ? savedConfig.endpoints : findModuleEndpoints(nodeKey, relations)
+function buildInitialConfig(node: OrchestrationNodeResponse, map: ContextMap): ModuleConfig {
   return {
-    endpoints: endpoints.length > 0 ? endpoints : [EMPTY_ENDPOINT],
-    authentication: savedConfig?.authentication ?? '',
-  }
-}
-
-function toSavedConfig({ endpoints, authentication }: ModuleConfig): ModuleConfig {
-  return {
-    endpoints: endpoints.filter(({ method, route }) => method !== '' && route !== ''),
-    authentication,
+    endpoints: buildEndpointSlots(node, map),
+    authentication: parseModuleNotes(node.userNotes).authentication,
   }
 }
 
 function isSameConfig(first: ModuleConfig, second: ModuleConfig): boolean {
-  return JSON.stringify(toSavedConfig(first)) === JSON.stringify(toSavedConfig(second))
+  return JSON.stringify(buildConfigLines(first)) === JSON.stringify(buildConfigLines(second))
 }
 
-export function ModuleDetailModal({
-  projectId,
-  node,
-  relations,
-  savedConfig,
-  onClose,
-  onRuleSaved,
-}: ModuleDetailModalProps) {
+export function ModuleDetailModal({ projectId, node, map, onClose, onConfigSaved }: ModuleDetailModalProps) {
   const hasEndpoint = canHaveEndpoint(node)
-  const [initialRule] = useState(() => getModuleRule(node))
-  const [initialConfig] = useState(() => buildInitialConfig(node.key, relations, savedConfig))
-  const [rule, setRule] = useState(initialRule)
+  const [initialConfig] = useState(() => buildInitialConfig(node, map))
   const [config, setConfig] = useState(initialConfig)
-  const { run, status, error } = useSaveNodeRule()
+  const { run, status, error } = useUpdateNodeNotes()
   const isSaving = status === 'loading'
-  const trimmedRule = rule.trim()
-  const isRuleValid = trimmedRule.length >= RULE_MIN_LENGTH
-  const areEndpointsValid = config.endpoints.every((endpoint) => validateEndpoint(endpoint) === null)
-  const hasChanges = trimmedRule !== initialRule.trim() || (hasEndpoint && !isSameConfig(config, initialConfig))
-  const canSave = !isSaving && isRuleValid && (!hasEndpoint || areEndpointsValid) && hasChanges
+  const areEndpointsValid = config.endpoints.every(({ endpoint }) => validateEndpoint(endpoint) === null)
+  const canSave = !isSaving && areEndpointsValid && !isSameConfig(config, initialConfig)
 
-  async function handleSaveRule(): Promise<void> {
-    const configToSave = hasEndpoint ? toSavedConfig(config) : null
-    const prompt = buildRuleUpdatedPrompt(node.name, trimmedRule, configToSave)
-    const updatedContext = await run(projectId, node.key, buildModuleNotes(trimmedRule, configToSave), prompt)
-    if (updatedContext) {
-      onRuleSaved(prompt, updatedContext, configToSave)
+  async function handleSave(): Promise<void> {
+    const updatedNode = await run(projectId, node.key, buildConfigLines(config).join('\n'))
+    if (updatedNode) {
+      onConfigSaved(updatedNode)
     }
   }
 
@@ -94,47 +59,52 @@ export function ModuleDetailModal({
       size={hasEndpoint ? 'lg' : 'md'}
       closeLabel={MODULE_DETAIL_TEXTS.close}
     >
-      <fieldset disabled={isSaving} className="min-w-0">
-        <span className="mt-4 inline-block rounded-md bg-primary-blue-light px-2 py-1 text-xs text-primary-blue">
-          {MODULE_DETAIL_TEXTS.behaviorTag}
-        </span>
+      <span className="mt-4 inline-block rounded-md bg-primary-blue-light px-2 py-1 text-xs text-primary-blue">
+        {MODULE_DETAIL_TEXTS.behaviorTag}
+      </span>
 
-        <BehaviorRuleField value={rule} onChange={setRule} />
+      <ModuleDescription description={node.description} />
 
-        {hasEndpoint && (
-          <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <EndpointConfiguration
-              endpoints={config.endpoints}
-              authentication={config.authentication}
-              onEndpointChange={(index, changedEndpoint) =>
-                setConfig((current) => ({
-                  ...current,
-                  endpoints: current.endpoints.map((endpoint, position) =>
-                    position === index ? changedEndpoint : endpoint,
-                  ),
-                }))
-              }
-              onAuthenticationChange={(authentication) => setConfig((current) => ({ ...current, authentication }))}
-            />
-            <SpecificationImport />
-          </div>
-        )}
-      </fieldset>
+      {hasEndpoint && (
+        <fieldset disabled={isSaving} className="mt-6 min-w-0">
+          <EndpointConfiguration
+            endpoints={config.endpoints}
+            authentication={config.authentication}
+            onEndpointChange={(index, changedEndpoint) =>
+              setConfig((current) => ({
+                ...current,
+                endpoints: current.endpoints.map((slot, position) =>
+                  position === index ? { ...slot, endpoint: changedEndpoint } : slot,
+                ),
+              }))
+            }
+            onAuthenticationChange={(authentication) => setConfig((current) => ({ ...current, authentication }))}
+          />
+        </fieldset>
+      )}
 
       {error && (
         <div role="alert" className="mt-6 rounded-lg bg-red-50 p-3 text-sm text-red-700">
           <p className="font-semibold">{MODULE_DETAIL_TEXTS.saveErrorTitle}</p>
-          <p>{getErrorMessage(error, MODULE_RULE_ERROR_MESSAGES)}</p>
+          <p>{getErrorMessage(error, MODULE_CONFIG_ERROR_MESSAGES)}</p>
         </div>
       )}
 
       <div className="mt-8 flex justify-end gap-2">
-        <Button variant="secondary" onClick={onClose} disabled={isSaving}>
-          {MODULE_DETAIL_TEXTS.cancel}
-        </Button>
-        <Button onClick={() => void handleSaveRule()} disabled={!canSave}>
-          {isSaving ? MODULE_DETAIL_TEXTS.savingRule : MODULE_DETAIL_TEXTS.saveRule}
-        </Button>
+        {hasEndpoint ? (
+          <>
+            <Button variant="secondary" onClick={onClose} disabled={isSaving}>
+              {MODULE_DETAIL_TEXTS.cancel}
+            </Button>
+            <Button onClick={() => void handleSave()} disabled={!canSave}>
+              {isSaving ? MODULE_DETAIL_TEXTS.saving : MODULE_DETAIL_TEXTS.save}
+            </Button>
+          </>
+        ) : (
+          <Button variant="secondary" onClick={onClose}>
+            {MODULE_DETAIL_TEXTS.close}
+          </Button>
+        )}
       </div>
     </Modal>
   )

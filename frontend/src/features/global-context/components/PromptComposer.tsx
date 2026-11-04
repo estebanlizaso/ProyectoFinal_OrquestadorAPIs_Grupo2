@@ -1,5 +1,5 @@
 import { ArrowUp, LoaderCircle } from 'lucide-react'
-import { useId, type KeyboardEvent } from 'react'
+import { useId, type KeyboardEvent, type ReactNode } from 'react'
 import { Button } from '../../../shared/ui/Button'
 import { PROMPT_COMPOSER_TEXTS } from '../constants'
 
@@ -8,9 +8,10 @@ export type PromptComposerProps = {
   onChange: (value: string) => void
   onSubmit: () => void
   isSending: boolean
+  extraAction?: ReactNode
 }
 
-export function PromptComposer({ value, onChange, onSubmit, isSending }: PromptComposerProps) {
+export function PromptComposer({ value, onChange, onSubmit, isSending, extraAction }: PromptComposerProps) {
   const textareaId = useId()
   const canSubmit = !isSending && value.trim() !== ''
 
@@ -47,6 +48,7 @@ export function PromptComposer({ value, onChange, onSubmit, isSending }: PromptC
           rows={1}
           className="field-sizing-content max-h-40 flex-1 resize-none bg-transparent py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
         />
+        {extraAction}
         <Button
           type="submit"
           size="icon"

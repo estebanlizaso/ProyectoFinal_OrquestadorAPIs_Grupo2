@@ -1,5 +1,6 @@
 import { MarkerType, type XYPosition } from '@xyflow/react'
 import type { ContextMap, OrchestrationNodeResponse, OrchestrationRelationResponse } from '../global-context'
+import { findRelationOperation } from './module-detail/findRelationOperation'
 import type { Diagram, DiagramNode, OperationFlowEdge } from './types'
 
 type DiagramNodeType = DiagramNode['type']
@@ -91,13 +92,19 @@ function buildEdge(id: string, source: string, target: string, label: string | n
 function buildEdges(
   tree: TreeItem,
   relationsBySource: Map<string, OrchestrationRelationResponse[]>,
+  nodesByKey: Map<string, OrchestrationNodeResponse>,
 ): OperationFlowEdge[] {
   const startEdges = tree.children.map((root) => buildEdge(`${START_ID}-${root.id}`, START_ID, root.id, null))
   const relationEdges = [...relationsBySource.entries()].flatMap(([sourceKey, relations]) => {
     const hasDecision = relations.length > 1
     const source = hasDecision ? toDecisionId(sourceKey) : toNodeId(sourceKey)
     const edges = relations.map((relation) => ({
-      ...buildEdge(`relation-${relation.id}`, source, toNodeId(relation.to), relation.operation ?? relation.label),
+      ...buildEdge(
+        `relation-${relation.id}`,
+        source,
+        toNodeId(relation.to),
+        findRelationOperation(relation, nodesByKey) ?? relation.label,
+      ),
       animated: relation.kind === 'async',
     }))
 
@@ -121,31 +128,31 @@ function measureChildren(children: TreeItem[]): number {
   return childrenWidth + HORIZONTAL_GAP * (children.length - 1)
 }
 
-function toDiagramNode(item: TreeItem, position: XYPosition): DiagramNode {
+function toDiagramNode(item: TreeItem, position: XYPosition, isClickable: boolean): DiagramNode {
   const size = DIAGRAM_NODE_SIZES[item.type]
   if (item.type === 'architecture') {
-    return { id: item.id, type: 'architecture', position, ...size, data: { node: item.node } }
+    return { id: item.id, type: 'architecture', position, ...size, data: { node: item.node, isClickable } }
   }
   return { id: item.id, type: item.type, position, ...size, data: {} }
 }
 
-function placeSubtree(item: TreeItem, left: number, top: number): DiagramNode[] {
+function placeSubtree(item: TreeItem, left: number, top: number, isClickable: boolean): DiagramNode[] {
   const size = DIAGRAM_NODE_SIZES[item.type]
   const subtreeWidth = measureSubtree(item)
-  const placedNode = toDiagramNode(item, { x: left + (subtreeWidth - size.width) / 2, y: top })
+  const placedNode = toDiagramNode(item, { x: left + (subtreeWidth - size.width) / 2, y: top }, isClickable)
   const childrenTop = top + size.height + VERTICAL_GAP
   let childLeft = left + (subtreeWidth - measureChildren(item.children)) / 2
   const placedChildren: DiagramNode[] = []
 
   for (const child of item.children) {
-    placedChildren.push(...placeSubtree(child, childLeft, childrenTop))
+    placedChildren.push(...placeSubtree(child, childLeft, childrenTop, isClickable))
     childLeft += measureSubtree(child) + HORIZONTAL_GAP
   }
 
   return [placedNode, ...placedChildren]
 }
 
-export function buildDiagram({ nodes, relations }: ContextMap): Diagram {
+export function buildDiagram({ nodes, relations }: ContextMap, areModulesClickable: boolean): Diagram {
   if (nodes.length === 0) {
     return EMPTY_DIAGRAM
   }
@@ -158,5 +165,10 @@ export function buildDiagram({ nodes, relations }: ContextMap): Diagram {
   const relationsBySource = groupBySource(validRelations)
   const tree = buildTree(sortedNodes, relationsBySource)
 
-  return { nodes: placeSubtree(tree, 0, 0), edges: buildEdges(tree, relationsBySource) }
+  const nodesByKey = new Map(sortedNodes.map((node) => [node.key, node]))
+
+  return {
+    nodes: placeSubtree(tree, 0, 0, areModulesClickable),
+    edges: buildEdges(tree, relationsBySource, nodesByKey),
+  }
 }

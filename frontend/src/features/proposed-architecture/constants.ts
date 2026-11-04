@@ -3,19 +3,28 @@ export const PROPOSED_ARCHITECTURE_PAGE_TEXTS = {
   subtitle: 'Revisá y ajustá lo que sea necesario en el diagrama.',
   confirmFlow: 'Confirmar flujo',
   diagramEmpty: 'Todavía no hay un diagrama para mostrar.',
+  diagramUpdating: 'Actualizando el diagrama',
 }
+
+export const DIAGRAM_UPDATE_REVEAL_MS = 600
 
 export const DIAGRAM_TEXTS = {
   start: 'Inicio',
   decision: 'Solicitud',
 }
 
-export const AI_ASSISTANT_TEXTS = {
-  title: 'Asistente IA',
+export const FLOW_SUMMARY_TEXTS = {
+  title: 'Resumen',
   flowSummaryTitle: 'Resumen del flujo',
   flowSummaryEmpty: 'Todavía no hay un resumen para mostrar.',
-  temporalRuleTitle: 'Regla temporal',
   proposedEndpointsTitle: 'Endpoints propuestos',
+  proposedEndpointsEmpty: 'Todavía no hay endpoints propuestos.',
+}
+
+export const ASSISTANT_PANEL_TABS_TEXTS = {
+  label: 'Panel del asistente',
+  chat: 'Asistente IA',
+  summary: 'Resumen',
 }
 
 export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
@@ -29,15 +38,13 @@ export const AUTHENTICATION_TYPES = [
   'Certificado (mTLS)',
 ] as const
 
-export const RULE_MIN_LENGTH = 10
-
 export const MODULE_DETAIL_TEXTS = {
   titlePrefix: 'Detalle del módulo: ',
   subtitle: 'Configurá el comportamiento particular de la tarjeta seleccionada.',
   close: 'Cerrar',
   behaviorTag: 'Comportamiento',
-  ruleTitle: 'Regla en lenguaje natural',
-  rulePlaceholder: 'Consultar ambos cores en paralelo para el historial.',
+  descriptionTitle: 'Descripción',
+  descriptionEmpty: 'Sin descripción.',
   endpointTitle: 'Configuración del endpoint',
   methodLabel: 'Método',
   methodPlaceholder: 'GET',
@@ -45,25 +52,18 @@ export const MODULE_DETAIL_TEXTS = {
   routePlaceholder: '/clientes/{id}/historial-polizas',
   authenticationLabel: 'Autenticación',
   authenticationPlaceholder: 'Seleccioná una opción',
-  specificationTitle: 'Swagger, OpenAPI o API legacy',
-  importTitle: 'Importar especificación',
-  importDescription: 'Analizamos contratos y modelos.',
-  selectFile: 'Seleccionar archivo',
   cancel: 'Cancelar',
-  saveRule: 'Guardar regla',
-  savingRule: 'Guardando regla...',
-  saveErrorTitle: 'No se pudo guardar la regla',
-  ruleUpdatedPromptPrefix: 'Actualicé la regla de ',
-  ruleUpdatedPromptSeparator: ', ahora: ',
-  ruleMinLengthHint: `Mínimo ${RULE_MIN_LENGTH} caracteres.`,
+  save: 'Guardar',
+  saving: 'Guardando...',
+  saveErrorTitle: 'No se pudo guardar la configuración',
   endpointIncomplete: 'Completá el método y la ruta.',
+  endpointSourcePrefix: 'Desde ',
 }
 
-export const RULE_MAX_LENGTH = 2000
-
 export const MODULE_NOTE_PREFIXES = {
-  rule: 'Regla: ',
   endpoint: 'Endpoint: ',
+  endpointFrom: 'Endpoint desde ',
+  endpointSourceSeparator: ': ',
   authentication: 'Autenticación: ',
 }
 

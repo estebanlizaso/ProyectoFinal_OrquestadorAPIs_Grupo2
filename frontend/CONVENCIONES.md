@@ -44,32 +44,47 @@ frontend/
         errorMessages.ts      # mensajes de error de la feature para getErrorMessage
         types.ts              # espejo de los DTOs de proyectos
         index.ts
-      global-context/         # Contexto global: prompt inicial del proyecto (POST /api/projects/{projectId}/context)
-        components/           # GlobalContextPage, PromptComposer, ContextConversation, ConversationTurn, PromptBubble, AiBubble, ContextDetailsPanel, NodeCard
+      global-context/         # Contexto global (/projects/{projectId}/context): chat con la IA del proyecto (POST /api/projects/{projectId}/context) y panel "Contexto detectado" (sistemas y suposiciones). Crear un proyecto lleva a esta pantalla. El mismo chat (ContextChatPanel) se muestra en el panel derecho de arquitectura propuesta, con el mismo historial; ahí su título ("¿Qué debe lograr esta orquestación?") se reemplaza por las pestañas que recibe en la prop `header`
+        components/           # GlobalContextPage, ContextChatPanel, ContextDetailsPanel, NodeCard, PromptComposer, PromptExampleButton, ContextConversation, ConversationTurn, ErrorConversationTurn, PromptBubble, AiBubble
         constants.ts
         errorMessages.ts
         types.ts              # espejo de los DTOs de contexto
         useContextHistory.ts  # historial del chat y último mapa (nodes + relations) en localStorage, una clave por proyecto, + clearContextHistory
+        useTypewriter.ts      # muestra la respuesta nueva de la IA letra por letra (TYPEWRITER_CHAR_INTERVAL_MS); el historial se ve completo
         isOutOfScope.ts
         findLatestValidTurn.ts # última respuesta que no fue out_of_scope
-      proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama de solo lectura con React Flow, panel del asistente y modal de detalle del módulo (clic en una tarjeta)
-        components/           # ProposedArchitecturePage, ArchitectureDiagram, AiAssistantPanel, ArchitectureNode, StartNode, DecisionNode, OperationEdge, ModuleDetailModal, BehaviorRuleField, EndpointConfiguration, EndpointRow, SpecificationImport
+      proposed-architecture/  # Arquitectura propuesta (/projects/{projectId}/architecture): diagrama de solo lectura con React Flow, panel derecho con dos pestañas, "Asistente IA" (el chat, ContextChatPanel de global-context, que sigue montado al cambiar de pestaña) y "Resumen" (resumen del flujo y endpoints propuestos), y modal de detalle del módulo (clic en una tarjeta)
+        components/           # ProposedArchitecturePage, ArchitectureDiagram, DiagramUpdatingOverlay, AssistantPanelTabs, FlowSummaryContent, FlowSummaryPanel, ArchitectureNode, StartNode, DecisionNode, OperationEdge, ModuleDetailModal, ModuleDescription, EndpointConfiguration, EndpointRow
         buildDiagram.ts       # arma nodes y edges de React Flow a partir del mapa (nodes + relations) con un layout propio de arriba hacia abajo
+        findProposedEndpoints.ts # endpoints propuestos del resumen: el texto de cada flecha (findRelationOperation), sin repetir, en el orden del diagrama
         module-detail/        # funciones puras del modal de detalle del módulo, una por archivo
           validateRoute.ts    # valida el formato de una ruta de endpoint
           validateEndpoint.ts # una fila de endpoint vacía es válida; con método y ruta, la ruta tiene que ser válida
           isHttpMethod.ts, isAuthenticationType.ts
-          canHaveEndpoint.ts  # actores y pasos no tienen endpoint: su modal muestra solo la regla
-          findModuleEndpoints.ts # endpoints de un módulo a partir de las operation ("MÉTODO /ruta") de las relaciones que le llegan
-          buildConfigLines.ts # líneas "Endpoint: MÉTODO /ruta" y "Autenticación: ..." de la configuración del módulo
-          buildModuleNotes.ts # arma las userNotes del nodo: la regla y, si hay, las líneas de configuración
-          buildRuleUpdatedPrompt.ts # mensaje al chat: "Actualicé la regla de {nombre}, ahora: {regla}" + las líneas de configuración
-          extractRuleFromNotes.ts # saca la regla de las userNotes para volver a mostrarla en el modal
-          getModuleRule.ts    # regla que se muestra en la tarjeta y en el modal: la guardada en userNotes o, si no hay, la description
-        useModuleConfigs.ts   # endpoints y autenticación guardados por nodo en localStorage, una clave por proyecto, + clearModuleConfigs
-        errorMessages.ts      # errores al guardar la regla del módulo
+          canHaveEndpoint.ts  # actores y pasos no tienen endpoint: su modal muestra solo la descripción
+          parseOperation.ts   # "MÉTODO /ruta" a endpoint, o null si no es válida
+          formatEndpoint.ts   # endpoint a "MÉTODO /ruta"
+          findIncomingRelations.ts # relaciones (flechas) que llegan a un nodo, en orden
+          findSourceName.ts   # nombre del nodo de origen de una flecha
+          parseModuleNotes.ts # lee de las userNotes los endpoints ("Endpoint desde {origen}: MÉTODO /ruta" o "Endpoint: MÉTODO /ruta") y la autenticación
+          buildConfigLines.ts # arma esas mismas líneas a partir de la configuración del módulo
+          findSavedEndpoint.ts # endpoint guardado en la nota para un origen
+          buildEndpointSlots.ts # filas del modal: una por flecha que llega al nodo, con lo guardado en la nota o, si no hay, la operation de la IA
+          findRelationOperation.ts # texto de la flecha: lo guardado en la nota del nodo destino o, si no hay, la operation de la IA
+          findNotesToSync.ts  # notas a reescribir cuando la IA cambió las flechas de un nodo que tiene endpoints guardados
+        useModuleNotesSync.ts # después de cada respuesta del chat, reescribe esas notas (PATCH) para que coincidan con la IA
+        useDiagramUpdate.ts   # capa de carga del diagrama: se muestra al mandar un mensaje al chat y se va DIAGRAM_UPDATE_REVEAL_MS después de la respuesta si el mapa cambió, o enseguida si no cambió o hubo error
+        errorMessages.ts      # errores al guardar la configuración del módulo
         constants.ts
         types.ts              # tipos de los nodos del diagrama y del modal de detalle
+        index.ts
+      generation-execution/   # Generación y ejecución (/projects/{projectId}/generation): se abre con "Confirmar flujo"; muestra el mismo diagrama y el progreso de generación (por ahora una simulación solo visual)
+        components/           # GenerationExecutionPage, GenerationProgressPanel
+        useSimulatedProgress.ts # avanza el progreso de 0 a 100 en GENERATION_DURATION_MS
+        getGenerationStage.ts # etapa que corresponde a un porcentaje de progreso
+        formatSolutionLanguage.ts # traduce el language del planificador (python, dotnet) a su nombre visible
+        buildSolutionStatus.ts # "Generando solución {lenguaje}" o "Solución {lenguaje} generada"
+        constants.ts
         index.ts
       canvas/                 # lienzo React Flow
         components/           # FlowCanvas, Toolbar, Sidebar
@@ -83,10 +98,10 @@ frontend/
         schema.ts             # contrato del JSON maestro (fuente única en el front)
     services/                 # un archivo por recurso del backend, con todo lo del recurso
       projectService.ts       # projectService (getAll, create, delete) + useProjects, useCreateProject, useDeleteProject
-      projectContextService.ts # projectContextService (create, getInitialPrompt, updateNodeNotes) + useCreateProjectContext, useInitialPrompt, useSaveNodeRule
+      projectContextService.ts # projectContextService (create, getInitialPrompt, updateNodeNotes) + useCreateProjectContext, useInitialPrompt, useUpdateNodeNotes, useSyncNodeNotes
       exportService.ts        # cuando exista el endpoint de exportación (service + useExportFlow)
     shared/
-      ui/                     # Button, Modal (size md/lg y closeLabel opcional para la X), Input, Select, Textarea, Card, SidePanel (sin lógica de negocio)
+      ui/                     # Button, Modal (size md/lg y closeLabel opcional para la X), Input, Select, Textarea, Card, SidePanel, PageHeader, BackButton, ProgressBar (sin lógica de negocio)
       api/httpClient.ts       # único lugar donde se usa fetch
       api/ApiError.ts
       api/requestStatus.ts    # 'idle' | 'loading' | 'success' | 'error'
@@ -103,7 +118,10 @@ Reglas:
 - Una feature solo importa de otra a través de su `index.ts`, nunca de sus archivos internos.
 - `shared/` solo contiene código reutilizable sin conocimiento del dominio.
 - `services/` es global y tiene **un archivo por recurso del backend** (`projectService.ts`, y después `userService.ts`, etc.). Ese archivo concentra todo lo del recurso: el objeto service con sus métodos y los hooks que los ejecutan (`useProjects`, `useDeleteProject`). Los componentes usan los hooks; nunca llaman a un service directo.
-- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context` o `/projects/{projectId}/architecture`).
+- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context`, `/projects/{projectId}/architecture` o `/projects/{projectId}/generation`).
+- Cada pantalla, menos Proyectos (que es el inicio), muestra arriba a la izquierda, junto al título, un `BackButton` ("Volver a {pantalla}") que lleva al paso anterior del flujo (Generación y ejecución → Arquitectura propuesta → Contexto global → Proyectos), no al historial del navegador. A dónde vuelve cada ruta se define en un solo lugar, `resolveBackTarget` (`app/routes.ts`), y `App.tsx` le pasa el botón armado a la pantalla por la prop `backButton`, que la pantalla pone en su `PageHeader`.
+- La sidebar ("Orquestador IA" y "Proyectos") se oculta y se muestra con el botón de su encabezado; oculta, queda una barra angosta solo con el botón para mostrarla. El estado vive en `App.tsx`, que se lo pasa a las pantallas que lo necesitan (por ejemplo, Generación y ejecución recibe `assistantSide` y muestra el panel "Resumen" a la izquierda).
+- Arquitectura propuesta y Generación y ejecución usan todo el alto de la pantalla: el título va arriba del diagrama, el diagrama ocupa el resto del alto (`ArchitectureDiagram` crece con `flex-1` dentro de una columna `flex-col`) y los paneles laterales llegan hasta abajo.
 
 ---
 
@@ -123,10 +141,10 @@ Reglas:
   - Los `4xx` devuelven ProblemDetails (`type`, `title`, `status`, `traceId`).
   - Los `400` de validación son ValidationProblemDetails, con `errors` por campo.
   - Los `500` no tienen un formato garantizado.
-- `POST /api/projects/{projectId}/context` recibe `{ "prompt": string }` (`CreateProjectContextRequest`) y responde `ProjectContextResponse` (`contextId`, `projectId`, `initialPrompt`, `generatedContent`, `planner`, `nodes`, `relations`, `mapVersion`, `resumen`, `updatedAt`). Cada mensaje del chat va a este mismo endpoint: el backend corre el agente planificador (con el prompt inicial, el `resumen` y el mapa anterior) y después el resumidor. No genera código. `planner` trae `status` (`needs_clarification`, `ready` u `out_of_scope`), `reply` (la respuesta para el chat), `summary`, `questions`, `plan`, `assumptions` y `language`. `nodes` y `relations` son el mapa completo de la orquestación (los nodos `kind=system` son los que reciben código). `generatedContent` queda por compatibilidad, con `code: null`. Responde `201` la primera vez y `200` en los mensajes siguientes, `404` si el proyecto no existe, `409` si el contexto cambió durante la planificación y `502` (`{ contextId, message }`) si falla la IA. Puede tardar hasta 60 s, por eso el service usa un timeout de 65 s.
+- `POST /api/projects/{projectId}/context` recibe `{ "prompt": string }` (`CreateProjectContextRequest`) y responde `ProjectContextResponse` (`contextId`, `projectId`, `initialPrompt`, `generatedContent`, `planner`, `nodes`, `relations`, `mapVersion`, `resumen`, `updatedAt`). Cada mensaje del chat va a este mismo endpoint: el backend corre el agente planificador (con el prompt inicial, el `resumen` y el mapa anterior) y después el resumidor. No genera código. `planner` trae `status` (`needs_clarification`, `ready` u `out_of_scope`), `reply` (la respuesta para el chat), `summary`, `questions`, `plan`, `assumptions` y `language`. El chat muestra solo `reply`, porque las preguntas ya vienen en ese texto. `nodes` y `relations` son el mapa completo de la orquestación (los nodos `kind=system` son los que reciben código). `generatedContent` queda por compatibilidad, con `code: null`. Responde `201` la primera vez y `200` en los mensajes siguientes, `404` si el proyecto no existe, `409` si el contexto cambió durante la planificación y `502` (`{ contextId, message }`) si falla la IA. Puede tardar hasta 60 s, por eso el service usa un timeout de 65 s.
 - `GET /api/projects/{projectId}/context` devuelve solo `{ "initialPrompt": string }` (`InitialProjectPromptResponse`), o `404` si el proyecto no tiene contexto.
-- `PATCH /api/projects/{projectId}/context/nodes/{nodeKey}` recibe `{ "userNotes": string }` (`UpdateOrchestrationNodeRequest`, máximo 2000 caracteres) y responde `200` con el `OrchestrationNodeResponse` actualizado, `404` si el proyecto o el nodo no existen y `409` (`{ message }`) si el contexto cambió mientras se guardaba. No llama a la IA: el planificador y el generador de código (`POST /architecture`) toman las notas como requisitos confirmados. En el modal de detalle del módulo, "Regla en lenguaje natural" arranca con la regla guardada en `userNotes` o, si no hay, con la `description` del nodo, y pide al menos 10 caracteres. "Guardar regla" hace el `PATCH` con la regla y la configuración del endpoint (`buildModuleNotes`) y después un `POST /context` con el mensaje "Actualicé la regla de {nombre}, ahora: {regla}" (más el endpoint y la autenticación, si hay), que queda en el historial del chat y actualiza el mapa. El back no tiene campos para método, ruta y autenticación: el front los guarda además en `localStorage` (`useModuleConfigs`) para volver a llenar el modal, y los borra cuando se elimina el proyecto (`clearModuleConfigs`).
-- El backend no guarda la conversación. El front guarda el historial del chat en `localStorage` con una clave por proyecto (`useContextHistory`) y lo borra cuando se elimina el proyecto (`clearContextHistory`).
+- `PATCH /api/projects/{projectId}/context/nodes/{nodeKey}` recibe `{ "userNotes": string }` (`UpdateOrchestrationNodeRequest`, máximo 2000 caracteres) y responde `200` con el `OrchestrationNodeResponse` actualizado, `404` si el proyecto o el nodo no existen y `409` (`{ message }`) si el contexto cambió mientras se guardaba. No llama a la IA: el planificador y el generador de código (`POST /architecture`) toman las notas como requisitos confirmados. En el modal de detalle del módulo, "Descripción" muestra la `description` del nodo y no se puede editar (la tarjeta del diagrama muestra la misma). "Guardar" hace solo el `PATCH` con las líneas de configuración del endpoint y la autenticación (`buildConfigLines`), sin mandar un mensaje al chat ni llamar a la IA, y actualiza el nodo en el mapa guardado (`updateNode` de `useContextHistory`). Actores y pasos no tienen configuración: su modal muestra solo la descripción y "Cerrar". El back no tiene campos para la autenticación ni deja que la IA cambie por chat un método y ruta guardados en la relación, así que la única copia de la configuración del módulo son sus `userNotes`, con una línea por flecha que le llega ("Endpoint desde {origen}: MÉTODO /ruta") y "Autenticación: ...". El modal, el texto de las flechas y los endpoints propuestos del resumen leen de ahí y, si no hay nada guardado, de la `operation` de la IA. Después de cada respuesta del chat (en Arquitectura propuesta o en Contexto global), si la IA cambió las flechas de un nodo que tiene endpoints guardados, el front reescribe su nota con lo de la IA (`useModuleNotesSync`); si no las tocó, se respeta lo guardado a mano, que la IA toma como requisito confirmado.
+- El backend no guarda la conversación. El front guarda el historial del chat en `localStorage` con una clave por proyecto (`useContextHistory`), incluidos los mensajes que dieron error, que quedan en el chat con su aviso y no cambian el mapa, y lo borra cuando se elimina el proyecto (`clearContextHistory`).
 
 ---
 

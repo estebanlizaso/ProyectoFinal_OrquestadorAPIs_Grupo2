@@ -8,6 +8,7 @@ export type DecisionFlowNode = Node<Record<string, never>, 'decision'>
 
 export type ArchitectureNodeData = {
   node: OrchestrationNodeResponse
+  isClickable: boolean
 }
 
 export type ArchitectureFlowNode = Node<ArchitectureNodeData, 'architecture'>
@@ -38,7 +39,15 @@ export type RouteError = keyof typeof ROUTE_ERROR_TEXTS
 
 export type EndpointError = RouteError | 'incomplete'
 
+export type EndpointSlot = {
+  sourceName: string | null
+  endpoint: ModuleEndpoint
+}
+
 export type ModuleConfig = {
-  endpoints: ModuleEndpoint[]
+  endpoints: EndpointSlot[]
   authentication: AuthenticationType | ''
 }
+export type AssistantPanelSide = 'left' | 'right'
+
+export type AssistantPanelTab = 'chat' | 'summary'
