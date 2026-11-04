@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { ListChecks, Server, User, Workflow } from 'lucide-react'
 import { cn } from '../../../shared/lib/cn'
-import { getModuleRule } from '../module-detail/getModuleRule'
 import type { ArchitectureFlowNode } from '../types'
 
 export type ArchitectureNodeProps = NodeProps<ArchitectureFlowNode>
@@ -22,7 +21,7 @@ function renderKindIcon(kind: string): ReactNode {
 
 export function ArchitectureNode({ data }: ArchitectureNodeProps) {
   const { node } = data
-  const rule = getModuleRule(node)
+  const { description } = node
 
   return (
     <div
@@ -39,9 +38,9 @@ export function ArchitectureNode({ data }: ArchitectureNodeProps) {
         <p className="truncate text-sm font-semibold text-gray-900" title={node.name}>
           {node.name}
         </p>
-        {rule && (
-          <p className="truncate text-xs text-gray-500" title={rule}>
-            {rule}
+        {description && (
+          <p className="truncate text-xs text-gray-500" title={description}>
+            {description}
           </p>
         )}
       </div>

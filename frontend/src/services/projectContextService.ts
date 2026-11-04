@@ -124,18 +124,17 @@ export function useInitialPrompt(): UseInitialPromptResult {
 
   return { run, status, error }
 }
-export type UseSaveNodeRuleResult = {
+export type UseUpdateNodeNotesResult = {
   run: (
     projectId: ProjectContextResponse['projectId'],
     nodeKey: OrchestrationNodeResponse['key'],
-    rule: string,
-    prompt: string,
-  ) => Promise<ProjectContextResponse | null>
+    userNotes: string,
+  ) => Promise<OrchestrationNodeResponse | null>
   status: RequestStatus
   error: Error | null
 }
 
-export function useSaveNodeRule(): UseSaveNodeRuleResult {
+export function useUpdateNodeNotes(): UseUpdateNodeNotesResult {
   const [status, setStatus] = useState<RequestStatus>('idle')
   const [error, setError] = useState<Error | null>(null)
 
@@ -143,17 +142,15 @@ export function useSaveNodeRule(): UseSaveNodeRuleResult {
     async (
       projectId: ProjectContextResponse['projectId'],
       nodeKey: OrchestrationNodeResponse['key'],
-      rule: string,
-      prompt: string,
-    ): Promise<ProjectContextResponse | null> => {
+      userNotes: string,
+    ): Promise<OrchestrationNodeResponse | null> => {
       setStatus('loading')
       setError(null)
 
       try {
-        await projectContextService.updateNodeNotes(projectId, nodeKey, rule)
-        const updatedContext = await projectContextService.create(projectId, prompt)
+        const updatedNode = await projectContextService.updateNodeNotes(projectId, nodeKey, userNotes)
         setStatus('success')
-        return updatedContext
+        return updatedNode
       } catch (caught) {
         setError(toError(caught))
         setStatus('error')

@@ -4,7 +4,6 @@ import {
   findLatestValidTurn,
   useContextHistory,
   type OrchestrationNodeResponse,
-  type ProjectContextResponse,
 } from '../../global-context'
 import { cn } from '../../../shared/lib/cn'
 import { Button } from '../../../shared/ui/Button'
@@ -29,24 +28,15 @@ export function ProposedArchitecturePage({
   assistantSide,
   onConfirmFlow,
 }: ProposedArchitecturePageProps) {
-  const { turns, map, addTurn, addErrorTurn } = useContextHistory(projectId)
+  const { turns, map, addTurn, addErrorTurn, updateNode } = useContextHistory(projectId)
   const flowSummary = findLatestValidTurn(turns)?.planner.summary ?? null
   const { configs, saveConfig } = useModuleConfigs(projectId)
   const [openModule, setOpenModule] = useState<OrchestrationNodeResponse | null>(null)
   const isAssistantVisible = assistantSide === 'left'
 
-  function handleRuleSaved(
-    nodeKey: string,
-    prompt: string,
-    context: ProjectContextResponse,
-    config: ModuleConfig | null,
-  ): void {
-    if (config) {
-      saveConfig(nodeKey, config)
-    }
-    if (context.planner) {
-      addTurn({ prompt, planner: context.planner }, { nodes: context.nodes, relations: context.relations })
-    }
+  function handleConfigSaved(node: OrchestrationNodeResponse, config: ModuleConfig): void {
+    saveConfig(node.key, config)
+    updateNode(node)
     setOpenModule(null)
   }
 
@@ -86,7 +76,7 @@ export function ProposedArchitecturePage({
           relations={map.relations}
           savedConfig={configs[openModule.key] ?? null}
           onClose={() => setOpenModule(null)}
-          onRuleSaved={(prompt, context, config) => handleRuleSaved(openModule.key, prompt, context, config)}
+          onConfigSaved={handleConfigSaved}
         />
       )}
     </div>

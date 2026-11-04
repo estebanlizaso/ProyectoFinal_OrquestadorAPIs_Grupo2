@@ -28,6 +28,7 @@ export type UseContextHistoryResult = {
   map: ContextMap
   addTurn: (turn: PlannerTurn, map: ContextMap) => void
   addErrorTurn: (turn: ErrorTurn) => void
+  updateNode: (node: OrchestrationNodeResponse) => void
 }
 
 const EMPTY_HISTORY: ContextHistory = { turns: [], map: { nodes: [], relations: [] } }
@@ -201,5 +202,19 @@ export function useContextHistory(projectId: number): UseContextHistoryResult {
     [projectId],
   )
 
-  return { turns: history.turns, map: history.map, addTurn, addErrorTurn }
+  const updateNode = useCallback(
+    (node: OrchestrationNodeResponse): void => {
+      setHistory((currentHistory) => {
+        const nodes = currentHistory.map.nodes.map((currentNode) =>
+          currentNode.key === node.key ? node : currentNode,
+        )
+        const nextHistory = { turns: currentHistory.turns, map: { ...currentHistory.map, nodes } }
+        writeHistory(projectId, nextHistory)
+        return nextHistory
+      })
+    },
+    [projectId],
+  )
+
+  return { turns: history.turns, map: history.map, addTurn, addErrorTurn, updateNode }
 }
