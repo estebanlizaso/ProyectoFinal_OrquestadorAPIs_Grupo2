@@ -40,6 +40,8 @@ packages/
 .env
 .env.*
 !.env.example
+drive-sa.json
+**/drive-sa.json
 appsettings.Local.json
 appsettings.*.Local.json
 secrets.json

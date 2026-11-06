@@ -7,6 +7,7 @@ using OrquestadorApi.Data;
 using OrquestadorApi.Services.AI;
 using OrquestadorApi.Services.Architecture;
 using OrquestadorApi.Services.Contexts;
+using OrquestadorApi.Services.Drive;
 using OrquestadorApi.Services.Projects;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -95,6 +96,38 @@ builder.Services
     .Bind(builder.Configuration.GetSection(OrchestrationOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
+builder.Services
+    .AddOptions<DriveOptions>()
+    .Bind(builder.Configuration.GetSection(DriveOptions.SectionName))
+    .Configure(options =>
+    {
+        // Nombres simples para el equipo (prioridad sobre Drive__*).
+        options.RootFolderId =
+            FirstNonEmpty(Environment.GetEnvironmentVariable("DRIVE_ID"), options.RootFolderId);
+        options.OAuthClientId =
+            FirstNonEmpty(Environment.GetEnvironmentVariable("CLIENT_DRIVE"), options.OAuthClientId);
+        options.OAuthClientSecret =
+            FirstNonEmpty(Environment.GetEnvironmentVariable("CLIENT_SECRET_DRIVE"), options.OAuthClientSecret);
+        options.OAuthRefreshToken =
+            FirstNonEmpty(Environment.GetEnvironmentVariable("REFRESH_TOKEN_DRIVE"), options.OAuthRefreshToken);
+
+        var driveEnabled = Environment.GetEnvironmentVariable("DRIVE_ENABLED");
+        if (bool.TryParse(driveEnabled, out var enabled))
+        {
+            options.Enabled = enabled;
+        }
+        else if (!string.IsNullOrWhiteSpace(options.RootFolderId) &&
+                 !string.IsNullOrWhiteSpace(options.OAuthClientId) &&
+                 !string.IsNullOrWhiteSpace(options.OAuthClientSecret) &&
+                 !string.IsNullOrWhiteSpace(options.OAuthRefreshToken))
+        {
+            options.Enabled = true;
+        }
+    })
+    .Validate(
+        options => !options.Enabled || options.IsConfigured,
+        "Si Drive está habilitado, configurá DRIVE_ID, CLIENT_DRIVE, CLIENT_SECRET_DRIVE y REFRESH_TOKEN_DRIVE.")
+    .ValidateOnStart();
 builder.Services.AddHttpClient<IAiProvider, GeminiAiProvider>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<IOptions<AiOptions>>().Value;
@@ -103,6 +136,17 @@ builder.Services.AddHttpClient<IAiProvider, GeminiAiProvider>((serviceProvider, 
         Math.Max(options.TimeoutSeconds, options.ArchitectureTimeoutSeconds) + 10);
 });
 builder.Services.AddSingleton<IAiRulesProvider, JsonAiRulesProvider>();
+builder.Services.AddSingleton<IArchitecturePackageBuilder, ArchitectureZipBuilder>();
+builder.Services.AddSingleton<IDriveStorage>(serviceProvider =>
+{
+    var driveOptions = serviceProvider.GetRequiredService<IOptions<DriveOptions>>().Value;
+    if (!driveOptions.IsConfigured)
+    {
+        return new DisabledDriveStorage();
+    }
+
+    return ActivatorUtilities.CreateInstance<GoogleDriveStorage>(serviceProvider);
+});
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IProjectContextService, ProjectContextService>();
 builder.Services.AddScoped<IArchitectureService, ArchitectureService>();
@@ -121,3 +165,6 @@ app.MapControllers();
 await DatabaseInitializer.InitializeAsync(app.Services, postgresConnection);
 
 app.Run();
+
+static string? FirstNonEmpty(string? preferred, string? fallback) =>
+    !string.IsNullOrWhiteSpace(preferred) ? preferred.Trim() : fallback;
