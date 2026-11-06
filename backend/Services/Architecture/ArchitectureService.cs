@@ -7,27 +7,36 @@ using OrquestadorApi.Data;
 using OrquestadorApi.DTOs;
 using OrquestadorApi.Services.AI;
 using OrquestadorApi.Services.Contexts;
+using OrquestadorApi.Services.Drive;
 
 namespace OrquestadorApi.Services.Architecture;
 
 public class ArchitectureService : IArchitectureService
 {
+    private const string ZipMimeType = "application/zip";
+
     private static readonly Regex EnvNamePattern =
         new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
 
     private readonly AppDbContext _dbContext;
     private readonly IAiProvider _aiProvider;
+    private readonly IArchitecturePackageBuilder _packageBuilder;
+    private readonly IDriveStorage _driveStorage;
     private readonly OrchestrationOptions _options;
     private readonly ILogger<ArchitectureService> _logger;
 
     public ArchitectureService(
         AppDbContext dbContext,
         IAiProvider aiProvider,
+        IArchitecturePackageBuilder packageBuilder,
+        IDriveStorage driveStorage,
         IOptions<OrchestrationOptions> options,
         ILogger<ArchitectureService> logger)
     {
         _dbContext = dbContext;
         _aiProvider = aiProvider;
+        _packageBuilder = packageBuilder;
+        _driveStorage = driveStorage;
         _options = options.Value;
         _logger = logger;
     }
@@ -287,19 +296,33 @@ public class ArchitectureService : IArchitectureService
                     "Revisá el resultado o generá la arquitectura nuevamente.");
             }
 
+            var architecture = new ArchitectureResponse(
+                projectContext.ContextId,
+                projectContext.ProjectId,
+                selectedLanguage,
+                projectContext.MapVersion,
+                DateTime.UtcNow,
+                response.Summary.Trim(),
+                envLines.Count > 0 ? string.Join(Environment.NewLine, envLines) : null,
+                contextResponses,
+                warnings,
+                contextChanged);
+
+            var map = ProjectContextMapper.ToResponse(projectContext, nodes, relations);
+            var driveArtifact = await TryUploadArchitecturePackageAsync(
+                architecture,
+                map.Nodes,
+                map.Relations,
+                warnings,
+                cancellationToken);
+
             return new GenerateArchitectureResult(
                 GenerateArchitectureStatus.Success,
-                new ArchitectureResponse(
-                    projectContext.ContextId,
-                    projectContext.ProjectId,
-                    selectedLanguage,
-                    projectContext.MapVersion,
-                    DateTime.UtcNow,
-                    response.Summary.Trim(),
-                    envLines.Count > 0 ? string.Join(Environment.NewLine, envLines) : null,
-                    contextResponses,
-                    warnings,
-                    contextChanged));
+                architecture with
+                {
+                    Warnings = warnings,
+                    Drive = driveArtifact
+                });
         }
         catch (AiProviderException exception)
         {
@@ -312,6 +335,57 @@ public class ArchitectureService : IArchitectureService
             return new GenerateArchitectureResult(
                 GenerateArchitectureStatus.AiProviderFailed,
                 Message: exception.Message);
+        }
+    }
+
+    private async Task<ArchitectureDriveArtifactResponse?> TryUploadArchitecturePackageAsync(
+        ArchitectureResponse architecture,
+        IReadOnlyList<OrchestrationNodeResponse> nodes,
+        IReadOnlyList<OrchestrationRelationResponse> relations,
+        List<string> warnings,
+        CancellationToken cancellationToken)
+    {
+        if (!_driveStorage.IsEnabled)
+        {
+            return null;
+        }
+
+        try
+        {
+            var fileName = _packageBuilder.BuildFileName(architecture.ProjectId);
+            var zipBytes = _packageBuilder.BuildZip(architecture, nodes, relations);
+            await using var stream = new MemoryStream(zipBytes);
+            var upload = await _driveStorage.UploadOrReplaceFileAsync(
+                fileName,
+                ZipMimeType,
+                stream,
+                cancellationToken);
+
+            if (!upload.Succeeded || upload.FileId is null)
+            {
+                warnings.Add(
+                    "La arquitectura se generó, pero no se pudo subir el ZIP a Google Drive" +
+                    (string.IsNullOrWhiteSpace(upload.ErrorMessage)
+                        ? "."
+                        : $": {upload.ErrorMessage}"));
+                return null;
+            }
+
+            return new ArchitectureDriveArtifactResponse(
+                upload.FileName,
+                upload.FileId,
+                upload.WebViewLink);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogError(
+                exception,
+                "Error inesperado al empaquetar o subir la arquitectura del proyecto {ProjectId}.",
+                architecture.ProjectId);
+
+            warnings.Add(
+                "La arquitectura se generó, pero no se pudo subir el ZIP a Google Drive.");
+            return null;
         }
     }
 

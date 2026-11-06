@@ -12,4 +12,5 @@ public record ArchitectureResponse(
     [property: JsonPropertyName("envExample")] string? EnvExample,
     [property: JsonPropertyName("contexts")] IReadOnlyList<ArchitectureContextResponse> Contexts,
     [property: JsonPropertyName("warnings")] IReadOnlyList<string> Warnings,
-    [property: JsonPropertyName("contextChanged")] bool ContextChanged);
+    [property: JsonPropertyName("contextChanged")] bool ContextChanged,
+    [property: JsonPropertyName("drive")] ArchitectureDriveArtifactResponse? Drive = null);
