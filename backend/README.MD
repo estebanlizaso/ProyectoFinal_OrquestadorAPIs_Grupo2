@@ -38,7 +38,7 @@ psql postgres -c "ALTER ROLE postgres WITH PASSWORD 'TU_PASSWORD';"
 
 Si el usuario o la base ya existen, no vuelvas a crearlos.
 
-Crea `backend/.env` tomando `.env.example` como referencia. El archivo debe contener la conexión a PostgreSQL y la API key de Gemini, sin comandos ni texto adicional:
+Crea `backend/.env` tomando `.env.example` como referencia. El archivo debe contener la conexión a PostgreSQL y las credenciales del proveedor de IA activo, sin comandos ni texto adicional:
 
 ```dotenv
 ConnectionStrings__Postgres=Host=localhost;Port=5432;Database=orquestador;Username=postgres;Password=TU_PASSWORD
@@ -48,6 +48,28 @@ GEMINI_API_KEY=TU_API_KEY_DE_GEMINI
 La API key se obtiene desde Google AI Studio. `.env` contiene credenciales y no debe subirse a Git.
 
 Si Gemini responde `401 API key not valid`, reemplazá `GEMINI_API_KEY` por una clave válida y reiniciá la API.
+
+### Proveedor de IA (Gemini o BDT)
+
+El backend usa un único proveedor de IA activo, elegido con `AI:Provider` (por defecto `Gemini`). Para usar BDT (API compatible con OpenAI, `POST {BDT_API_URL}/chat/completions`), agregá a `.env`:
+
+```dotenv
+AI__Provider=Bdt
+BDT_API_URL=https://URL_DE_BDT/v1
+BDT_API_KEY=TU_API_KEY_DE_BDT
+BDT_MODEL=qwen-rapido
+```
+
+| Variable / setting | Descripción |
+|---|---|
+| `AI__Provider` | `Gemini` (por defecto) o `Bdt`. |
+| `BDT_API_URL`, `BDT_API_KEY` | URL base (incluye `/v1`) y API key de BDT. Obligatorias si el proveedor es `Bdt`. |
+| `BDT_MODEL` | Modelo de BDT. Por defecto `AI:Bdt:Model` (`qwen-rapido`); también existe `qwen-maximo`. |
+| `AI:Bdt:ResponseFormat` | `json_schema` (por defecto, envía el contrato al modelo) o `json_object` (solo exige JSON válido). |
+| `AI:Bdt:MaxTokens` | Límite opcional de tokens de salida. Sin definir, lo decide el servidor. Un valor bajo puede dejar vacía la respuesta de `qwen-maximo`, que gasta tokens razonando. |
+| `AI:TimeoutSeconds`, `AI:ArchitectureTimeoutSeconds` | Timeouts por solicitud. `qwen-rapido` responde en unos 15 s; `qwen-maximo` puede tardar cerca de 2 minutos, por lo que conviene subirlos (por ejemplo `AI__TimeoutSeconds=240`). |
+
+Al iniciar, la API valida solo la configuración del proveedor activo. Los mensajes de error `502` indican qué proveedor falló.
 
 ## Migraciones
 

@@ -48,7 +48,7 @@ public class ProjectContextsController : ControllerBase
                 new ProjectContextGenerationErrorResponse(
                     result.ContextId!.Value,
                     result.ErrorMessage ??
-                    "No se pudo planificar la orquestación o actualizar el resumen con Gemini. La memoria anterior se conserva; reenviá el mensaje para reintentar.")),
+                    "No se pudo planificar la orquestación o actualizar el resumen con el proveedor de IA. La memoria anterior se conserva; reenviá el mensaje para reintentar.")),
             _ => throw new InvalidOperationException("Estado de creación de contexto desconocido.")
         };
     }
