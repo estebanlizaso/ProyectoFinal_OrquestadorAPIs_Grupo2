@@ -84,7 +84,9 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(postgresConnection.ConnectionString));
-builder.Services.AddSingleton<IValidateOptions<AiOptions>, AiOptionsValidator>();
+builder.Services.AddSingleton<AiOptionsValidator>();
+builder.Services.AddSingleton<IValidateOptions<AiOptions>>(
+    services => services.GetRequiredService<AiOptionsValidator>());
 builder.Services
     .AddOptions<AiOptions>()
     .Bind(builder.Configuration.GetSection(AiOptions.SectionName))
@@ -114,22 +116,15 @@ builder.Services
 void ConfigureAiClient(IServiceProvider serviceProvider, HttpClient client)
 {
     var options = serviceProvider.GetRequiredService<IOptions<AiOptions>>().Value;
-    var baseUrl = options.IsBdt ? options.Bdt.BaseUrl : options.Gemini.BaseUrl;
-    client.BaseAddress = new Uri($"{baseUrl.TrimEnd('/')}/");
     client.Timeout = TimeSpan.FromSeconds(
         Math.Max(options.TimeoutSeconds, options.ArchitectureTimeoutSeconds) + 10);
 }
 
-var aiProvider = builder.Configuration[$"{AiOptions.SectionName}:Provider"];
-
-if (string.Equals(aiProvider, AiOptions.BdtProvider, StringComparison.OrdinalIgnoreCase))
-{
-    builder.Services.AddHttpClient<IAiProvider, BdtAiProvider>(ConfigureAiClient);
-}
-else
-{
-    builder.Services.AddHttpClient<IAiProvider, GeminiAiProvider>(ConfigureAiClient);
-}
+builder.Services.AddHttpClient(AiOptions.GeminiProvider, ConfigureAiClient);
+builder.Services.AddHttpClient(AiOptions.BdtProvider, ConfigureAiClient);
+builder.Services.AddScoped<AiSelectionService>();
+builder.Services.AddScoped<IAiSelectionService>(services => services.GetRequiredService<AiSelectionService>());
+builder.Services.AddScoped<IAiProvider>(services => services.GetRequiredService<AiSelectionService>());
 builder.Services.AddSingleton<IAiRulesProvider, JsonAiRulesProvider>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IProjectContextService, ProjectContextService>();

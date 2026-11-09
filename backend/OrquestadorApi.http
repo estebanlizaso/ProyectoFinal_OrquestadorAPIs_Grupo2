@@ -5,6 +5,36 @@
 @relationId = 23
 @mapVersion = 1
 
+### Consultar proveedores y modelos configurados
+GET {{OrquestadorApi_HostAddress}}/api/ai/models
+
+### Enviar un mensaje con BDT
+POST {{OrquestadorApi_HostAddress}}/api/projects/{{projectId}}/context
+Content-Type: application/json
+
+{
+  "prompt": "Conectar la tienda con el ERP",
+  "aiSelection": { "provider": "Bdt", "model": "qwen-rapido" }
+}
+
+### Generar arquitectura con Gemini
+POST {{OrquestadorApi_HostAddress}}/api/projects/{{projectId}}/architecture
+Content-Type: application/json
+
+{
+  "language": "python",
+  "aiSelection": { "provider": "Gemini" }
+}
+
+### Selección inválida: devuelve 400
+POST {{OrquestadorApi_HostAddress}}/api/projects/{{projectId}}/context
+Content-Type: application/json
+
+{
+  "prompt": "Conectar la tienda con el ERP",
+  "aiSelection": { "provider": "Bdt", "model": "modelo-invalido" }
+}
+
 ### Guardar solo la aclaración (usar la versión vigente del mapa)
 POST {{OrquestadorApi_HostAddress}}/api/projects/{{projectId}}/context/nodes/{{nodeKey}}/instructions
 Content-Type: application/json

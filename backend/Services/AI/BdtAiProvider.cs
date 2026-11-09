@@ -11,14 +11,17 @@ namespace OrquestadorApi.Services.AI;
 public class BdtAiProvider : AiProviderBase
 {
     private readonly BdtOptions _bdt;
+    private readonly string _model;
 
     public BdtAiProvider(
         HttpClient httpClient,
         IOptions<AiOptions> options,
-        IAiRulesProvider rulesProvider)
+        IAiRulesProvider rulesProvider,
+        string? model = null)
         : base(httpClient, options.Value, rulesProvider)
     {
         _bdt = options.Value.Bdt;
+        _model = model ?? _bdt.Model;
     }
 
     public override string ProviderName => "BDT";
@@ -46,7 +49,7 @@ public class BdtAiProvider : AiProviderBase
             };
 
         var body = new BdtRequest(
-            _bdt.Model,
+            _model,
             [new BdtMessage("system", systemInstruction), new BdtMessage("user", prompt)],
             0.2,
             responseFormat,

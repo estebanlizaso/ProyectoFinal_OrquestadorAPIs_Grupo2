@@ -158,7 +158,7 @@ public class AiProviderTests
         var validator = new AiOptionsValidator();
 
         var geminiOnly = new AiOptions { Provider = "Bdt" };
-        var bdtFailure = validator.Validate(null, geminiOnly);
+        var bdtFailure = validator.ValidateProvider(geminiOnly, "Bdt");
         Assert.True(bdtFailure.Failed);
         Assert.Contains(bdtFailure.Failures!, f => f.Contains("BDT_API_KEY"));
         Assert.DoesNotContain(bdtFailure.Failures!, f => f.Contains("GEMINI"));
@@ -168,13 +168,14 @@ public class AiProviderTests
             Provider = "bdt",
             Bdt = new BdtOptions { BaseUrl = "https://bdt.test/v1", Model = "qwen-rapido", ApiKey = "k" }
         };
-        Assert.True(validator.Validate(null, bdtReady).Succeeded);
+        Assert.True(validator.ValidateProvider(bdtReady, "Bdt").Succeeded);
 
         var geminiMissingKey = new AiOptions();
         Assert.Contains(
-            validator.Validate(null, geminiMissingKey).Failures!,
+            validator.ValidateProvider(geminiMissingKey, "Gemini").Failures!,
             f => f.Contains("GEMINI_API_KEY"));
 
+        Assert.True(validator.Validate(null, geminiMissingKey).Succeeded);
         Assert.True(validator.Validate(null, new AiOptions { Provider = "Otro" }).Failed);
     }
 

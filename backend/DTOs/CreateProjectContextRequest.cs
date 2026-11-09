@@ -6,4 +6,6 @@ public class CreateProjectContextRequest
 {
     [Required]
     public required string Prompt { get; set; }
+
+    public AiSelectionRequest? AiSelection { get; set; }
 }
