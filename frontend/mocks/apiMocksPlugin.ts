@@ -3,7 +3,9 @@ import type { Plugin } from 'vite'
 import type {
   CreateProjectContextRequest,
   InitialProjectPromptResponse,
+  OrchestrationNodeResponse,
   ProjectContextResponse,
+  UpdateOrchestrationNodeRequest,
 } from '../src/features/global-context/types.ts'
 import { FIRST_PAGE } from '../src/features/projects/constants.ts'
 import type {
@@ -22,6 +24,7 @@ const API_MOCK_SCENARIOS: ApiMockScenario[] = ['success', 'empty', 'error']
 const PROJECTS_ROUTE = '/api/projects'
 const PROJECTS_ROOT_PATH = '/'
 const PROJECT_CONTEXT_PATH_PATTERN = /^\/(\d+)\/context\/?$/
+const CONTEXT_NODE_PATH_PATTERN = /^\/(\d+)\/context\/nodes\/([^/]+)\/?$/
 const MOCK_DELAY_MS = 800
 const MOCK_TRACE_ID = 'mock-trace-id'
 const MOCK_ORIGIN = 'http://localhost'
@@ -41,6 +44,7 @@ const MOCK_ERROR_TITLES = {
   invalidPage: 'Número de página inválido',
   projectNotFound: 'Proyecto no encontrado',
   promptNotFound: 'Prompt inicial no encontrado',
+  nodeNotFound: 'Nodo no encontrado',
   validation: 'One or more validation errors occurred.',
 }
 
@@ -92,6 +96,18 @@ function isCreateProjectContextRequest(value: unknown): value is CreateProjectCo
     typeof value.prompt === 'string' &&
     value.prompt.trim() !== ''
   )
+}
+
+function isUpdateOrchestrationNodeRequest(value: unknown): value is UpdateOrchestrationNodeRequest {
+  return typeof value === 'object' && value !== null && 'userNotes' in value && typeof value.userNotes === 'string'
+}
+
+function getContextNodeTarget(pathname: string): { projectId: number; nodeKey: string } | null {
+  const match = CONTEXT_NODE_PATH_PATTERN.exec(pathname)
+  if (!match?.[1] || !match[2]) {
+    return null
+  }
+  return { projectId: Number(match[1]), nodeKey: decodeURIComponent(match[2]) }
 }
 
 function getContextProjectId(pathname: string): number | null {
@@ -358,6 +374,41 @@ async function sendCreateContextResult(
   sendJson(response, HTTP_STATUS.created, context)
 }
 
+async function sendUpdateNodeNotesResult(
+  request: IncomingMessage,
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  contexts: Map<number, ProjectContextResponse>,
+  projectId: number,
+  nodeKey: string,
+): Promise<void> {
+  const payload = await readJsonBody(request).catch(() => undefined)
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  if (!isUpdateOrchestrationNodeRequest(payload)) {
+    sendProblem(response, HTTP_STATUS.badRequest, MOCK_ERROR_TITLES.invalidRequest)
+    return
+  }
+  const context = contexts.get(projectId)
+  const node = context?.nodes.find((candidate) => candidate.key === nodeKey)
+  if (!context || !node) {
+    sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.nodeNotFound)
+    return
+  }
+  const userNotes = payload.userNotes.trim()
+  const updatedNode: OrchestrationNodeResponse = { ...node, userNotes: userNotes === '' ? null : userNotes }
+  contexts.set(projectId, {
+    ...context,
+    nodes: context.nodes.map((candidate) => (candidate.key === nodeKey ? updatedNode : candidate)),
+    mapVersion: context.mapVersion + 1,
+  })
+  sendJson(response, HTTP_STATUS.ok, updatedNode)
+}
+
 export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
   const projects: ProjectResponse[] = scenario === 'success' ? [...MOCK_PROJECTS] : []
   const contexts =
@@ -370,6 +421,19 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
       server.middlewares.use(PROJECTS_ROUTE, (request, response, next) => {
         const url = getRequestUrl(request)
         const contextProjectId = getContextProjectId(url.pathname)
+        const contextNodeTarget = getContextNodeTarget(url.pathname)
+
+        if (contextNodeTarget !== null && request.method === 'PATCH') {
+          void sendUpdateNodeNotesResult(
+            request,
+            response,
+            scenario,
+            contexts,
+            contextNodeTarget.projectId,
+            contextNodeTarget.nodeKey,
+          )
+          return
+        }
 
         if (contextProjectId !== null && request.method === 'POST') {
           void sendCreateContextResult(request, response, scenario, projects, contexts, contextProjectId)
