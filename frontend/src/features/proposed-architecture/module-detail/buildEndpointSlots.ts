@@ -1,6 +1,7 @@
 import type { ContextMap, OrchestrationNodeResponse } from '../../global-context'
 import type { EndpointSlot, ModuleEndpoint } from '../types'
 import { findIncomingRelations } from './findIncomingRelations'
+import { findRelationOccurrence } from './findRelationOccurrence'
 import { findSavedEndpoint } from './findSavedEndpoint'
 import { findSourceName } from './findSourceName'
 import { parseModuleNotes } from './parseModuleNotes'
@@ -20,7 +21,11 @@ export function buildEndpointSlots(node: OrchestrationNodeResponse, { nodes, rel
 
   return incomingRelations.map((relation) => {
     const sourceName = findSourceName(relation, nodesByKey)
+    const occurrence = findRelationOccurrence(relation, incomingRelations, nodesByKey)
     const aiEndpoint = relation.operation === null ? null : parseOperation(relation.operation)
-    return { sourceName, endpoint: findSavedEndpoint(savedEndpoints, sourceName) ?? aiEndpoint ?? EMPTY_ENDPOINT }
+    return {
+      sourceName,
+      endpoint: findSavedEndpoint(savedEndpoints, sourceName, occurrence) ?? aiEndpoint ?? EMPTY_ENDPOINT,
+    }
   })
 }

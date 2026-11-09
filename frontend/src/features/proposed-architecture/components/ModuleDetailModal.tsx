@@ -7,6 +7,7 @@ import { Modal } from '../../../shared/ui/Modal'
 import { buildConfigLines } from '../module-detail/buildConfigLines'
 import { buildEndpointSlots } from '../module-detail/buildEndpointSlots'
 import { canHaveEndpoint } from '../module-detail/canHaveEndpoint'
+import { fillEmptyEndpoints } from '../module-detail/fillEmptyEndpoints'
 import { parseModuleNotes } from '../module-detail/parseModuleNotes'
 import { MODULE_DETAIL_TEXTS } from '../constants'
 import { MODULE_CONFIG_ERROR_MESSAGES } from '../errorMessages'
@@ -44,7 +45,8 @@ export function ModuleDetailModal({ projectId, node, map, onClose, onConfigSaved
   const canSave = !isSaving && areEndpointsValid && !isSameConfig(config, initialConfig)
 
   async function handleSave(): Promise<void> {
-    const updatedNode = await run(projectId, node.key, buildConfigLines(config).join('\n'))
+    const notes = buildConfigLines(fillEmptyEndpoints(config, node.key, map.relations)).join('\n')
+    const updatedNode = await run(projectId, node.key, notes)
     if (updatedNode) {
       onConfigSaved(updatedNode)
     }
