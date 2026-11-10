@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using OrquestadorApi.Configuration;
+using OrquestadorApi.Models;
 using OrquestadorApi.Services.AI;
 using OrquestadorApi.Services.AI.Contracts;
 
@@ -256,7 +257,7 @@ public static class PlannerResponseNormalizer
 
         var nodeKeys = nodes.Select(node => node.Key).ToHashSet(StringComparer.Ordinal);
         var normalizedRelations = new List<NormalizedPlannerRelation>(relations.Count);
-        var relationKeys = new HashSet<string>(StringComparer.Ordinal);
+        var relationKeys = new HashSet<(string, string, string, string)>();
 
         foreach (var relation in relations)
         {
@@ -287,7 +288,8 @@ public static class PlannerResponseNormalizer
             }
 
             var label = RequireText(relation.Label, $"relations[{from}->{to}].label");
-            var relationKey = $"{from}|{to}|{label}";
+            var operationKey = RelationIdentity.OperationKey(relation.Operation);
+            var relationKey = (from, to, label, operationKey);
 
             if (!relationKeys.Add(relationKey))
             {
@@ -300,7 +302,7 @@ public static class PlannerResponseNormalizer
                 from,
                 to,
                 label,
-                TrimToNull(relation.Operation),
+                operationKey.Length == 0 ? null : operationKey,
                 TrimToNull(relation.Description),
                 kind is not null && AllowedRelationKinds.Contains(kind) ? kind : null));
         }

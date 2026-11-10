@@ -77,13 +77,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasIndex(relation => new { relation.ContextId });
 
         modelBuilder.Entity<OrchestrationRelation>()
+            .Property(relation => relation.OperationKey)
+            .HasComputedColumnSql(RelationIdentity.OperationKeySql, stored: true)
+            .IsRequired();
+
+        modelBuilder.Entity<OrchestrationRelation>()
             .HasIndex(relation => new
             {
                 relation.ContextId,
                 relation.SourceNodeId,
                 relation.TargetNodeId,
-                relation.Label
+                relation.Label,
+                relation.OperationKey
             })
+            .HasDatabaseName(RelationIdentity.IndexName)
             .IsUnique();
     }
 }
