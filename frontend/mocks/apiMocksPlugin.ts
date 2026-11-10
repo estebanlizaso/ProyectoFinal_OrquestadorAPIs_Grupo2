@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
+import type { AiModelsResponse, AiSelectionRequest } from '../src/features/ai-selection/types.ts'
 import type {
-  CreateProjectContextRequest,
   InitialProjectPromptResponse,
   OrchestrationNodeResponse,
   ProjectContextResponse,
@@ -22,6 +22,7 @@ export type ApiMockScenario = 'success' | 'empty' | 'error'
 
 const API_MOCK_SCENARIOS: ApiMockScenario[] = ['success', 'empty', 'error']
 const PROJECTS_ROUTE = '/api/projects'
+const AI_MODELS_ROUTE = '/api/ai/models'
 const PROJECTS_ROOT_PATH = '/'
 const PROJECT_CONTEXT_PATH_PATTERN = /^\/(\d+)\/context\/?$/
 const CONTEXT_NODE_PATH_PATTERN = /^\/(\d+)\/context\/nodes\/([^/]+)\/?$/
@@ -29,6 +30,16 @@ const MOCK_DELAY_MS = 800
 const MOCK_TRACE_ID = 'mock-trace-id'
 const MOCK_ORIGIN = 'http://localhost'
 const MOCK_PAGE_SIZE = 12
+const MOCK_AI_MODELS: AiModelsResponse = {
+  defaultSelection: { provider: 'Gemini', model: null },
+  providers: [
+    { id: 'Gemini', models: [{ id: 'gemini-3.5-flash-lite', name: 'Gemini' }] },
+    { id: 'Bdt', models: [
+      { id: 'qwen-rapido', name: 'Qwen rápido' },
+      { id: 'qwen-maximo', name: 'Qwen máximo' },
+    ] },
+  ],
+}
 
 const HTTP_STATUS = {
   ok: 200,
@@ -88,7 +99,7 @@ function isCreateProjectRequest(value: unknown): value is CreateProjectRequest {
   )
 }
 
-function isCreateProjectContextRequest(value: unknown): value is CreateProjectContextRequest {
+function isCreateProjectContextRequest(value: unknown): value is { prompt: string; aiSelection?: unknown } {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -96,6 +107,16 @@ function isCreateProjectContextRequest(value: unknown): value is CreateProjectCo
     typeof value.prompt === 'string' &&
     value.prompt.trim() !== ''
   )
+}
+
+function isValidAiSelection(value: unknown): value is AiSelectionRequest {
+  if (typeof value !== 'object' || value === null ||
+      !('provider' in value) || typeof value.provider !== 'string' ||
+      !('model' in value) || (typeof value.model !== 'string' && value.model !== null)) return false
+  const providerId = value.provider
+  const provider = MOCK_AI_MODELS.providers.find((item) => item.id.toLowerCase() === providerId.toLowerCase())
+  return provider !== undefined &&
+    ((provider.id === 'Gemini' && value.model === null) || provider.models.some((model) => model.id === value.model))
 }
 
 function isUpdateOrchestrationNodeRequest(value: unknown): value is UpdateOrchestrationNodeRequest {
@@ -349,6 +370,10 @@ async function sendCreateContextResult(
     sendValidationProblem(response, MOCK_VALIDATION_ERRORS.promptRequired)
     return
   }
+  if ('aiSelection' in payload && payload.aiSelection !== null && !isValidAiSelection(payload.aiSelection)) {
+    sendJson(response, HTTP_STATUS.badRequest, { message: 'La selección de IA no está disponible.' })
+    return
+  }
   if (!projects.some((project) => project.projectId === projectId)) {
     sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.projectNotFound)
     return
@@ -418,6 +443,21 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
     name: 'api-mocks',
     apply: 'serve',
     configureServer(server) {
+      server.middlewares.use(AI_MODELS_ROUTE, (request, response, next) => {
+        if (getRequestUrl(request).pathname !== '/' || request.method !== 'GET') {
+          next()
+          return
+        }
+        setTimeout(() => {
+          if (scenario === 'error') {
+            sendServerError(response)
+          } else {
+            sendJson(response, HTTP_STATUS.ok, scenario === 'empty'
+              ? { defaultSelection: null, providers: [] }
+              : MOCK_AI_MODELS)
+          }
+        }, MOCK_DELAY_MS)
+      })
       server.middlewares.use(PROJECTS_ROUTE, (request, response, next) => {
         const url = getRequestUrl(request)
         const contextProjectId = getContextProjectId(url.pathname)
