@@ -12,6 +12,7 @@ using OrquestadorApi.Services.AI;
 using OrquestadorApi.Services.AI.Contracts;
 using OrquestadorApi.Services.Architecture;
 using OrquestadorApi.Services.Contexts;
+using OrquestadorApi.Services.Drive;
 using Xunit;
 
 namespace OrquestadorApi.Tests;
@@ -149,7 +150,12 @@ public class NodeInstructionsTests
         await using var fixture = await Fixture.CreateAsync();
         await fixture.Service.SaveNodeInstructionsAsync(1, "source", Request(1, "POST", "/new"));
         var ai = new RecordingAiProvider();
-        var service = new ArchitectureService(fixture.Db, ai, Options.Create(new OrchestrationOptions()),
+        var service = new ArchitectureService(
+            fixture.Db,
+            ai,
+            new ArchitectureZipBuilder(),
+            new DisabledDriveStorage(),
+            Options.Create(new OrchestrationOptions()),
             NullLogger<ArchitectureService>.Instance);
         var result = await service.GenerateAsync(1, "python");
         Assert.Equal(GenerateArchitectureStatus.Success, result.Status);
