@@ -1,0 +1,129 @@
+using Microsoft.AspNetCore.Mvc;
+using OrquestadorApi.DTOs;
+using OrquestadorApi.Services.Contexts;
+
+namespace OrquestadorApi.Controllers;
+
+[ApiController]
+[Route("api/projects/{projectId:int}/context")]
+public class ProjectContextsController : ControllerBase
+{
+    private readonly IProjectContextService _projectContextService;
+
+    public ProjectContextsController(IProjectContextService projectContextService)
+    {
+        _projectContextService = projectContextService;
+    }
+
+    [HttpPost]
+    [ProducesResponseType(typeof(ProjectContextResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProjectContextResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProjectContextGenerationErrorResponse), StatusCodes.Status502BadGateway)]
+    public async Task<ActionResult<ProjectContextResponse>> Create(
+        [FromRoute] int projectId,
+        [FromBody] CreateProjectContextRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _projectContextService.CreateAsync(
+            projectId,
+            request.Prompt,
+            cancellationToken);
+
+        return result.Status switch
+        {
+            CreateProjectContextStatus.Created => StatusCode(
+                StatusCodes.Status201Created,
+                result.Context),
+            CreateProjectContextStatus.Reused => Ok(result.Context),
+            CreateProjectContextStatus.ProjectNotFound => NotFound(),
+            CreateProjectContextStatus.Conflict => Conflict(new
+            {
+                message = "El contexto cambió durante la planificación. Reenviá el mensaje para usar la memoria actualizada."
+            }),
+            CreateProjectContextStatus.AiProviderFailed => StatusCode(
+                StatusCodes.Status502BadGateway,
+                new ProjectContextGenerationErrorResponse(
+                    result.ContextId!.Value,
+                    result.ErrorMessage ??
+                    "No se pudo planificar la orquestación o actualizar el resumen con Gemini. La memoria anterior se conserva; reenviá el mensaje para reintentar.")),
+            _ => throw new InvalidOperationException("Estado de creación de contexto desconocido.")
+        };
+    }
+
+    [HttpGet]
+    [ProducesResponseType(typeof(InitialProjectPromptResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<InitialProjectPromptResponse>> Get(
+        [FromRoute] int projectId,
+        CancellationToken cancellationToken)
+    {
+        var initialPrompt = await _projectContextService.GetInitialPromptAsync(
+            projectId,
+            cancellationToken);
+
+        if (initialPrompt is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(new InitialProjectPromptResponse(initialPrompt));
+    }
+
+    [HttpPost("nodes/{nodeKey}/instructions")]
+    [ProducesResponseType(typeof(NodeInstructionsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<NodeInstructionsResponse>> SaveNodeInstructions(
+        [FromRoute] int projectId,
+        [FromRoute] string nodeKey,
+        [FromBody] SaveNodeInstructionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _projectContextService.SaveNodeInstructionsAsync(
+            projectId, nodeKey, request, cancellationToken);
+
+        return result.Status switch
+        {
+            SaveNodeInstructionsStatus.Saved => Ok(result.Response),
+            SaveNodeInstructionsStatus.NotFound => NotFound(),
+            SaveNodeInstructionsStatus.Conflict => Conflict(new
+            {
+                message = "El mapa cambió. Recargá su versión actual antes de guardar las instrucciones."
+            }),
+            _ => throw new InvalidOperationException("Estado de guardado de instrucciones desconocido.")
+        };
+    }
+
+    [HttpPatch("nodes/{nodeKey}")]
+    [ProducesResponseType(typeof(OrchestrationNodeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<OrchestrationNodeResponse>> UpdateNodeNotes(
+        [FromRoute] int projectId,
+        [FromRoute] string nodeKey,
+        [FromBody] UpdateOrchestrationNodeRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _projectContextService.UpdateNodeNotesAsync(
+            projectId,
+            nodeKey,
+            request.UserNotes,
+            cancellationToken);
+
+        return result.Status switch
+        {
+            UpdateNodeNotesStatus.Updated => Ok(result.Node),
+            UpdateNodeNotesStatus.NotFound => NotFound(),
+            UpdateNodeNotesStatus.Conflict => Conflict(new
+            {
+                message = "El contexto cambió mientras se guardaba la nota del nodo. Reintentá la operación."
+            }),
+            _ => throw new InvalidOperationException("Estado de actualización de nodo desconocido.")
+        };
+    }
+}

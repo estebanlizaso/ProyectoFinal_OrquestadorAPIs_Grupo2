@@ -1,0 +1,29 @@
+@OrquestadorApi_HostAddress = http://localhost:5257
+
+@projectId = 1
+@nodeKey = api-legacy
+@relationId = 23
+@mapVersion = 1
+
+### Guardar solo la aclaración (usar la versión vigente del mapa)
+POST {{OrquestadorApi_HostAddress}}/api/projects/{{projectId}}/context/nodes/{{nodeKey}}/instructions
+Content-Type: application/json
+
+{
+  "userNotes": "Registrar los errores en un archivo de logs separado.",
+  "expectedMapVersion": {{mapVersion}}
+}
+
+### Guardar aclaración y modificar una operación existente
+POST {{OrquestadorApi_HostAddress}}/api/projects/{{projectId}}/context/nodes/{{nodeKey}}/instructions
+Content-Type: application/json
+
+{
+  "userNotes": "Registrar los errores en un archivo de logs separado.",
+  "relationId": {{relationId}},
+  "httpMethod": "POST",
+  "path": "/polizas/consultar",
+  "expectedMapVersion": {{mapVersion}}
+}
+
+###
