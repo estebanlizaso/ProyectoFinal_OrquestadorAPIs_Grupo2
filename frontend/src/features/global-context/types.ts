@@ -64,7 +64,7 @@ export type ProjectContextResponse = {
 }
 
 export type ProjectContextGenerationErrorResponse = {
-  contextId: number
+  contextId: number | null
   message: string
 }
 
