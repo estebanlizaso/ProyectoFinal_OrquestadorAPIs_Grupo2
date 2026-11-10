@@ -26,6 +26,9 @@ public class OrchestrationRelation
     [Column("operation")]
     public string? Operation { get; set; }
 
+    [Column("operation_key")]
+    public string OperationKey { get; private set; } = string.Empty;
+
     [MaxLength(10)]
     [Column("http_method")]
     public string? HttpMethod { get; set; }
