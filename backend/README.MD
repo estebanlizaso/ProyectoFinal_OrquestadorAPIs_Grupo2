@@ -43,9 +43,34 @@ Crea `backend/.env` tomando `.env.example` como referencia. El archivo debe cont
 ```dotenv
 ConnectionStrings__Postgres=Host=localhost;Port=5432;Database=orquestador;Username=postgres;Password=TU_PASSWORD
 GEMINI_API_KEY=TU_API_KEY_DE_GEMINI
+
+# Google Drive (cuenta compartida del grupo)
+DRIVE_ENABLED=true
+DRIVE_ID=1KPuHWKhQi5rLiB9po_je6wYH4Dmn15vu
+CLIENT_DRIVE=....apps.googleusercontent.com
+CLIENT_SECRET_DRIVE=GOCSPX-...
+REFRESH_TOKEN_DRIVE=1//...
 ```
 
 La API key se obtiene desde Google AI Studio. `.env` contiene credenciales y no debe subirse a Git.
+
+### Google Drive (ZIP de arquitectura)
+
+Cuando Drive está habilitado, cada `POST /api/projects/{projectId}/architecture` exitoso arma un ZIP y lo sube a la carpeta `DRIVE_ID` como `project-{projectId}-architecture.zip` (si existe, se reemplaza). El ZIP incluye `nodes.json`, `README.md`, `.env.example` si aplica, y el código por contexto.
+
+Variables del equipo:
+
+| Variable | Qué es |
+|----------|--------|
+| `DRIVE_ID` | Id de la carpeta de Drive |
+| `CLIENT_DRIVE` | OAuth Client ID |
+| `CLIENT_SECRET_DRIVE` | OAuth Client Secret |
+| `REFRESH_TOKEN_DRIVE` | Refresh token de la cuenta compartida |
+| `DRIVE_ENABLED` | `true` / `false` (si faltan, con las 4 de arriba se habilita solo) |
+
+No hace falta `drive-sa.json` ni `client_secret_*.json` en runtime: todo va en el `.env`.
+
+Si la subida falla, la arquitectura igual responde `200` y el error queda en `warnings`.
 
 Si Gemini responde `401 API key not valid`, reemplazá `GEMINI_API_KEY` por una clave válida y reiniciá la API.
 
@@ -431,9 +456,16 @@ Respuesta resumida:
     }
   ],
   "warnings": [],
-  "contextChanged": false
+  "contextChanged": false,
+  "drive": {
+    "fileName": "project-15-architecture.zip",
+    "fileId": "1abc...",
+    "webViewLink": "https://drive.google.com/file/d/1abc.../view"
+  }
 }
 ```
+
+`drive` es `null` cuando la integración está deshabilitada o la subida falla (en ese caso el fallo se informa en `warnings`).
 
 Códigos:
 
