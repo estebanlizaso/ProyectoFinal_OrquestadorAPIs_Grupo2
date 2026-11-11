@@ -71,7 +71,7 @@ psql postgres -c "ALTER ROLE postgres WITH PASSWORD 'TU_PASSWORD';"
 
 Si el usuario o la base ya existen, no vuelvas a crearlos.
 
-Crea `backend/.env` tomando `.env.example` como referencia. El archivo debe contener la conexión a PostgreSQL y la API key de Gemini, sin comandos ni texto adicional:
+Crea `backend/.env` tomando `.env.example` como referencia. El archivo debe contener la conexión a PostgreSQL y las credenciales del proveedor de IA activo, sin comandos ni texto adicional:
 
 ```dotenv
 ConnectionStrings__Postgres=Host=localhost;Port=5432;Database=orquestador;Username=postgres;Password=TU_PASSWORD
@@ -81,6 +81,55 @@ GEMINI_API_KEY=TU_API_KEY_DE_GEMINI
 La API key se obtiene desde Google AI Studio. `.env` contiene credenciales y no debe subirse a Git.
 
 Si Gemini responde `401 API key not valid`, reemplazá `GEMINI_API_KEY` por una clave válida y reiniciá la API.
+
+### Proveedor de IA (Gemini o BDT)
+
+El backend usa el proveedor predeterminado elegido con `AI:Provider` (por defecto `Gemini`) si la solicitud no indica otro. Para usar BDT (API compatible con OpenAI, `POST {BDT_API_URL}/chat/completions`), agregá a `.env`:
+
+```dotenv
+AI__Provider=Bdt
+BDT_API_URL=https://URL_DE_BDT/v1
+BDT_API_KEY=TU_API_KEY_DE_BDT
+BDT_MODEL=qwen-rapido
+```
+
+| Variable / setting | Descripción |
+|---|---|
+| `AI__Provider` | `Gemini` (por defecto) o `Bdt`. |
+| `BDT_API_URL`, `BDT_API_KEY` | URL base (incluye `/v1`) y API key de BDT. Obligatorias si el proveedor es `Bdt`. |
+| `BDT_MODEL` | Modelo de BDT. Por defecto `AI:Bdt:Model` (`qwen-rapido`); también existe `qwen-maximo`. |
+| `AI:Bdt:ResponseFormat` | `json_schema` (por defecto, envía el contrato al modelo) o `json_object` (solo exige JSON válido). |
+| `AI:Bdt:MaxTokens` | Límite opcional de tokens de salida. Sin definir, lo decide el servidor. Un valor bajo puede dejar vacía la respuesta de `qwen-maximo`, que gasta tokens razonando. |
+| `AI:TimeoutSeconds`, `AI:ArchitectureTimeoutSeconds` | Timeouts por solicitud. `qwen-rapido` responde en unos 15 s; `qwen-maximo` puede tardar cerca de 2 minutos, por lo que conviene subirlos (por ejemplo `AI__TimeoutSeconds=240`). |
+
+Al iniciar, la API valida el nombre del proveedor predeterminado y los timeouts.
+Un proveedor sin configuración completa no aparece en el catálogo, pero no
+impide que arranque el backend. Si el proveedor predeterminado no está
+disponible, las solicitudes sin selección reciben un error explícito.
+
+### Selección de IA por solicitud
+
+`GET /api/ai/models` devuelve los proveedores configurados, sus modelos y
+`defaultSelection` (o `null` si el predeterminado no está disponible). El
+catálogo no incluye claves ni URL y no comprueba si el servicio está en línea.
+
+Los endpoints `POST /api/projects/{projectId}/context` y
+`POST /api/projects/{projectId}/architecture` aceptan opcionalmente:
+
+```json
+{
+  "aiSelection": { "provider": "Bdt", "model": "qwen-rapido" }
+}
+```
+
+En el chat también se debe enviar `prompt`; en arquitectura se puede enviar
+`language` como hasta ahora. Para Gemini, enviar
+`"aiSelection": { "provider": "Gemini" }` usa el modelo configurado. BDT
+admite `qwen-rapido` y `qwen-maximo`. Una selección inválida o no configurada
+devuelve `400` antes de modificar el contexto. Omitir `aiSelection` conserva
+el proveedor y modelo predeterminados. La selección no se guarda en el
+proyecto y debe enviarse en cada operación; no existe fallback automático.
+Los mensajes de error `502` indican qué proveedor falló.
 
 ## Migraciones
 
@@ -250,7 +299,7 @@ Códigos:
 - `400 Bad Request`: body inválido.
 - `404 Not Found`: el proyecto no existe.
 - `409 Conflict`: el contexto cambió durante la planificación; hay que reenviar el mensaje.
-- `502 Bad Gateway`: falló Gemini. El `message` distingue rate limit/cuota, mensaje demasiado largo para el contexto del modelo y otros errores. La memoria y el mapa anteriores se conservan.
+- `502 Bad Gateway`: falló el proveedor de IA. El `message` distingue rate limit/cuota, mensaje demasiado largo para el contexto del modelo y otros errores. La memoria y el mapa anteriores se conservan.
 
 El contexto inicial y su `initialPrompt` se guardan únicamente después de generar
 y validar el plan y el resumen. Contexto, nodos, relaciones y metadatos se confirman
@@ -342,7 +391,7 @@ Devuelve únicamente el pedido inicial del proyecto. Sirve para la opción de co
 }
 ```
 
-Códigos: `200` si el proyecto tiene contexto, `404` si el proyecto o el contexto no existen. No llama a Gemini ni modifica datos.
+Códigos: `200` si el proyecto tiene contexto, `404` si el proyecto o el contexto no existen. No llama a IA ni modifica datos.
 
 ### `PATCH /api/projects/{projectId}/context/nodes/{nodeKey}`
 
@@ -359,7 +408,7 @@ Códigos: `200` con el nodo actualizado, `404` si el nodo no existe o está inac
 ### `POST /api/projects/{projectId}/context/nodes/{nodeKey}/instructions`
 
 Guarda la aclaración vigente del nodo y, opcionalmente, cambia el método y la ruta
-de una relación identificada explícitamente. No llama a Gemini ni genera código.
+de una relación identificada explícitamente. No llama a IA ni genera código.
 
 Solo nota:
 
@@ -415,7 +464,7 @@ las operaciones explícitas se envían al generador y prevalecen sobre referenci
 antiguas de esos textos, sin reemplazar las restricciones de seguridad y alcance.
 Se aplican en la siguiente generación, no sobre código ya devuelto.
 
-Pruebas del backend (SQLite en memoria, sin usar la base configurada ni Gemini):
+Pruebas del backend (SQLite en memoria, sin usar la base configurada ni proveedores de IA reales):
 
 ```bash
 dotnet test ../backend.Tests/OrquestadorApi.Tests.csproj
@@ -475,7 +524,7 @@ Códigos:
 - `404 Not Found`: el proyecto no existe o no tiene contexto.
 - `409 Conflict`: no hay nodos `kind=system`.
 - `422 Unprocessable Entity`: se superó un límite del MVP.
-- `502 Bad Gateway`: falló Gemini o devolvió un contrato inválido.
+- `502 Bad Gateway`: falló el proveedor de IA o devolvió un contrato inválido.
 
 Si `contextChanged` es `true`, el mapa cambió mientras se generaba el código. Hay que revisar el resultado o volver a generar la arquitectura.
 

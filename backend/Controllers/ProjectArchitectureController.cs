@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using OrquestadorApi.DTOs;
 using OrquestadorApi.Services.Architecture;
+using OrquestadorApi.Services.AI;
 
 namespace OrquestadorApi.Controllers;
 
@@ -10,10 +11,12 @@ namespace OrquestadorApi.Controllers;
 public class ProjectArchitectureController : ControllerBase
 {
     private readonly IArchitectureService _architectureService;
+    private readonly IAiSelectionService _aiSelection;
 
-    public ProjectArchitectureController(IArchitectureService architectureService)
+    public ProjectArchitectureController(IArchitectureService architectureService, IAiSelectionService aiSelection)
     {
         _architectureService = architectureService;
+        _aiSelection = aiSelection;
     }
 
     [HttpPost]
@@ -28,6 +31,12 @@ public class ProjectArchitectureController : ControllerBase
         [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] GenerateArchitectureRequest? request,
         CancellationToken cancellationToken)
     {
+        var selectionError = _aiSelection.Select(request?.AiSelection);
+        if (selectionError is not null)
+        {
+            return BadRequest(new { message = selectionError });
+        }
+
         var result = await _architectureService.GenerateAsync(
             projectId,
             request?.Language,
