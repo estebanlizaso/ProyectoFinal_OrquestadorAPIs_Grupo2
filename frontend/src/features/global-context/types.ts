@@ -68,6 +68,24 @@ export type ProjectContextGenerationErrorResponse = {
   message: string
 }
 
+export type ProjectMessageChatBotResponse = {
+  message: string
+  status: string
+  summary: string
+  questions: string[]
+  plan: string[]
+  assumptions: string[]
+  language: string | null
+}
+
+export type ProjectMessageResponse = {
+  id: number
+  projectId: number
+  humanQuestion: string
+  chatBot: ProjectMessageChatBotResponse
+  createdAt: string
+}
+
 export type InitialProjectPromptResponse = {
   initialPrompt: string
 }

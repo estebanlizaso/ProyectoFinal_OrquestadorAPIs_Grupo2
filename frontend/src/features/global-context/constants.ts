@@ -15,6 +15,9 @@ export const CONTEXT_CHAT_TEXTS = {
   goalEmpty: 'Contale a la IA qué tiene que resolver esta orquestación.',
   errorTitle: 'No se pudo generar el contexto',
   rejectedTitle: 'La IA no puede ayudarte con esto',
+  historyLoading: 'Cargando conversación…',
+  historyError: 'No se pudo cargar la conversación.',
+  historyRetry: 'Reintentar',
 }
 
 export const PROMPT_COMPOSER_TEXTS = {
