@@ -188,6 +188,12 @@ namespace OrquestadorApi.Migrations
                         .HasColumnType("text")
                         .HasColumnName("description");
 
+                    b.Property<int>("LastReachedStage")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("last_reached_stage");
+
                     b.Property<string>("ProjectName")
                         .IsRequired()
                         .HasColumnType("text")
@@ -206,7 +212,10 @@ namespace OrquestadorApi.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_projects_project_name_normalized");
 
-                    b.ToTable("projects");
+                    b.ToTable("projects", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_projects_last_reached_stage", "last_reached_stage IN (0, 1, 2)");
+                        });
                 });
 
             modelBuilder.Entity("OrquestadorApi.Models.ProjectContext", b =>

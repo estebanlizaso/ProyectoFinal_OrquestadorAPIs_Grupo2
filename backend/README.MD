@@ -41,6 +41,44 @@ una iteración posterior. Tampoco cambia el contexto enviado al modelo.
 Cada POST exitoso agrega un intercambio: reenviar manualmente el mismo mensaje
 crea otra fila; no hay deduplicación por contenido ni claves de idempotencia.
 
+## Retomar la última etapa alcanzada
+
+El avance pertenece al proyecto, no a la sesión ni al usuario. Las etapas, en
+orden, son `context`, `architecture` y `generation`. Los proyectos nuevos y los
+existentes comienzan en `context` al aplicar la migración `AddProjectProgress`.
+La migración se aplica al iniciar la API, igual que las demás.
+
+Al avanzar de etapa, el frontend envía:
+
+```http
+PATCH /api/projects/42/progress
+Content-Type: application/json
+
+{ "stage": "architecture" }
+```
+
+Devuelve `200` con `{ "stage": "architecture" }`. Solo admite los tres valores
+exactos en minúsculas; un cuerpo inválido devuelve `400` y un proyecto inexistente,
+`404`. Repetir una etapa o enviar una anterior devuelve `200` con la etapa actual,
+sin retroceder ni reescribir el avance. La actualización condicional es atómica
+incluso ante peticiones concurrentes. Se puede avanzar directamente a una etapa
+posterior: este endpoint registra navegación, no valida la finalización de tareas
+ni implica que se haya generado código.
+
+Al hacer clic en **Abrir flujo**:
+
+```http
+GET /api/projects/42/progress
+```
+
+Devuelve `200` con `{ "stage": "architecture" }` (o `404` si no existe). El frontend
+resuelve la ruta: `context` → `/projects/42/context`, `architecture` →
+`/projects/42/architecture`, `generation` → `/projects/42/generation`.
+Volver a una pantalla anterior no cambia la última etapa alcanzada. No se guarda
+una URL ni se modifica el contrato del listado de proyectos. Los GET de progreso
+e historial pueden ejecutarse en paralelo. Si el GET debe reflejar un PATCH recién
+enviado, esperar primero la respuesta del PATCH, que ya incluye la etapa actual.
+
 ## Requisitos
 
 - .NET 10 SDK

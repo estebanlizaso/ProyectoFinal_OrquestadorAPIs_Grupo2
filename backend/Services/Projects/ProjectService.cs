@@ -101,4 +101,46 @@ public class ProjectService : IProjectService
 
         return true;
     }
+
+    public async Task<ProjectProgressResponse?> GetProgressAsync(
+        int projectId,
+        CancellationToken cancellationToken = default)
+    {
+        var stage = await _dbContext.Projects
+            .AsNoTracking()
+            .Where(project => project.ProjectId == projectId)
+            .Select(project => (ProjectStage?)project.LastReachedStage)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return stage is null ? null : new ProjectProgressResponse(stage.Value switch
+        {
+            ProjectStage.Context => "context",
+            ProjectStage.Architecture => "architecture",
+            ProjectStage.Generation => "generation",
+            _ => throw new InvalidOperationException("Etapa de proyecto desconocida.")
+        });
+    }
+
+    public async Task<ProjectProgressResponse?> AdvanceProgressAsync(
+        int projectId,
+        string stage,
+        CancellationToken cancellationToken = default)
+    {
+        var requestedStage = stage switch
+        {
+            "context" => ProjectStage.Context,
+            "architecture" => ProjectStage.Architecture,
+            "generation" => ProjectStage.Generation,
+            _ => throw new ArgumentException("Etapa de proyecto inválida.", nameof(stage))
+        };
+
+        // Compare and update in one SQL statement: concurrent requests cannot regress progress.
+        await _dbContext.Projects
+            .Where(project => project.ProjectId == projectId &&
+                (int)project.LastReachedStage < (int)requestedStage)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(project => project.LastReachedStage, requestedStage), cancellationToken);
+
+        return await GetProgressAsync(projectId, cancellationToken);
+    }
 }

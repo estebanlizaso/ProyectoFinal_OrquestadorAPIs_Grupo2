@@ -37,6 +37,23 @@ public sealed class PostgresTheoryAttribute : TheoryAttribute
 
 public sealed class PostgresContextIntegrationTests(PostgresFixture fixture) : IClassFixture<PostgresFixture>
 {
+    [PostgresFact]
+    public async Task ConcurrentProgressUpdatesNeverRegress()
+    {
+        var projectId = await fixture.NewProjectAsync();
+        await using var first = fixture.CreateContext();
+        await using var second = fixture.CreateContext();
+        await Task.WhenAll(
+            new OrquestadorApi.Services.Projects.ProjectService(first)
+                .AdvanceProgressAsync(projectId, "generation"),
+            new OrquestadorApi.Services.Projects.ProjectService(second)
+                .AdvanceProgressAsync(projectId, "architecture"));
+        await using var verify = fixture.CreateContext();
+        var progress = await new OrquestadorApi.Services.Projects.ProjectService(verify)
+            .GetProgressAsync(projectId);
+        Assert.Equal("generation", progress!.Stage);
+    }
+
     private static PlannerAiResponse Plan(params string?[] operations) => new(
         "ready", "Listo", "Stock", [], ["Procesar stock"], [], "python",
         [new("source", "Source", null, "system", "consumer", null, "confirmed"),

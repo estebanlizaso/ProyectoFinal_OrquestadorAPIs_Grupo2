@@ -17,6 +17,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Project>()
+            .Property(project => project.LastReachedStage)
+            .HasDefaultValue(ProjectStage.Context);
+
+        modelBuilder.Entity<Project>()
+            .ToTable("projects", table => table.HasCheckConstraint(
+                "ck_projects_last_reached_stage", "last_reached_stage IN (0, 1, 2)"));
+
         modelBuilder.Entity<ProjectMessage>()
             .HasOne(message => message.Project)
             .WithMany()

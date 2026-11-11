@@ -23,5 +23,8 @@ public class Project
     [Column("description")]
     public string? Description { get; set; }
 
+    [Column("last_reached_stage")]
+    public ProjectStage LastReachedStage { get; set; } = ProjectStage.Context;
+
     public ProjectContext? Context { get; set; }
 }

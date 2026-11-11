@@ -62,6 +62,30 @@ public class ProjectsController : ControllerBase
             page > 1 ? PageLink(page - 1) : null));
     }
 
+    [HttpGet("{projectId:int}/progress")]
+    [ProducesResponseType(typeof(ProjectProgressResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ProjectProgressResponse>> GetProgress(
+        [FromRoute] int projectId,
+        CancellationToken cancellationToken)
+    {
+        var progress = await _projectService.GetProgressAsync(projectId, cancellationToken);
+        return progress is null ? NotFound() : Ok(progress);
+    }
+
+    [HttpPatch("{projectId:int}/progress")]
+    [ProducesResponseType(typeof(ProjectProgressResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ProjectProgressResponse>> AdvanceProgress(
+        [FromRoute] int projectId,
+        [FromBody] UpdateProjectProgressRequest request,
+        CancellationToken cancellationToken)
+    {
+        var progress = await _projectService.AdvanceProgressAsync(projectId, request.Stage, cancellationToken);
+        return progress is null ? NotFound() : Ok(progress);
+    }
+
     [HttpDelete]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
