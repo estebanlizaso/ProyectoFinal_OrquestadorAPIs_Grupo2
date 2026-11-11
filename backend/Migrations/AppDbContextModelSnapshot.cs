@@ -277,6 +277,40 @@ namespace OrquestadorApi.Migrations
                     b.ToTable("contexts");
                 });
 
+            modelBuilder.Entity("OrquestadorApi.Models.ProjectMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ChatBot")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("chat_bot");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("HumanQuestion")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("human_question");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer")
+                        .HasColumnName("project_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CreatedAt", "Id");
+
+                    b.ToTable("project_messages");
+                });
+
             modelBuilder.Entity("OrquestadorApi.Models.OrchestrationNode", b =>
                 {
                     b.HasOne("OrquestadorApi.Models.ProjectContext", "ProjectContext")
@@ -320,6 +354,17 @@ namespace OrquestadorApi.Migrations
                     b.HasOne("OrquestadorApi.Models.Project", "Project")
                         .WithOne("Context")
                         .HasForeignKey("OrquestadorApi.Models.ProjectContext", "ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("OrquestadorApi.Models.ProjectMessage", b =>
+                {
+                    b.HasOne("OrquestadorApi.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

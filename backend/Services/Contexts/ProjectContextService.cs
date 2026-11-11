@@ -30,6 +30,31 @@ public class ProjectContextService : IProjectContextService
         _logger = logger;
     }
 
+    public async Task<IReadOnlyList<ProjectMessageResponse>?> GetMessagesAsync(
+        int projectId,
+        int offset = 0,
+        int limit = 50,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await _dbContext.Projects.AsNoTracking()
+            .AnyAsync(project => project.ProjectId == projectId, cancellationToken))
+        {
+            return null;
+        }
+
+        var messages = await _dbContext.ProjectMessages.AsNoTracking()
+            .Where(message => message.ProjectId == projectId)
+            .OrderBy(message => message.CreatedAt)
+            .ThenBy(message => message.Id)
+            .Skip(offset)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        return messages.Select(message => new ProjectMessageResponse(
+            message.Id, message.ProjectId, message.HumanQuestion,
+            JsonSerializer.Deserialize<JsonElement>(message.ChatBot), message.CreatedAt)).ToList();
+    }
+
     public async Task<ProjectContextResponse?> GetAsync(
         int projectId,
         CancellationToken cancellationToken = default)
@@ -173,7 +198,7 @@ public class ProjectContextService : IProjectContextService
                 // the existing 201 contract, but create its context only after validation.
                 if (contextWasCreated)
                 {
-                    await PersistAsync(projectContext, planner, string.Empty, cancellationToken);
+                    await PersistAsync(projectContext, planner, string.Empty, currentMessage, cancellationToken);
                 }
 
                 var plannerContent = new PlannerContentResponse(
@@ -193,6 +218,12 @@ public class ProjectContextService : IProjectContextService
                     null);
 
                 var activeNodes = previousNodes.Where(node => node.IsActive).ToList();
+
+                if (!contextWasCreated)
+                {
+                    AddMessage(projectId, currentMessage, planner);
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+                }
 
                 return new CreateProjectContextResult(
                     contextWasCreated
@@ -263,6 +294,7 @@ public class ProjectContextService : IProjectContextService
                 projectContext,
                 planner,
                 resumen,
+                currentMessage,
                 cancellationToken);
 
             var nodes = await _dbContext.OrchestrationNodes
@@ -490,10 +522,30 @@ public class ProjectContextService : IProjectContextService
         }
     }
 
+    private void AddMessage(int projectId, string question, NormalizedPlannerResponse planner)
+    {
+        _dbContext.ProjectMessages.Add(new ProjectMessage
+        {
+            ProjectId = projectId,
+            HumanQuestion = question,
+            ChatBot = JsonSerializer.Serialize(new
+            {
+                message = planner.Reply,
+                status = planner.Status,
+                summary = planner.Summary,
+                questions = planner.Questions,
+                plan = planner.Plan,
+                assumptions = planner.Assumptions,
+                language = planner.Language
+            }, JsonSerializerOptions.Web)
+        });
+    }
+
     private async Task<ProjectContext> PersistAsync(
         ProjectContext projectContext,
         NormalizedPlannerResponse planner,
         string resumen,
+        string currentMessage,
         CancellationToken cancellationToken)
     {
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -644,6 +696,8 @@ public class ProjectContextService : IProjectContextService
             projectContext.MapVersion += 1;
             projectContext.UpdatedAt = now;
 
+            // The exchange and the updated map/memory must commit together.
+            AddMessage(projectContext.ProjectId, currentMessage, planner);
             await _dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 

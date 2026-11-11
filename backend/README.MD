@@ -8,6 +8,39 @@ API ASP.NET Core con PostgreSQL y Entity Framework Core. El backend separa la co
 
 El código generado no se persiste en esta etapa.
 
+## Historial de conversación por proyecto
+
+El envío existente `POST /api/projects/{projectId}/context` guarda automáticamente
+una fila por intercambio en `project_messages`, sin `userId`. La pregunta se guarda
+como texto y `chat_bot` como JSONB con `message`, `status`, `summary`, `questions`,
+`plan`, `assumptions` y `language`. Se incluyen respuestas `ready`,
+`needs_clarification` y `out_of_scope`.
+
+Para recuperar el historial:
+
+```http
+GET /api/projects/42/messages?offset=0&limit=50
+```
+
+Devuelve una lista de objetos con `id`, `projectId`, `humanQuestion`, `chatBot`
+(un objeto JSON, no texto serializado) y `createdAt` en UTC, del más antiguo al
+más reciente y con desempate por `id`. `offset` comienza en 0; `limit` vale 50
+por defecto y admite entre 1 y 200. Para continuar, incrementar `offset` por
+la cantidad recibida. Un proyecto sin mensajes devuelve `[]`; uno inexistente,
+`404`. Parámetros de paginación inválidos devuelven `400`.
+
+El intercambio se confirma en la misma transacción que el mapa y la memoria;
+si falla la IA o hay un conflicto, no se agrega una interacción incompleta.
+Las respuestas fuera de alcance se guardan sin modificar el mapa ni la memoria.
+Eliminar un proyecto elimina también su historial.
+
+La migración `AddProjectMessages` crea la tabla y se aplica al iniciar la API,
+igual que las demás migraciones. No importa conversaciones anteriores desde
+`localStorage` ni modifica el frontend: este deberá consumir el endpoint en
+una iteración posterior. Tampoco cambia el contexto enviado al modelo.
+Cada POST exitoso agrega un intercambio: reenviar manualmente el mismo mensaje
+crea otra fila; no hay deduplicación por contenido ni claves de idempotencia.
+
 ## Requisitos
 
 - .NET 10 SDK
