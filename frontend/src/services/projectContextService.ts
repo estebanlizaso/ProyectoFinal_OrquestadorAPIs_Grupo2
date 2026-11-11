@@ -1,16 +1,19 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   CreateProjectContextRequest,
   InitialProjectPromptResponse,
   OrchestrationNodeResponse,
   ProjectContextResponse,
+  ProjectMessageResponse,
   UpdateOrchestrationNodeRequest,
 } from '../features/global-context'
+import { ApiError } from '../shared/api/ApiError'
 import { getJson, patchJson, postJson, type RequestOptions } from '../shared/api/httpClient'
 import type { RequestStatus } from '../shared/api/requestStatus'
 import { toError } from '../shared/lib/toError'
 
 const CREATE_CONTEXT_TIMEOUT_MS = 65_000
+const MESSAGES_PAGE_SIZE = 200
 
 function buildContextPath(projectId: ProjectContextResponse['projectId']): string {
   return `/projects/${projectId}/context`
@@ -49,10 +52,90 @@ async function updateNodeNotes(
   )
 }
 
+async function getMessages(
+  projectId: ProjectContextResponse['projectId'],
+  offset: number,
+  limit: number,
+  options?: RequestOptions,
+): Promise<ProjectMessageResponse[]> {
+  const params = new URLSearchParams({ offset: String(offset), limit: String(limit) })
+  return getJson<ProjectMessageResponse[]>(`/projects/${projectId}/messages?${params.toString()}`, options)
+}
+
+async function getAllMessages(
+  projectId: ProjectContextResponse['projectId'],
+  options?: RequestOptions,
+): Promise<ProjectMessageResponse[]> {
+  const messages: ProjectMessageResponse[] = []
+  let page: ProjectMessageResponse[]
+  do {
+    page = await getMessages(projectId, messages.length, MESSAGES_PAGE_SIZE, options)
+    messages.push(...page)
+  } while (page.length === MESSAGES_PAGE_SIZE)
+  return messages
+}
+
 export const projectContextService = {
   create,
   getInitialPrompt,
+  getAllMessages,
   updateNodeNotes,
+}
+
+export type UseProjectMessagesResult = {
+  messages: ProjectMessageResponse[]
+  run: () => Promise<void>
+  status: RequestStatus
+  error: Error | null
+}
+
+export function useProjectMessages(projectId: ProjectContextResponse['projectId']): UseProjectMessagesResult {
+  const [messages, setMessages] = useState<ProjectMessageResponse[]>([])
+  const [status, setStatus] = useState<RequestStatus>('loading')
+  const [error, setError] = useState<Error | null>(null)
+  const controllerRef = useRef<AbortController | null>(null)
+
+  const handleSuccess = useCallback((result: ProjectMessageResponse[]): void => {
+    setMessages(result)
+    setError(null)
+    setStatus('success')
+  }, [])
+
+  const handleFailure = useCallback((caught: unknown): void => {
+    if (caught instanceof ApiError && caught.kind === 'aborted') {
+      return
+    }
+    setError(toError(caught))
+    setStatus('error')
+  }, [])
+
+  const run = useCallback(async (): Promise<void> => {
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
+    setStatus('loading')
+    setError(null)
+
+    try {
+      const result = await projectContextService.getAllMessages(projectId, { signal: controller.signal })
+      if (controllerRef.current === controller) {
+        handleSuccess(result)
+      }
+    } catch (caught) {
+      if (controllerRef.current === controller) {
+        handleFailure(caught)
+      }
+    }
+  }, [projectId, handleSuccess, handleFailure])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    controllerRef.current = controller
+    projectContextService.getAllMessages(projectId, { signal: controller.signal }).then(handleSuccess, handleFailure)
+    return () => controller.abort()
+  }, [projectId, handleSuccess, handleFailure])
+
+  return { messages, run, status, error }
 }
 
 export type CreateProjectContextOutcome =
