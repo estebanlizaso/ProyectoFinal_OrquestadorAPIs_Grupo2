@@ -1,5 +1,6 @@
 import { useCallback, useState, type ReactNode } from 'react'
-import { useCreateProjectContext } from '../../../services/projectContextService'
+import { AiModelSelector, useAiSelection } from '../../ai-selection'
+import { ContextTimeoutConfigurationError, useCreateProjectContext } from '../../../services/projectContextService'
 import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import type { RequestStatus } from '../../../shared/api/requestStatus'
 import { Card } from '../../../shared/ui/Card'
@@ -36,16 +37,19 @@ export function ContextChatPanel({
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null)
   const [typingTurnIndex, setTypingTurnIndex] = useState<number | null>(null)
   const { run, status } = useCreateProjectContext()
+  const ai = useAiSelection(projectId)
   const handleTypingEnd = useCallback(() => setTypingTurnIndex(null), [])
   const isSending = status === 'loading' || typingTurnIndex !== null
   const isHistoryReady = historyStatus === 'success'
+  const canSend = isHistoryReady && ai.status === 'success' && ai.selection !== null && !isSending
 
   async function handleSubmit(): Promise<void> {
+    if (!canSend || !ai.selection) return
     const prompt = draft.trim()
     setPendingPrompt(prompt)
     setDraft('')
     onSendStart?.()
-    const { context, error } = await run(projectId, prompt)
+    const { context, error } = await run(projectId, prompt, ai.selection)
     setPendingPrompt(null)
     const createdAt = new Date().toISOString()
     if (context?.planner) {
@@ -56,11 +60,11 @@ export function ContextChatPanel({
       )
       return
     }
-    onErrorTurnAdded({
-      prompt,
-      errorMessage: getErrorMessage(error ?? new Error(), GLOBAL_CONTEXT_ERROR_MESSAGES),
-      createdAt,
-    })
+    const errorMessage =
+      error instanceof ContextTimeoutConfigurationError
+        ? 'La configuración del tiempo de espera del chat no es válida. Revisá VITE_AI_CONTEXT_TIMEOUT_MS.'
+        : getErrorMessage(error ?? new Error(), GLOBAL_CONTEXT_ERROR_MESSAGES)
+    onErrorTurnAdded({ prompt, errorMessage, createdAt })
     setDraft(prompt)
   }
 
@@ -82,10 +86,21 @@ export function ContextChatPanel({
         onChange={setDraft}
         onSubmit={() => void handleSubmit()}
         isSending={isSending}
-        isDisabled={!isHistoryReady}
+        disabled={!canSend}
         extraAction={
           isHistoryReady && turns.length === 0 && <PromptExampleButton disabled={isSending} onUse={setDraft} />
         }
+      />
+      <AiModelSelector
+        catalog={ai.catalog}
+        status={ai.status}
+        error={ai.error}
+        retry={ai.retry}
+        selection={ai.selection}
+        onSelect={ai.select}
+        selectionUnavailable={ai.selectionUnavailable}
+        storageUnavailable={ai.storageUnavailable}
+        disabled={isSending}
       />
     </Card>
   )

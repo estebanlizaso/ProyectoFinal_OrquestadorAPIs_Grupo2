@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { AiSelectionRequest } from '../features/ai-selection'
 import type {
   CreateProjectContextRequest,
   InitialProjectPromptResponse,
@@ -12,7 +13,26 @@ import { getJson, patchJson, postJson, type RequestOptions } from '../shared/api
 import type { RequestStatus } from '../shared/api/requestStatus'
 import { toError } from '../shared/lib/toError'
 
-const CREATE_CONTEXT_TIMEOUT_MS = 65_000
+const DEFAULT_CREATE_CONTEXT_TIMEOUT_MS = 300_000
+const MAX_TIMEOUT_MS = 2_147_483_647
+
+export class ContextTimeoutConfigurationError extends Error {
+  constructor() {
+    super('VITE_AI_CONTEXT_TIMEOUT_MS debe ser un entero positivo no mayor a 2147483647.')
+    this.name = 'ContextTimeoutConfigurationError'
+  }
+}
+
+function createContextTimeout(): number {
+  const configured = import.meta.env.VITE_AI_CONTEXT_TIMEOUT_MS
+  if (!configured) return DEFAULT_CREATE_CONTEXT_TIMEOUT_MS
+  const timeout = Number(configured)
+  if (!Number.isSafeInteger(timeout) || timeout <= 0 || timeout > MAX_TIMEOUT_MS) {
+    throw new ContextTimeoutConfigurationError()
+  }
+  return timeout
+}
+
 const MESSAGES_PAGE_SIZE = 200
 
 function buildContextPath(projectId: ProjectContextResponse['projectId']): string {
@@ -22,12 +42,13 @@ function buildContextPath(projectId: ProjectContextResponse['projectId']): strin
 async function create(
   projectId: ProjectContextResponse['projectId'],
   prompt: string,
+  aiSelection: AiSelectionRequest,
   options?: RequestOptions,
 ): Promise<ProjectContextResponse> {
   return postJson<ProjectContextResponse, CreateProjectContextRequest>(
     buildContextPath(projectId),
-    { prompt },
-    { timeoutMs: CREATE_CONTEXT_TIMEOUT_MS, ...options },
+    { prompt, aiSelection },
+    { timeoutMs: createContextTimeout(), ...options },
   )
 }
 
@@ -144,7 +165,7 @@ export type CreateProjectContextOutcome =
 
 export type UseCreateProjectContextResult = {
   context: ProjectContextResponse | null
-  run: (projectId: ProjectContextResponse['projectId'], prompt: string) => Promise<CreateProjectContextOutcome>
+  run: (projectId: ProjectContextResponse['projectId'], prompt: string, selection: AiSelectionRequest) => Promise<CreateProjectContextOutcome>
   status: RequestStatus
   error: Error | null
 }
@@ -158,12 +179,13 @@ export function useCreateProjectContext(): UseCreateProjectContextResult {
     async (
       projectId: ProjectContextResponse['projectId'],
       prompt: string,
+      selection: AiSelectionRequest,
     ): Promise<CreateProjectContextOutcome> => {
       setStatus('loading')
       setError(null)
 
       try {
-        const createdContext = await projectContextService.create(projectId, prompt)
+        const createdContext = await projectContextService.create(projectId, prompt, selection)
         setContext(createdContext)
         setStatus('success')
         return { context: createdContext, error: null }

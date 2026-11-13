@@ -8,20 +8,13 @@ export type PromptComposerProps = {
   onChange: (value: string) => void
   onSubmit: () => void
   isSending: boolean
-  isDisabled?: boolean
+  disabled?: boolean
   extraAction?: ReactNode
 }
 
-export function PromptComposer({
-  value,
-  onChange,
-  onSubmit,
-  isSending,
-  isDisabled = false,
-  extraAction,
-}: PromptComposerProps) {
+export function PromptComposer({ value, onChange, onSubmit, isSending, disabled = false, extraAction }: PromptComposerProps) {
   const textareaId = useId()
-  const canSubmit = !isSending && !isDisabled && value.trim() !== ''
+  const canSubmit = !isSending && !disabled && value.trim() !== ''
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
@@ -52,7 +45,7 @@ export function PromptComposer({
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={PROMPT_COMPOSER_TEXTS.placeholder}
-          disabled={isSending || isDisabled}
+          disabled={isSending || disabled}
           rows={1}
           className="field-sizing-content max-h-40 flex-1 resize-none bg-transparent py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
         />

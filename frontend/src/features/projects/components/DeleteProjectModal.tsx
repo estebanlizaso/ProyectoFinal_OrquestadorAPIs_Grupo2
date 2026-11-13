@@ -1,5 +1,6 @@
 import { useDeleteProject } from '../../../services/projectService'
 import { clearContextHistory } from '../../global-context'
+import { clearAiSelection } from '../../ai-selection'
 import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import { Button } from '../../../shared/ui/Button'
 import { Modal } from '../../../shared/ui/Modal'
@@ -21,6 +22,9 @@ export function DeleteProjectModal({ project, onClose, onDeleted }: DeleteProjec
     const wasDeleted = await run(project.projectId)
     if (wasDeleted) {
       clearContextHistory(project.projectId)
+      if (!clearAiSelection(project.projectId)) {
+        console.warn('No se pudo eliminar la selección de IA de la sesión.')
+      }
       onDeleted()
     }
   }
