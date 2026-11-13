@@ -54,9 +54,34 @@ REFRESH_TOKEN_DRIVE=1//...
 
 La API key se obtiene desde Google AI Studio. `.env` contiene credenciales y no debe subirse a Git.
 
-### Google Drive (ZIP de arquitectura)
+### Google Drive (paquete de arquitectura)
 
-Cuando Drive está habilitado, cada `POST /api/projects/{projectId}/architecture` exitoso arma un ZIP y lo sube a la carpeta `DRIVE_ID` como `project-{projectId}-architecture.zip` (si existe, se reemplaza). El ZIP incluye `nodes.json`, `README.md`, `.env.example` si aplica, y el código por contexto.
+Cuando Drive está habilitado, cada `POST /api/projects/{projectId}/architecture` exitoso crea o reutiliza una carpeta con el **nombre del proyecto** dentro de `DRIVE_ID` y sube ahí:
+
+```
+DRIVE_ID/
+  {Nombre del proyecto}/
+    architecture.zip          # paquete completo (se reemplaza si ya existe)
+    postman_collection.json   # collection importable en Postman
+    api-legacy.py             # código por nodo system
+    otro-sistema.py
+```
+
+El ZIP incluye `nodes.json`, `README.md`, `postman_collection.json`, `.env.example` si aplica, y el código por contexto.
+
+La respuesta de architecture también incluye `postmanCollection` (formato Postman Collection v2.1):
+una carpeta por nodo destino con requests armados desde las relaciones que tienen `httpMethod` + `path`.
+
+La respuesta incluye links de acción para el front:
+
+- `goToDrive` → URL de la carpeta del proyecto en Google Drive
+- `downloadFile` → `GET /api/projects/{projectId}/architecture/package` (ZIP)
+- `downloadPostmanCollection` → `GET /api/projects/{projectId}/architecture/postman-collection`
+
+Descargas:
+
+- `GET /api/projects/{projectId}/architecture/package` → ZIP completo
+- `GET /api/projects/{projectId}/architecture/postman-collection` → collection Postman
 
 Variables del equipo:
 
@@ -70,7 +95,7 @@ Variables del equipo:
 
 No hace falta `drive-sa.json` ni `client_secret_*.json` en runtime: todo va en el `.env`.
 
-Si la subida falla, la arquitectura igual responde `200` y el error queda en `warnings`.
+Si la subida a Drive falla, architecture responde error (`502` / `503`) y no `200`.
 
 Si Gemini responde `401 API key not valid`, reemplazá `GEMINI_API_KEY` por una clave válida y reiniciá la API.
 
@@ -422,25 +447,59 @@ Respuesta resumida:
   "warnings": [],
   "contextChanged": false,
   "drive": {
-    "fileName": "project-15-architecture.zip",
+    "fileName": "architecture.zip",
     "fileId": "1abc...",
-    "webViewLink": "https://drive.google.com/file/d/1abc.../view"
-  }
+    "webViewLink": "https://drive.google.com/file/d/1abc.../view",
+    "folderId": "1folder...",
+    "folderName": "Orquestador de pagos",
+    "folderWebViewLink": "https://drive.google.com/drive/folders/1folder..."
+  },
+  "postmanCollection": {
+    "info": {
+      "name": "Proyecto 15 - Orquestador de pagos",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [],
+    "variable": [
+      { "key": "baseUrl", "value": "https://example.test", "type": "string" }
+    ]
+  },
+  "goToDrive": "https://drive.google.com/drive/folders/1folder...",
+  "downloadFile": "/api/projects/15/architecture/package",
+  "downloadPostmanCollection": "/api/projects/15/architecture/postman-collection"
 }
 ```
 
-`drive` es `null` cuando la integración está deshabilitada o la subida falla (en ese caso el fallo se informa en `warnings`).
+Con `200`, `drive` / `goToDrive` / `downloadFile` / `downloadPostmanCollection` vienen poblados.
+
+`postmanCollection` también viene inline; para bajarla desde Drive usá `downloadPostmanCollection`.
 
 Códigos:
 
-- `200 OK`: arquitectura generada.
+- `200 OK`: arquitectura generada y subida a Drive.
 - `400 Bad Request`: lenguaje inválido.
 - `404 Not Found`: el proyecto no existe o no tiene contexto.
 - `409 Conflict`: no hay nodos `kind=system`.
 - `422 Unprocessable Entity`: se superó un límite del MVP.
-- `502 Bad Gateway`: falló Gemini o devolvió un contrato inválido.
+- `502 Bad Gateway`: falló Gemini o falló la subida a Drive.
+- `503 Service Unavailable`: Drive no está configurado.
 
 Si `contextChanged` es `true`, el mapa cambió mientras se generaba el código. Hay que revisar el resultado o volver a generar la arquitectura.
+
+### `GET /api/projects/{projectId}/architecture/package`
+
+Descarga el ZIP completo desde la carpeta del proyecto en Drive.
+
+### `GET /api/projects/{projectId}/architecture/postman-collection`
+
+Descarga `postman_collection.json` desde Drive.
+
+Códigos de descarga:
+
+- `200 OK`: archivo binario / texto.
+- `404 Not Found`: no hay proyecto, carpeta o artefacto en Drive.
+- `502 Bad Gateway`: falló la lectura en Drive.
+- `503 Service Unavailable`: Drive no está configurado.
 
 ## Límites del MVP
 

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ public class ArchitectureService : IArchitectureService
     private readonly AppDbContext _dbContext;
     private readonly IAiProvider _aiProvider;
     private readonly IArchitecturePackageBuilder _packageBuilder;
+    private readonly IPostmanCollectionBuilder _postmanCollectionBuilder;
     private readonly IDriveStorage _driveStorage;
     private readonly OrchestrationOptions _options;
     private readonly ILogger<ArchitectureService> _logger;
@@ -29,6 +31,7 @@ public class ArchitectureService : IArchitectureService
         AppDbContext dbContext,
         IAiProvider aiProvider,
         IArchitecturePackageBuilder packageBuilder,
+        IPostmanCollectionBuilder postmanCollectionBuilder,
         IDriveStorage driveStorage,
         IOptions<OrchestrationOptions> options,
         ILogger<ArchitectureService> logger)
@@ -36,6 +39,7 @@ public class ArchitectureService : IArchitectureService
         _dbContext = dbContext;
         _aiProvider = aiProvider;
         _packageBuilder = packageBuilder;
+        _postmanCollectionBuilder = postmanCollectionBuilder;
         _driveStorage = driveStorage;
         _options = options.Value;
         _logger = logger;
@@ -46,6 +50,15 @@ public class ArchitectureService : IArchitectureService
         string? language,
         CancellationToken cancellationToken = default)
     {
+        var project = await _dbContext.Projects
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.ProjectId == projectId, cancellationToken);
+
+        if (project is null)
+        {
+            return new GenerateArchitectureResult(GenerateArchitectureStatus.NotFound);
+        }
+
         var projectContext = await _dbContext.Contexts
             .AsNoTracking()
             .SingleOrDefaultAsync(context => context.ProjectId == projectId, cancellationToken);
@@ -296,6 +309,7 @@ public class ArchitectureService : IArchitectureService
                     "Revisá el resultado o generá la arquitectura nuevamente.");
             }
 
+            var map = ProjectContextMapper.ToResponse(projectContext, nodes, relations);
             var architecture = new ArchitectureResponse(
                 projectContext.ContextId,
                 projectContext.ProjectId,
@@ -308,20 +322,50 @@ public class ArchitectureService : IArchitectureService
                 warnings,
                 contextChanged);
 
-            var map = ProjectContextMapper.ToResponse(projectContext, nodes, relations);
-            var driveArtifact = await TryUploadArchitecturePackageAsync(
+            var postmanCollection = _postmanCollectionBuilder.Build(
+                project.ProjectName,
+                architecture,
+                map.Nodes,
+                map.Relations);
+
+            architecture = architecture with { PostmanCollection = postmanCollection };
+
+            if (!_driveStorage.IsEnabled)
+            {
+                return new GenerateArchitectureResult(
+                    GenerateArchitectureStatus.DriveDisabled,
+                    Message: "Google Drive no está configurado.");
+            }
+
+            var driveUpload = await TryUploadArchitecturePackageAsync(
+                project.ProjectName,
                 architecture,
                 map.Nodes,
                 map.Relations,
                 warnings,
                 cancellationToken);
 
+            if (driveUpload.Drive is null)
+            {
+                return new GenerateArchitectureResult(
+                    GenerateArchitectureStatus.DriveFailed,
+                    Message: driveUpload.ErrorMessage ??
+                        (warnings.Count > 0
+                            ? warnings[^1]
+                            : "No se pudo subir el paquete a Google Drive."));
+            }
+
             return new GenerateArchitectureResult(
                 GenerateArchitectureStatus.Success,
                 architecture with
                 {
                     Warnings = warnings,
-                    Drive = driveArtifact
+                    Drive = driveUpload.Drive,
+                    PostmanCollection = postmanCollection,
+                    GoToDrive = driveUpload.Drive.FolderWebViewLink,
+                    DownloadFile = $"/api/projects/{projectId}/architecture/package",
+                    DownloadPostmanCollection =
+                        $"/api/projects/{projectId}/architecture/postman-collection"
                 });
         }
         catch (AiProviderException exception)
@@ -338,43 +382,234 @@ public class ArchitectureService : IArchitectureService
         }
     }
 
-    private async Task<ArchitectureDriveArtifactResponse?> TryUploadArchitecturePackageAsync(
+    public async Task<DownloadArchitectureArtifactResult> DownloadPackageAsync(
+        int projectId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await ProjectExistsAsync(projectId, cancellationToken))
+        {
+            return new DownloadArchitectureArtifactResult(DownloadArchitectureStatus.NotFound);
+        }
+
+        if (!_driveStorage.IsEnabled)
+        {
+            return new DownloadArchitectureArtifactResult(
+                DownloadArchitectureStatus.DriveDisabled,
+                Message: "Google Drive no está configurado.");
+        }
+
+        try
+        {
+            var folder = await ResolveProjectFolderAsync(projectId, cancellationToken);
+            if (folder is null)
+            {
+                return new DownloadArchitectureArtifactResult(
+                    DownloadArchitectureStatus.NotFound,
+                    Message: "Todavía no hay un paquete de arquitectura subido para este proyecto.");
+            }
+
+            var zipName = _packageBuilder.BuildFileName();
+            var download = await _driveStorage.DownloadFileByNameAsync(
+                zipName,
+                folder.FolderId,
+                cancellationToken);
+
+            if (download is null)
+            {
+                return new DownloadArchitectureArtifactResult(
+                    DownloadArchitectureStatus.NotFound,
+                    Message: "No se encontró el ZIP de arquitectura en Google Drive.");
+            }
+
+            return new DownloadArchitectureArtifactResult(
+                DownloadArchitectureStatus.Success,
+                download.FileName,
+                ZipMimeType,
+                download.Content);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogError(
+                exception,
+                "No se pudo descargar el ZIP de arquitectura del proyecto {ProjectId}.",
+                projectId);
+
+            return new DownloadArchitectureArtifactResult(
+                DownloadArchitectureStatus.DriveFailed,
+                Message: "No se pudo descargar el ZIP desde Google Drive.");
+        }
+    }
+
+    public async Task<DownloadArchitectureArtifactResult> DownloadPostmanCollectionAsync(
+        int projectId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await ProjectExistsAsync(projectId, cancellationToken))
+        {
+            return new DownloadArchitectureArtifactResult(DownloadArchitectureStatus.NotFound);
+        }
+
+        if (!_driveStorage.IsEnabled)
+        {
+            return new DownloadArchitectureArtifactResult(
+                DownloadArchitectureStatus.DriveDisabled,
+                Message: "Google Drive no está configurado.");
+        }
+
+        try
+        {
+            var folder = await ResolveProjectFolderAsync(projectId, cancellationToken);
+            if (folder is null)
+            {
+                return new DownloadArchitectureArtifactResult(
+                    DownloadArchitectureStatus.NotFound,
+                    Message: "Todavía no hay un paquete de arquitectura subido para este proyecto.");
+            }
+
+            var fileName = _postmanCollectionBuilder.BuildFileName();
+            var download = await _driveStorage.DownloadFileByNameAsync(
+                fileName,
+                folder.FolderId,
+                cancellationToken);
+
+            if (download is null)
+            {
+                return new DownloadArchitectureArtifactResult(
+                    DownloadArchitectureStatus.NotFound,
+                    Message: "No se encontró la collection de Postman en Google Drive.");
+            }
+
+            return new DownloadArchitectureArtifactResult(
+                DownloadArchitectureStatus.Success,
+                download.FileName,
+                "application/json",
+                download.Content);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogError(
+                exception,
+                "No se pudo descargar la collection de Postman del proyecto {ProjectId}.",
+                projectId);
+
+            return new DownloadArchitectureArtifactResult(
+                DownloadArchitectureStatus.DriveFailed,
+                Message: "No se pudo descargar la collection de Postman desde Google Drive.");
+        }
+    }
+
+    private async Task<ArchitectureDriveUploadResult> TryUploadArchitecturePackageAsync(
+        string projectName,
         ArchitectureResponse architecture,
         IReadOnlyList<OrchestrationNodeResponse> nodes,
         IReadOnlyList<OrchestrationRelationResponse> relations,
         List<string> warnings,
         CancellationToken cancellationToken)
     {
-        if (!_driveStorage.IsEnabled)
-        {
-            return null;
-        }
-
         try
         {
-            var fileName = _packageBuilder.BuildFileName(architecture.ProjectId);
-            var zipBytes = _packageBuilder.BuildZip(architecture, nodes, relations);
-            await using var stream = new MemoryStream(zipBytes);
-            var upload = await _driveStorage.UploadOrReplaceFileAsync(
-                fileName,
-                ZipMimeType,
-                stream,
+            var folderName = _packageBuilder.BuildProjectFolderName(projectName);
+            var folder = await _driveStorage.GetOrCreateFolderAsync(
+                folderName,
+                parentFolderId: null,
                 cancellationToken);
 
-            if (!upload.Succeeded || upload.FileId is null)
+            if (!folder.Succeeded || folder.FolderId is null)
             {
-                warnings.Add(
-                    "La arquitectura se generó, pero no se pudo subir el ZIP a Google Drive" +
-                    (string.IsNullOrWhiteSpace(upload.ErrorMessage)
+                var message =
+                    "No se pudo preparar la carpeta en Google Drive" +
+                    (string.IsNullOrWhiteSpace(folder.ErrorMessage)
                         ? "."
-                        : $": {upload.ErrorMessage}"));
-                return null;
+                        : $": {folder.ErrorMessage}");
+                warnings.Add(message);
+                return new ArchitectureDriveUploadResult(null, message);
             }
 
-            return new ArchitectureDriveArtifactResponse(
-                upload.FileName,
-                upload.FileId,
-                upload.WebViewLink);
+            var zipFileName = _packageBuilder.BuildFileName();
+            var zipBytes = _packageBuilder.BuildZip(
+                architecture,
+                nodes,
+                relations,
+                architecture.PostmanCollection);
+            await using var zipStream = new MemoryStream(zipBytes);
+            var zipUpload = await _driveStorage.UploadOrReplaceFileAsync(
+                zipFileName,
+                ZipMimeType,
+                zipStream,
+                folder.FolderId,
+                cancellationToken);
+
+            if (!zipUpload.Succeeded || zipUpload.FileId is null)
+            {
+                var message =
+                    "No se pudo subir el ZIP a Google Drive" +
+                    (string.IsNullOrWhiteSpace(zipUpload.ErrorMessage)
+                        ? "."
+                        : $": {zipUpload.ErrorMessage}");
+                warnings.Add(message);
+                return new ArchitectureDriveUploadResult(null, message);
+            }
+
+            if (architecture.PostmanCollection is { } postmanCollection &&
+                postmanCollection.ValueKind is not JsonValueKind.Undefined and not JsonValueKind.Null)
+            {
+                var postmanBytes = Encoding.UTF8.GetBytes(postmanCollection.GetRawText());
+                await using var postmanStream = new MemoryStream(postmanBytes);
+                var postmanUpload = await _driveStorage.UploadOrReplaceFileAsync(
+                    _postmanCollectionBuilder.BuildFileName(),
+                    "application/json",
+                    postmanStream,
+                    folder.FolderId,
+                    cancellationToken);
+
+                if (!postmanUpload.Succeeded)
+                {
+                    var message =
+                        "No se pudo subir la collection de Postman a Google Drive" +
+                        (string.IsNullOrWhiteSpace(postmanUpload.ErrorMessage)
+                            ? "."
+                            : $": {postmanUpload.ErrorMessage}");
+                    warnings.Add(message);
+                    return new ArchitectureDriveUploadResult(null, message);
+                }
+            }
+
+            var sourceMimeType = _packageBuilder.ResolveSourceMimeType(architecture.Language);
+
+            foreach (var context in architecture.Contexts)
+            {
+                var sourceFileName = _packageBuilder.BuildSourceFileName(
+                    context.Key,
+                    architecture.Language);
+                var sourceBytes = Encoding.UTF8.GetBytes(NormalizeNewLines(context.Code));
+                await using var sourceStream = new MemoryStream(sourceBytes);
+                var sourceUpload = await _driveStorage.UploadOrReplaceFileAsync(
+                    sourceFileName,
+                    sourceMimeType,
+                    sourceStream,
+                    folder.FolderId,
+                    cancellationToken);
+
+                if (!sourceUpload.Succeeded)
+                {
+                    var message =
+                        $"No se pudo subir el código del nodo '{context.Key}' a Google Drive" +
+                        (string.IsNullOrWhiteSpace(sourceUpload.ErrorMessage)
+                            ? "."
+                            : $": {sourceUpload.ErrorMessage}");
+                    warnings.Add(message);
+                    return new ArchitectureDriveUploadResult(null, message);
+                }
+            }
+
+            return new ArchitectureDriveUploadResult(
+                new ArchitectureDriveArtifactResponse(
+                    zipUpload.FileName,
+                    zipUpload.FileId,
+                    zipUpload.WebViewLink,
+                    folder.FolderId,
+                    folder.FolderName,
+                    folder.WebViewLink));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -383,10 +618,50 @@ public class ArchitectureService : IArchitectureService
                 "Error inesperado al empaquetar o subir la arquitectura del proyecto {ProjectId}.",
                 architecture.ProjectId);
 
-            warnings.Add(
-                "La arquitectura se generó, pero no se pudo subir el ZIP a Google Drive.");
+            const string message = "No se pudo subir el paquete a Google Drive.";
+            warnings.Add(message);
+            return new ArchitectureDriveUploadResult(null, message);
+        }
+    }
+
+    private sealed record ArchitectureDriveUploadResult(
+        ArchitectureDriveArtifactResponse? Drive,
+        string? ErrorMessage = null);
+
+    private async Task<bool> ProjectExistsAsync(int projectId, CancellationToken cancellationToken)
+    {
+        return await _dbContext.Contexts
+            .AsNoTracking()
+            .AnyAsync(context => context.ProjectId == projectId, cancellationToken);
+    }
+
+    private async Task<DriveFolderResult?> ResolveProjectFolderAsync(
+        int projectId,
+        CancellationToken cancellationToken)
+    {
+        var projectName = await _dbContext.Projects
+            .AsNoTracking()
+            .Where(project => project.ProjectId == projectId)
+            .Select(project => project.ProjectName)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(projectName))
+        {
             return null;
         }
+
+        var folderName = _packageBuilder.BuildProjectFolderName(projectName);
+        var folder = await _driveStorage.FindFolderAsync(
+            folderName,
+            parentFolderId: null,
+            cancellationToken);
+
+        if (folder is null || !folder.Succeeded || folder.FolderId is null)
+        {
+            return null;
+        }
+
+        return folder;
     }
 
     private static string? ResolveLanguage(string? languageOverride, string? storedLanguage)
@@ -479,4 +754,7 @@ public class ArchitectureService : IArchitectureService
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
+
+    private static string NormalizeNewLines(string content) =>
+        content.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd() + "\n";
 }

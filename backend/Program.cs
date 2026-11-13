@@ -137,6 +137,7 @@ builder.Services.AddHttpClient<IAiProvider, GeminiAiProvider>((serviceProvider, 
 });
 builder.Services.AddSingleton<IAiRulesProvider, JsonAiRulesProvider>();
 builder.Services.AddSingleton<IArchitecturePackageBuilder, ArchitectureZipBuilder>();
+builder.Services.AddSingleton<IPostmanCollectionBuilder, PostmanCollectionBuilder>();
 builder.Services.AddSingleton<IDriveStorage>(serviceProvider =>
 {
     var driveOptions = serviceProvider.GetRequiredService<IOptions<DriveOptions>>().Value;

@@ -8,6 +8,14 @@ public interface IArchitectureService
         int projectId,
         string? language,
         CancellationToken cancellationToken = default);
+
+    Task<DownloadArchitectureArtifactResult> DownloadPackageAsync(
+        int projectId,
+        CancellationToken cancellationToken = default);
+
+    Task<DownloadArchitectureArtifactResult> DownloadPostmanCollectionAsync(
+        int projectId,
+        CancellationToken cancellationToken = default);
 }
 
 public enum GenerateArchitectureStatus
@@ -18,10 +26,27 @@ public enum GenerateArchitectureStatus
     TooManyContexts,
     LimitExceeded,
     InvalidLanguage,
-    AiProviderFailed
+    AiProviderFailed,
+    DriveDisabled,
+    DriveFailed
 }
 
 public record GenerateArchitectureResult(
     GenerateArchitectureStatus Status,
     ArchitectureResponse? Response = null,
+    string? Message = null);
+
+public enum DownloadArchitectureStatus
+{
+    Success,
+    NotFound,
+    DriveDisabled,
+    DriveFailed
+}
+
+public record DownloadArchitectureArtifactResult(
+    DownloadArchitectureStatus Status,
+    string? FileName = null,
+    string? ContentType = null,
+    byte[]? Content = null,
     string? Message = null);

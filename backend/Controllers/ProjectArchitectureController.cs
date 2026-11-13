@@ -23,6 +23,7 @@ public class ProjectArchitectureController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType(typeof(ArchitectureGenerationErrorResponse), StatusCodes.Status502BadGateway)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<ArchitectureResponse>> Generate(
         [FromRoute] int projectId,
         [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] GenerateArchitectureRequest? request,
@@ -57,7 +58,66 @@ public class ProjectArchitectureController : ControllerBase
                 StatusCodes.Status502BadGateway,
                 new ArchitectureGenerationErrorResponse(
                     result.Message ?? "No se pudo generar la arquitectura.")),
+            GenerateArchitectureStatus.DriveDisabled => StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                new ArchitectureGenerationErrorResponse(
+                    result.Message ?? "Google Drive no está configurado.")),
+            GenerateArchitectureStatus.DriveFailed => StatusCode(
+                StatusCodes.Status502BadGateway,
+                new ArchitectureGenerationErrorResponse(
+                    result.Message ?? "No se pudo subir el paquete a Google Drive.")),
             _ => throw new InvalidOperationException("Estado de generación de arquitectura desconocido.")
+        };
+    }
+
+    [HttpGet("package")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
+    public async Task<IActionResult> DownloadPackage(
+        [FromRoute] int projectId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _architectureService.DownloadPackageAsync(projectId, cancellationToken);
+        return ToDownloadResult(result);
+    }
+
+    [HttpGet("postman-collection")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
+    public async Task<IActionResult> DownloadPostmanCollection(
+        [FromRoute] int projectId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _architectureService.DownloadPostmanCollectionAsync(
+            projectId,
+            cancellationToken);
+
+        return ToDownloadResult(result);
+    }
+
+    private IActionResult ToDownloadResult(DownloadArchitectureArtifactResult result)
+    {
+        return result.Status switch
+        {
+            DownloadArchitectureStatus.Success => File(
+                result.Content!,
+                result.ContentType!,
+                result.FileName),
+            DownloadArchitectureStatus.NotFound => NotFound(new
+            {
+                message = result.Message ?? "No se encontró el artefacto solicitado."
+            }),
+            DownloadArchitectureStatus.DriveDisabled => StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                new { message = result.Message }),
+            DownloadArchitectureStatus.DriveFailed => StatusCode(
+                StatusCodes.Status502BadGateway,
+                new { message = result.Message }),
+            _ => throw new InvalidOperationException("Estado de descarga de arquitectura desconocido.")
         };
     }
 }

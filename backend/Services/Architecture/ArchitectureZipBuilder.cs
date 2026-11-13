@@ -11,18 +11,38 @@ public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
     private static readonly Regex UnsafeFileNameChars =
         new(@"[^A-Za-z0-9._-]+", RegexOptions.Compiled);
 
+    private static readonly Regex UnsafeFolderNameChars =
+        new(@"[\\/:*?""<>|]+", RegexOptions.Compiled);
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true
     };
 
-    public string BuildFileName(int projectId) =>
-        $"project-{projectId}-architecture.zip";
+    public string BuildFileName() => "architecture.zip";
+
+    public string BuildProjectFolderName(string projectName)
+    {
+        var sanitized = UnsafeFolderNameChars
+            .Replace(projectName.Trim(), "-")
+            .Trim(' ', '.', '-');
+
+        return string.IsNullOrWhiteSpace(sanitized) ? "proyecto" : sanitized;
+    }
+
+    public string BuildSourceFileName(string contextKey, string language) =>
+        SanitizeFileName(contextKey) + ResolveExtension(language);
+
+    public string ResolveSourceMimeType(string language) =>
+        string.Equals(language, "dotnet", StringComparison.OrdinalIgnoreCase)
+            ? "text/plain"
+            : "text/x-python";
 
     public byte[] BuildZip(
         ArchitectureResponse architecture,
         IReadOnlyList<OrchestrationNodeResponse> nodes,
-        IReadOnlyList<OrchestrationRelationResponse> relations)
+        IReadOnlyList<OrchestrationRelationResponse> relations,
+        JsonElement? postmanCollection = null)
     {
         using var memory = new MemoryStream();
         using (var archive = new ZipArchive(memory, ZipArchiveMode.Create, leaveOpen: true))
@@ -31,18 +51,26 @@ public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
             WriteEntry(archive, $"{root}/README.md", BuildReadme(architecture));
             WriteEntry(archive, $"{root}/nodes.json", BuildNodesJson(architecture, nodes, relations));
 
+            if (postmanCollection is { } collection &&
+                collection.ValueKind is not JsonValueKind.Undefined and not JsonValueKind.Null)
+            {
+                WriteEntry(
+                    archive,
+                    $"{root}/postman_collection.json",
+                    collection.GetRawText() + "\n");
+            }
+
             if (!string.IsNullOrWhiteSpace(architecture.EnvExample))
             {
                 WriteEntry(archive, $"{root}/.env.example", architecture.EnvExample.TrimEnd() + "\n");
             }
 
-            var extension = ResolveExtension(architecture.Language);
             var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var context in architecture.Contexts)
             {
                 var fileName = EnsureUniqueFileName(
-                    SanitizeFileName(context.Key) + extension,
+                    BuildSourceFileName(context.Key, architecture.Language),
                     usedNames);
                 WriteEntry(archive, $"{root}/{fileName}", NormalizeNewLines(context.Code));
             }
@@ -86,6 +114,7 @@ public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
         builder.AppendLine($"- Versión del mapa: `{architecture.MapVersion}`");
         builder.AppendLine($"- Generado: `{architecture.GeneratedAt:O}`");
         builder.AppendLine("- Mapa de orquestación: `nodes.json`");
+        builder.AppendLine("- Collection Postman: `postman_collection.json`");
         builder.AppendLine();
         builder.AppendLine("## Resumen");
         builder.AppendLine();

@@ -12,6 +12,7 @@ namespace OrquestadorApi.Services.Drive;
 
 public sealed class GoogleDriveStorage : IDriveStorage
 {
+    private const string FolderMimeType = "application/vnd.google-apps.folder";
     private static readonly string[] DriveScopes = [DriveService.Scope.Drive];
 
     private readonly DriveOptions _options;
@@ -30,10 +31,119 @@ public sealed class GoogleDriveStorage : IDriveStorage
 
     public bool IsEnabled => _options.IsConfigured;
 
+    public async Task<DriveFolderResult?> FindFolderAsync(
+        string folderName,
+        string? parentFolderId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsEnabled)
+        {
+            return null;
+        }
+
+        var parentId = ResolveParentFolderId(parentFolderId);
+
+        try
+        {
+            var service = _driveService.Value;
+            var existingFolderId = await FindFileIdInFolderAsync(
+                service,
+                parentId,
+                folderName,
+                cancellationToken,
+                FolderMimeType);
+
+            if (existingFolderId is null)
+            {
+                return null;
+            }
+
+            var getRequest = service.Files.Get(existingFolderId);
+            getRequest.Fields = "id, name, webViewLink";
+            getRequest.SupportsAllDrives = true;
+            var existing = await getRequest.ExecuteAsync(cancellationToken);
+
+            return new DriveFolderResult(
+                Succeeded: true,
+                FolderName: existing.Name ?? folderName,
+                FolderId: existing.Id,
+                WebViewLink: existing.WebViewLink);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogError(exception, "No se pudo buscar la carpeta {FolderName}.", folderName);
+            throw;
+        }
+    }
+
+    public async Task<DriveFolderResult> GetOrCreateFolderAsync(
+        string folderName,
+        string? parentFolderId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsEnabled)
+        {
+            return new DriveFolderResult(
+                Succeeded: false,
+                FolderName: folderName,
+                ErrorMessage: "Google Drive no está configurado.");
+        }
+
+        var parentId = ResolveParentFolderId(parentFolderId);
+
+        try
+        {
+            var existing = await FindFolderAsync(folderName, parentId, cancellationToken);
+            if (existing is not null)
+            {
+                return existing;
+            }
+
+            var service = _driveService.Value;
+            var metadata = new DriveFile
+            {
+                Name = folderName,
+                MimeType = FolderMimeType,
+                Parents = [parentId]
+            };
+
+            var createRequest = service.Files.Create(metadata);
+            createRequest.Fields = "id, name, webViewLink";
+            createRequest.SupportsAllDrives = true;
+            var created = await createRequest.ExecuteAsync(cancellationToken);
+
+            if (created?.Id is null)
+            {
+                throw new InvalidOperationException("Drive no devolvió el id de la carpeta creada.");
+            }
+
+            _logger.LogInformation(
+                "Carpeta {FolderName} creada en Drive ({FolderId}).",
+                folderName,
+                created.Id);
+
+            return new DriveFolderResult(
+                Succeeded: true,
+                FolderName: created.Name ?? folderName,
+                FolderId: created.Id,
+                WebViewLink: created.WebViewLink);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogError(exception, "No se pudo crear o resolver la carpeta {FolderName}.", folderName);
+
+            return new DriveFolderResult(
+                Succeeded: false,
+                FolderName: folderName,
+                ErrorMessage: exception.Message);
+        }
+    }
+
     public async Task<DriveUploadResult> UploadOrReplaceFileAsync(
         string fileName,
         string mimeType,
         Stream content,
+        string? parentFolderId = null,
         CancellationToken cancellationToken = default)
     {
         if (!IsEnabled)
@@ -44,14 +154,14 @@ public sealed class GoogleDriveStorage : IDriveStorage
                 ErrorMessage: "Google Drive no está configurado.");
         }
 
-        var rootFolderId = _options.RootFolderId!.Trim();
+        var parentId = ResolveParentFolderId(parentFolderId);
 
         try
         {
             var service = _driveService.Value;
             var existingFileId = await FindFileIdInFolderAsync(
                 service,
-                rootFolderId,
+                parentId,
                 fileName,
                 cancellationToken);
 
@@ -62,7 +172,7 @@ public sealed class GoogleDriveStorage : IDriveStorage
                 var metadata = new DriveFile
                 {
                     Name = fileName,
-                    Parents = [rootFolderId]
+                    Parents = [parentId]
                 };
 
                 var createRequest = service.Files.Create(metadata, content, mimeType);
@@ -79,7 +189,11 @@ public sealed class GoogleDriveStorage : IDriveStorage
                     content.Position = 0;
                 }
 
-                var updateRequest = service.Files.Update(new DriveFile { Name = fileName }, existingFileId, content, mimeType);
+                var updateRequest = service.Files.Update(
+                    new DriveFile { Name = fileName },
+                    existingFileId,
+                    content,
+                    mimeType);
                 updateRequest.Fields = "id, name, webViewLink";
                 updateRequest.SupportsAllDrives = true;
                 var updateProgress = await updateRequest.UploadAsync(cancellationToken);
@@ -112,6 +226,68 @@ public sealed class GoogleDriveStorage : IDriveStorage
                 FileName: fileName,
                 ErrorMessage: exception.Message);
         }
+    }
+
+    public async Task<DriveDownloadResult?> DownloadFileByNameAsync(
+        string fileName,
+        string? parentFolderId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsEnabled)
+        {
+            return null;
+        }
+
+        var parentId = ResolveParentFolderId(parentFolderId);
+
+        try
+        {
+            var service = _driveService.Value;
+            var fileId = await FindFileIdInFolderAsync(
+                service,
+                parentId,
+                fileName,
+                cancellationToken);
+
+            if (fileId is null)
+            {
+                return null;
+            }
+
+            var getRequest = service.Files.Get(fileId);
+            getRequest.Fields = "id, name, mimeType, webViewLink";
+            getRequest.SupportsAllDrives = true;
+            var metadata = await getRequest.ExecuteAsync(cancellationToken);
+
+            await using var memory = new MemoryStream();
+            var downloadRequest = service.Files.Get(fileId);
+            downloadRequest.SupportsAllDrives = true;
+            await downloadRequest.DownloadAsync(memory, cancellationToken);
+
+            return new DriveDownloadResult(
+                FileName: metadata.Name ?? fileName,
+                MimeType: string.IsNullOrWhiteSpace(metadata.MimeType)
+                    ? "application/octet-stream"
+                    : metadata.MimeType,
+                Content: memory.ToArray(),
+                FileId: metadata.Id ?? fileId,
+                WebViewLink: metadata.WebViewLink);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _logger.LogError(exception, "No se pudo descargar {FileName} desde Google Drive.", fileName);
+            throw;
+        }
+    }
+
+    private string ResolveParentFolderId(string? parentFolderId)
+    {
+        if (!string.IsNullOrWhiteSpace(parentFolderId))
+        {
+            return parentFolderId.Trim();
+        }
+
+        return _options.RootFolderId!.Trim();
     }
 
     private DriveService CreateDriveService(string contentRootPath)
@@ -182,11 +358,16 @@ public sealed class GoogleDriveStorage : IDriveStorage
         DriveService service,
         string folderId,
         string fileName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? mimeType = null)
     {
+        var mimeFilter = mimeType is null
+            ? $" and mimeType != '{FolderMimeType}'"
+            : $" and mimeType = '{EscapeDriveQueryValue(mimeType)}'";
+
         var listRequest = service.Files.List();
         listRequest.Q =
-            $"name = '{EscapeDriveQueryValue(fileName)}' and '{folderId}' in parents and trashed = false";
+            $"name = '{EscapeDriveQueryValue(fileName)}' and '{folderId}' in parents and trashed = false{mimeFilter}";
         listRequest.Fields = "files(id, name)";
         listRequest.PageSize = 1;
         listRequest.SupportsAllDrives = true;
