@@ -13,6 +13,8 @@ export type {
   OrchestrationRelationResponse,
   PlannerContentResponse,
   ProjectContextGenerationErrorResponse,
+  ProjectMessageChatBotResponse,
+  ProjectMessageResponse,
   ProjectContextResponse,
   UpdateOrchestrationNodeRequest,
 } from './types'

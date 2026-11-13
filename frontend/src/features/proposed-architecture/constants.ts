@@ -8,6 +8,8 @@ export const PROPOSED_ARCHITECTURE_PAGE_TEXTS = {
 
 export const DIAGRAM_UPDATE_REVEAL_MS = 600
 
+export const PARALLEL_EDGE_SPACING = 240
+
 export const DIAGRAM_TEXTS = {
   start: 'Inicio',
   decision: 'Solicitud',

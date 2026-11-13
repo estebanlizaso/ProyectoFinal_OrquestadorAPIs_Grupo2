@@ -40,6 +40,9 @@ builder.Configuration.AddEnvironmentVariables();
 
 var rawConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Postgres");
 var geminiApiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+var bdtApiKey = Environment.GetEnvironmentVariable("BDT_API_KEY");
+var bdtApiUrl = Environment.GetEnvironmentVariable("BDT_API_URL");
+var bdtModel = Environment.GetEnvironmentVariable("BDT_MODEL");
 
 if (string.IsNullOrWhiteSpace(rawConnectionString))
 {
@@ -81,27 +84,47 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(postgresConnection.ConnectionString));
+builder.Services.AddSingleton<AiOptionsValidator>();
+builder.Services.AddSingleton<IValidateOptions<AiOptions>>(
+    services => services.GetRequiredService<AiOptionsValidator>());
 builder.Services
     .AddOptions<AiOptions>()
     .Bind(builder.Configuration.GetSection(AiOptions.SectionName))
-    .Configure(options => options.ApiKey = geminiApiKey ?? string.Empty)
+    .Configure(options =>
+    {
+        options.Gemini.ApiKey = geminiApiKey ?? string.Empty;
+        options.Bdt.ApiKey = bdtApiKey ?? string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(bdtApiUrl))
+        {
+            options.Bdt.BaseUrl = bdtApiUrl;
+        }
+
+        if (!string.IsNullOrWhiteSpace(bdtModel))
+        {
+            options.Bdt.Model = bdtModel;
+        }
+    })
     .ValidateDataAnnotations()
-    .Validate(
-        options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _),
-        "AI:BaseUrl debe ser una URL absoluta.")
     .ValidateOnStart();
 builder.Services
     .AddOptions<OrchestrationOptions>()
     .Bind(builder.Configuration.GetSection(OrchestrationOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
-builder.Services.AddHttpClient<IAiProvider, GeminiAiProvider>((serviceProvider, client) =>
+
+void ConfigureAiClient(IServiceProvider serviceProvider, HttpClient client)
 {
     var options = serviceProvider.GetRequiredService<IOptions<AiOptions>>().Value;
-    client.BaseAddress = new Uri($"{options.BaseUrl.TrimEnd('/')}/");
     client.Timeout = TimeSpan.FromSeconds(
         Math.Max(options.TimeoutSeconds, options.ArchitectureTimeoutSeconds) + 10);
-});
+}
+
+builder.Services.AddHttpClient(AiOptions.GeminiProvider, ConfigureAiClient);
+builder.Services.AddHttpClient(AiOptions.BdtProvider, ConfigureAiClient);
+builder.Services.AddScoped<AiSelectionService>();
+builder.Services.AddScoped<IAiSelectionService>(services => services.GetRequiredService<AiSelectionService>());
+builder.Services.AddScoped<IAiProvider>(services => services.GetRequiredService<AiSelectionService>());
 builder.Services.AddSingleton<IAiRulesProvider, JsonAiRulesProvider>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IProjectContextService, ProjectContextService>();

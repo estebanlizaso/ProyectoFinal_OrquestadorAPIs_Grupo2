@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using OrquestadorApi.DTOs;
 using OrquestadorApi.Services.Contexts;
+using OrquestadorApi.Services.AI;
 
 namespace OrquestadorApi.Controllers;
 
@@ -9,10 +10,12 @@ namespace OrquestadorApi.Controllers;
 public class ProjectContextsController : ControllerBase
 {
     private readonly IProjectContextService _projectContextService;
+    private readonly IAiSelectionService _aiSelection;
 
-    public ProjectContextsController(IProjectContextService projectContextService)
+    public ProjectContextsController(IProjectContextService projectContextService, IAiSelectionService aiSelection)
     {
         _projectContextService = projectContextService;
+        _aiSelection = aiSelection;
     }
 
     [HttpPost]
@@ -27,6 +30,12 @@ public class ProjectContextsController : ControllerBase
         [FromBody] CreateProjectContextRequest request,
         CancellationToken cancellationToken)
     {
+        var selectionError = _aiSelection.Select(request.AiSelection);
+        if (selectionError is not null)
+        {
+            return BadRequest(new { message = selectionError });
+        }
+
         var result = await _projectContextService.CreateAsync(
             projectId,
             request.Prompt,
@@ -46,9 +55,9 @@ public class ProjectContextsController : ControllerBase
             CreateProjectContextStatus.AiProviderFailed => StatusCode(
                 StatusCodes.Status502BadGateway,
                 new ProjectContextGenerationErrorResponse(
-                    result.ContextId!.Value,
+                    result.ContextId,
                     result.ErrorMessage ??
-                    "No se pudo planificar la orquestación o actualizar el resumen con Gemini. La memoria anterior se conserva; reenviá el mensaje para reintentar.")),
+                    "No se pudo planificar la orquestación o actualizar el resumen con el proveedor de IA. La memoria anterior se conserva; reenviá el mensaje para reintentar.")),
             _ => throw new InvalidOperationException("Estado de creación de contexto desconocido.")
         };
     }

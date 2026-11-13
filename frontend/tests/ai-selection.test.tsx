@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ContextChatPanel } from '../src/features/global-context/components/ContextChatPanel'
+import type { RequestStatus } from '../src/shared/api/requestStatus'
 import { projectContextService } from '../src/services/projectContextService'
 import { isAiModelsResponse, resolveSelection } from '../src/features/ai-selection/selection'
 import type { AiModelsResponse } from '../src/features/ai-selection/types'
@@ -21,8 +22,17 @@ function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
 }
 
-function renderChat(projectId = 1) {
-  return render(<ContextChatPanel projectId={projectId} turns={[]} onTurnAdded={vi.fn()} onErrorTurnAdded={vi.fn()} />)
+function renderChat(projectId = 1, historyStatus: RequestStatus = 'success') {
+  return render(
+    <ContextChatPanel
+      projectId={projectId}
+      turns={[]}
+      historyStatus={historyStatus}
+      onHistoryRetry={vi.fn()}
+      onTurnAdded={vi.fn()}
+      onErrorTurnAdded={vi.fn()}
+    />,
+  )
 }
 
 function option(provider: string, model: string): string {
@@ -152,6 +162,32 @@ describe('catálogo de IA', () => {
 })
 
 describe('envío del chat', () => {
+  it('carga el historial de mensajes por páginas hasta la última página parcial', async () => {
+    const firstPage = Array.from({ length: 200 }, (_, index) => ({ id: index + 1 }))
+    const finalMessage = { id: 201 }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(firstPage))
+      .mockResolvedValueOnce(jsonResponse([finalMessage]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const messages = await projectContextService.getAllMessages(9)
+
+    expect(messages).toHaveLength(201)
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/projects/9/messages?offset=0&limit=200',
+      '/api/projects/9/messages?offset=200&limit=200',
+    ])
+  })
+
+  it('bloquea el envío hasta que el historial esté cargado', async () => {
+    renderChat(1, 'loading')
+    const select = await screen.findByRole('combobox')
+    expect((screen.getByRole('button', { name: 'Enviar' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Objetivo de la orquestación') as HTMLTextAreaElement).disabled).toBe(true)
+    expect(select).toBeTruthy()
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it.each([
     { provider: 'Gemini', model: 'gemini-test' },
     { provider: 'Bdt', model: 'qwen-rapido' },
@@ -177,7 +213,16 @@ describe('envío del chat', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const onErrorTurnAdded = vi.fn()
-    render(<ContextChatPanel projectId={1} turns={[]} onTurnAdded={vi.fn()} onErrorTurnAdded={onErrorTurnAdded} />)
+    render(
+      <ContextChatPanel
+        projectId={1}
+        turns={[]}
+        historyStatus="success"
+        onHistoryRetry={vi.fn()}
+        onTurnAdded={vi.fn()}
+        onErrorTurnAdded={onErrorTurnAdded}
+      />,
+    )
     const select = await screen.findByRole('combobox') as HTMLSelectElement
     await userEvent.selectOptions(select, option('Bdt', 'qwen-maximo'))
     fireEvent.change(screen.getByLabelText('Objetivo de la orquestación'), { target: { value: 'Crear una orquestación' } })
@@ -185,9 +230,9 @@ describe('envío del chat', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(select.disabled).toBe(true)
     finish?.(jsonResponse({ message: 'Error del proveedor' }, 502))
-    await waitFor(() => expect(onErrorTurnAdded).toHaveBeenCalledWith({
+    await waitFor(() => expect(onErrorTurnAdded).toHaveBeenCalledWith(expect.objectContaining({
       prompt: 'Crear una orquestación', errorMessage: 'Error del proveedor',
-    }))
+    })))
     expect((screen.getByLabelText('Objetivo de la orquestación') as HTMLTextAreaElement).value)
       .toBe('Crear una orquestación')
     expect(select.disabled).toBe(false)

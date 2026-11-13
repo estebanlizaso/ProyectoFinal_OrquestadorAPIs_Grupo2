@@ -21,7 +21,7 @@ export function GlobalContextPage({
   onGenerateArchitecture,
   onMapChanged,
 }: GlobalContextPageProps) {
-  const { turns, map, addTurn, addErrorTurn, updateNode } = useContextHistory(projectId)
+  const { turns, map, status, retry, addTurn, addErrorTurn, updateNode } = useContextHistory(projectId)
   const latestAssumptions = findLatestValidTurn(turns)?.planner.assumptions ?? []
   const hasReadyTurn = turns.some((turn) => 'planner' in turn && turn.planner.status === 'ready')
 
@@ -49,6 +49,8 @@ export function GlobalContextPage({
           <ContextChatPanel
             projectId={projectId}
             turns={turns}
+            historyStatus={status}
+            onHistoryRetry={retry}
             onTurnAdded={handleTurnAdded}
             onErrorTurnAdded={addErrorTurn}
           />

@@ -8,6 +8,39 @@ API ASP.NET Core con PostgreSQL y Entity Framework Core. El backend separa la co
 
 El código generado no se persiste en esta etapa.
 
+## Historial de conversación por proyecto
+
+El envío existente `POST /api/projects/{projectId}/context` guarda automáticamente
+una fila por intercambio en `project_messages`, sin `userId`. La pregunta se guarda
+como texto y `chat_bot` como JSONB con `message`, `status`, `summary`, `questions`,
+`plan`, `assumptions` y `language`. Se incluyen respuestas `ready`,
+`needs_clarification` y `out_of_scope`.
+
+Para recuperar el historial:
+
+```http
+GET /api/projects/42/messages?offset=0&limit=50
+```
+
+Devuelve una lista de objetos con `id`, `projectId`, `humanQuestion`, `chatBot`
+(un objeto JSON, no texto serializado) y `createdAt` en UTC, del más antiguo al
+más reciente y con desempate por `id`. `offset` comienza en 0; `limit` vale 50
+por defecto y admite entre 1 y 200. Para continuar, incrementar `offset` por
+la cantidad recibida. Un proyecto sin mensajes devuelve `[]`; uno inexistente,
+`404`. Parámetros de paginación inválidos devuelven `400`.
+
+El intercambio se confirma en la misma transacción que el mapa y la memoria;
+si falla la IA o hay un conflicto, no se agrega una interacción incompleta.
+Las respuestas fuera de alcance se guardan sin modificar el mapa ni la memoria.
+Eliminar un proyecto elimina también su historial.
+
+La migración `AddProjectMessages` crea la tabla y se aplica al iniciar la API,
+igual que las demás migraciones. No importa conversaciones anteriores desde
+`localStorage` ni modifica el frontend: este deberá consumir el endpoint en
+una iteración posterior. Tampoco cambia el contexto enviado al modelo.
+Cada POST exitoso agrega un intercambio: reenviar manualmente el mismo mensaje
+crea otra fila; no hay deduplicación por contenido ni claves de idempotencia.
+
 ## Requisitos
 
 - .NET 10 SDK
@@ -38,7 +71,7 @@ psql postgres -c "ALTER ROLE postgres WITH PASSWORD 'TU_PASSWORD';"
 
 Si el usuario o la base ya existen, no vuelvas a crearlos.
 
-Crea `backend/.env` tomando `.env.example` como referencia. El archivo debe contener la conexión a PostgreSQL y la API key de Gemini, sin comandos ni texto adicional:
+Crea `backend/.env` tomando `.env.example` como referencia. El archivo debe contener la conexión a PostgreSQL y las credenciales del proveedor de IA activo, sin comandos ni texto adicional:
 
 ```dotenv
 ConnectionStrings__Postgres=Host=localhost;Port=5432;Database=orquestador;Username=postgres;Password=TU_PASSWORD
@@ -48,6 +81,55 @@ GEMINI_API_KEY=TU_API_KEY_DE_GEMINI
 La API key se obtiene desde Google AI Studio. `.env` contiene credenciales y no debe subirse a Git.
 
 Si Gemini responde `401 API key not valid`, reemplazá `GEMINI_API_KEY` por una clave válida y reiniciá la API.
+
+### Proveedor de IA (Gemini o BDT)
+
+El backend usa el proveedor predeterminado elegido con `AI:Provider` (por defecto `Gemini`) si la solicitud no indica otro. Para usar BDT (API compatible con OpenAI, `POST {BDT_API_URL}/chat/completions`), agregá a `.env`:
+
+```dotenv
+AI__Provider=Bdt
+BDT_API_URL=https://URL_DE_BDT/v1
+BDT_API_KEY=TU_API_KEY_DE_BDT
+BDT_MODEL=qwen-rapido
+```
+
+| Variable / setting | Descripción |
+|---|---|
+| `AI__Provider` | `Gemini` (por defecto) o `Bdt`. |
+| `BDT_API_URL`, `BDT_API_KEY` | URL base (incluye `/v1`) y API key de BDT. Obligatorias si el proveedor es `Bdt`. |
+| `BDT_MODEL` | Modelo de BDT. Por defecto `AI:Bdt:Model` (`qwen-rapido`); también existe `qwen-maximo`. |
+| `AI:Bdt:ResponseFormat` | `json_schema` (por defecto, envía el contrato al modelo) o `json_object` (solo exige JSON válido). |
+| `AI:Bdt:MaxTokens` | Límite opcional de tokens de salida. Sin definir, lo decide el servidor. Un valor bajo puede dejar vacía la respuesta de `qwen-maximo`, que gasta tokens razonando. |
+| `AI:TimeoutSeconds`, `AI:ArchitectureTimeoutSeconds` | Timeouts por solicitud. `qwen-rapido` responde en unos 15 s; `qwen-maximo` puede tardar cerca de 2 minutos, por lo que conviene subirlos (por ejemplo `AI__TimeoutSeconds=240`). |
+
+Al iniciar, la API valida el nombre del proveedor predeterminado y los timeouts.
+Un proveedor sin configuración completa no aparece en el catálogo, pero no
+impide que arranque el backend. Si el proveedor predeterminado no está
+disponible, las solicitudes sin selección reciben un error explícito.
+
+### Selección de IA por solicitud
+
+`GET /api/ai/models` devuelve los proveedores configurados, sus modelos y
+`defaultSelection` (o `null` si el predeterminado no está disponible). El
+catálogo no incluye claves ni URL y no comprueba si el servicio está en línea.
+
+Los endpoints `POST /api/projects/{projectId}/context` y
+`POST /api/projects/{projectId}/architecture` aceptan opcionalmente:
+
+```json
+{
+  "aiSelection": { "provider": "Bdt", "model": "qwen-rapido" }
+}
+```
+
+En el chat también se debe enviar `prompt`; en arquitectura se puede enviar
+`language` como hasta ahora. Para Gemini, enviar
+`"aiSelection": { "provider": "Gemini" }` usa el modelo configurado. BDT
+admite `qwen-rapido` y `qwen-maximo`. Una selección inválida o no configurada
+devuelve `400` antes de modificar el contexto. Omitir `aiSelection` conserva
+el proveedor y modelo predeterminados. La selección no se guarda en el
+proyecto y debe enviarse en cada operación; no existe fallback automático.
+Los mensajes de error `502` indican qué proveedor falló.
 
 ## Migraciones
 
@@ -172,7 +254,13 @@ Un **contexto** es un sistema, por ejemplo `API Legacy` o `API Pólizas`. Las fl
 Reglas de reconciliación:
 
 - Los nodos se reconcilian por `key` estable. Un nodo existente conserva su ID.
-- Las relaciones se reconcilian por `(origen, destino, label)`.
+- Las relaciones se reconcilian por `(origen, destino, label, operation)`.
+  Se permiten operaciones diferentes entre los mismos extremos y con la misma
+  etiqueta. Se rechazan duplicados de los cuatro campos, incluso si la operación
+  es nula o vacía. Se recortan espacios U+0020, tabulaciones, CR, LF, VT y FF
+  exteriores de la operación; se conservan mayúsculas y espacios interiores.
+  PostgreSQL aplica la misma regla mediante `operation_key`, una columna calculada
+  no nula, y el índice único `ux_relations_context_endpoints_label_operation`.
 - Si el usuario dice “al final”, “en vez de”, “cambiá” o “reemplazá”, la relación anterior se reemplaza.
 - Si dice “además”, “sumá” o “también”, las relaciones anteriores se conservan y se agrega la nueva.
 - Los nodos que no vuelven en el mapa completo quedan con `is_active=false`; no se borran físicamente.
@@ -211,7 +299,28 @@ Códigos:
 - `400 Bad Request`: body inválido.
 - `404 Not Found`: el proyecto no existe.
 - `409 Conflict`: el contexto cambió durante la planificación; hay que reenviar el mensaje.
-- `502 Bad Gateway`: falló Gemini. El `message` distingue rate limit/cuota, mensaje demasiado largo para el contexto del modelo y otros errores. La memoria y el mapa anteriores se conservan.
+- `502 Bad Gateway`: falló el proveedor de IA. El `message` distingue rate limit/cuota, mensaje demasiado largo para el contexto del modelo y otros errores. La memoria y el mapa anteriores se conservan.
+
+El contexto inicial y su `initialPrompt` se guardan únicamente después de generar
+y validar el plan y el resumen. Contexto, nodos, relaciones y metadatos se confirman
+en una única transacción. Un fallo de IA, validación o persistencia no deja datos
+nuevos del intento; si ya había contexto, se conserva. Si falla el primer intento,
+el siguiente mensaje establece un objetivo inicial nuevo. No se reparan contextos
+históricos incompletos automáticamente.
+
+Las respuestas `502` mantienen `{ "contextId": ..., "message": "..." }`:
+`contextId` ahora es `null` si el intento inicial falló antes de crear un contexto;
+si ya existía, conserva su ID. Los errores de persistencia no concurrentes siguen
+propagándose como errores de servidor, con rollback. Dos creaciones iniciales
+concurrentes no se reinterpretan como continuación: la perdedora devuelve `409`.
+Una respuesta válida `out_of_scope` inicial conserva el contrato `201` con un ID
+persistido después de validar la respuesta; sobre un contexto existente no escribe.
+
+La migración `IncludeOperationInRelationIdentity` agrega la clave calculada y
+reemplaza el índice anterior; no elimina ni repara filas. Su reversión falla si
+ya existen operaciones paralelas que el índice antiguo no admite. Coordinar su
+aplicación con el backend actualizado: la versión anterior no puede reconciliar
+mapas con varias operaciones para los mismos extremos y etiqueta.
 
 Respuesta resumida:
 
@@ -282,7 +391,7 @@ Devuelve únicamente el pedido inicial del proyecto. Sirve para la opción de co
 }
 ```
 
-Códigos: `200` si el proyecto tiene contexto, `404` si el proyecto o el contexto no existen. No llama a Gemini ni modifica datos.
+Códigos: `200` si el proyecto tiene contexto, `404` si el proyecto o el contexto no existen. No llama a IA ni modifica datos.
 
 ### `PATCH /api/projects/{projectId}/context/nodes/{nodeKey}`
 
@@ -299,7 +408,7 @@ Códigos: `200` con el nodo actualizado, `404` si el nodo no existe o está inac
 ### `POST /api/projects/{projectId}/context/nodes/{nodeKey}/instructions`
 
 Guarda la aclaración vigente del nodo y, opcionalmente, cambia el método y la ruta
-de una relación identificada explícitamente. No llama a Gemini ni genera código.
+de una relación identificada explícitamente. No llama a IA ni genera código.
 
 Solo nota:
 
@@ -344,18 +453,27 @@ La migración `AddRelationHttpInstructions` agrega columnas opcionales a las
 relaciones sin inferir datos del texto libre existente. Antes de una edición manual,
 se sigue usando `operation`. Después, `httpMethod` y `path` son la fuente de verdad
 y `operation` refleja ambos. Estas ediciones se conservan al replanificar la misma
-relación `(origen, destino, label)`; no se transfieren a relaciones nuevas.
+relación `(origen, destino, label, operación efectiva)`. Por compatibilidad con
+planes antiguos que repiten una operación anterior, se conserva la edición manual
+si hay exactamente una relación con esos extremos y etiqueta tanto en el mapa
+anterior como en el nuevo; no se usa esa coincidencia si hay operaciones paralelas.
+Editar una operación para duplicar otra relación devuelve `409` sin guardar la nota.
 
 El guardado no reescribe `resumen`, descripciones ni planes. Las notas actuales y
 las operaciones explícitas se envían al generador y prevalecen sobre referencias
 antiguas de esos textos, sin reemplazar las restricciones de seguridad y alcance.
 Se aplican en la siguiente generación, no sobre código ya devuelto.
 
-Pruebas del backend (SQLite en memoria, sin usar la base configurada ni Gemini):
+Pruebas del backend (SQLite en memoria, sin usar la base configurada ni proveedores de IA reales):
 
 ```bash
 dotnet test ../backend.Tests/OrquestadorApi.Tests.csproj
 ```
+
+Las pruebas de PostgreSQL requieren habilitación explícita mediante
+`ORQUESTADOR_PG_TEST_DATABASE` y una base descartable con el nombre permitido.
+Sin esa variable se omiten y no abren conexiones. No usan `.env`, no ejecutan el
+seed y no eliminan datos. Ver el [informe y las instrucciones de reproducción](../backend.Tests/POSTGRESQL_VALIDATION.md).
 
 ### `POST /api/projects/{projectId}/architecture`
 
@@ -406,7 +524,7 @@ Códigos:
 - `404 Not Found`: el proyecto no existe o no tiene contexto.
 - `409 Conflict`: no hay nodos `kind=system`.
 - `422 Unprocessable Entity`: se superó un límite del MVP.
-- `502 Bad Gateway`: falló Gemini o devolvió un contrato inválido.
+- `502 Bad Gateway`: falló el proveedor de IA o devolvió un contrato inválido.
 
 Si `contextChanged` es `true`, el mapa cambió mientras se generaba el código. Hay que revisar el resultado o volver a generar la arquitectura.
 

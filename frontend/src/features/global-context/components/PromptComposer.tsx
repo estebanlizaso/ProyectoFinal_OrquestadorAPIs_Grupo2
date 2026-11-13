@@ -45,7 +45,7 @@ export function PromptComposer({ value, onChange, onSubmit, isSending, disabled 
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={PROMPT_COMPOSER_TEXTS.placeholder}
-          disabled={isSending}
+          disabled={isSending || disabled}
           rows={1}
           className="field-sizing-content max-h-40 flex-1 resize-none bg-transparent py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
         />
