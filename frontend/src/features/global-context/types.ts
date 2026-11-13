@@ -1,5 +1,8 @@
+import type { AiSelectionRequest } from '../ai-selection/types.ts'
+
 export type CreateProjectContextRequest = {
   prompt: string
+  aiSelection: AiSelectionRequest
 }
 
 export type GeneratedCodeResponse = {
