@@ -1,7 +1,7 @@
 export const GLOBAL_CONTEXT_PAGE_TEXTS = {
   title: 'Contexto global',
   subtitle: 'Explicá el objetivo, la IA completa los datos faltantes.',
-  generateArchitecture: 'Generar arquitectura',
+  generateFlow: 'Generar Flujo',
 }
 
 export const CONTEXT_DETAILS_TEXTS = {
