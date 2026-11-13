@@ -39,7 +39,7 @@ export function GlobalContextPage({
         backButton={backButton}
         actions={
           <Button disabled={!hasReadyTurn} onClick={onGenerateArchitecture}>
-            {GLOBAL_CONTEXT_PAGE_TEXTS.generateArchitecture}
+            {GLOBAL_CONTEXT_PAGE_TEXTS.generateFlow}
           </Button>
         }
       />
