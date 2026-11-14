@@ -26,5 +26,8 @@ public class Project
     [Column("last_reached_stage")]
     public ProjectStage LastReachedStage { get; set; } = ProjectStage.Context;
 
+    [Column("finish_proyect")]
+    public bool FinishProyect { get; private set; }
+
     public ProjectContext? Context { get; set; }
 }

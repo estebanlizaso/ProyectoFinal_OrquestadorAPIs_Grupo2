@@ -188,6 +188,12 @@ namespace OrquestadorApi.Migrations
                         .HasColumnType("text")
                         .HasColumnName("description");
 
+                    b.Property<bool>("FinishProyect")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("boolean")
+                        .HasColumnName("finish_proyect")
+                        .HasComputedColumnSql("last_reached_stage = 2", true);
+
                     b.Property<int>("LastReachedStage")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")

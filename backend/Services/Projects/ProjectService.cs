@@ -45,7 +45,8 @@ public class ProjectService : IProjectService
             project.ProjectName,
             project.Description,
             project.ProjectId,
-            DateOnly.FromDateTime(createdAt)));
+            DateOnly.FromDateTime(createdAt),
+            project.FinishProyect));
     }
 
     public async Task<ProjectPage> GetAllAsync(
@@ -79,7 +80,8 @@ public class ProjectService : IProjectService
                 project.ProjectId,
                 project.CreatedAt.HasValue
                     ? DateOnly.FromDateTime(project.CreatedAt.Value)
-                    : null))
+                    : null,
+                project.FinishProyect))
             .ToList();
 
         return new ProjectPage(body, projects.Count > PaginationSettings.PageSize);
@@ -106,19 +108,19 @@ public class ProjectService : IProjectService
         int projectId,
         CancellationToken cancellationToken = default)
     {
-        var stage = await _dbContext.Projects
+        var progress = await _dbContext.Projects
             .AsNoTracking()
             .Where(project => project.ProjectId == projectId)
-            .Select(project => (ProjectStage?)project.LastReachedStage)
+            .Select(project => new { project.LastReachedStage, project.FinishProyect })
             .SingleOrDefaultAsync(cancellationToken);
 
-        return stage is null ? null : new ProjectProgressResponse(stage.Value switch
+        return progress is null ? null : new ProjectProgressResponse(progress.LastReachedStage switch
         {
             ProjectStage.Context => "context",
             ProjectStage.Architecture => "architecture",
             ProjectStage.Generation => "generation",
             _ => throw new InvalidOperationException("Etapa de proyecto desconocida.")
-        });
+        }, progress.FinishProyect);
     }
 
     public async Task<ProjectProgressResponse?> AdvanceProgressAsync(

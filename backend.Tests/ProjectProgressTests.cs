@@ -34,6 +34,27 @@ public class ProjectProgressTests
     {
         await using var fixture = await Fixture.CreateAsync();
         Assert.Equal("context", (await fixture.Service.GetProgressAsync(1))!.Stage);
+        Assert.False((await fixture.Service.GetProgressAsync(1))!.FinishProyect);
+    }
+
+    [Fact]
+    public async Task GenerationFinishesProjectAndListIncludesPersistedFlag()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var architecture = await fixture.Service.AdvanceProgressAsync(1, "architecture");
+        Assert.False(architecture!.FinishProyect);
+        var generation = await fixture.Service.AdvanceProgressAsync(1, "generation");
+        Assert.True(generation!.FinishProyect);
+        var older = await fixture.Service.AdvanceProgressAsync(1, "context");
+        Assert.True(older!.FinishProyect);
+        fixture.Db.ChangeTracker.Clear();
+        Assert.True((await fixture.Db.Projects.SingleAsync(project => project.ProjectId == 1)).FinishProyect);
+        var page = await fixture.Service.GetAllAsync(null, 1);
+        Assert.True(page.Projects.Single(project => project.ProjectId == 1).FinishProyect);
+        Assert.False(page.Projects.Single(project => project.ProjectId == 2).FinishProyect);
+        using var json = System.Text.Json.JsonDocument.Parse(
+            System.Text.Json.JsonSerializer.Serialize(page.Projects.Single(project => project.ProjectId == 1)));
+        Assert.True(json.RootElement.GetProperty("finish_proyect").GetBoolean());
     }
 
     [Theory]

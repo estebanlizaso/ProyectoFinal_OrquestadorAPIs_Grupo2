@@ -18,6 +18,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Project>()
+            .Property(project => project.FinishProyect)
+            .HasComputedColumnSql("last_reached_stage = 2", stored: true);
+
+        modelBuilder.Entity<Project>()
             .Property(project => project.LastReachedStage)
             .HasDefaultValue(ProjectStage.Context);
 

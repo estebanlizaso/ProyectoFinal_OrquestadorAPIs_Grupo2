@@ -79,6 +79,27 @@ una URL ni se modifica el contrato del listado de proyectos. Los GET de progreso
 e historial pueden ejecutarse en paralelo. Si el GET debe reflejar un PATCH recién
 enviado, esperar primero la respuesta del PATCH, que ya incluye la etapa actual.
 
+### Bandera de proyecto finalizado
+
+`GET /api/projects` incluye `finish_proyect` (booleano) en cada proyecto del
+listado. `POST /api/projects` también lo devuelve, inicialmente `false`.
+Los GET y PATCH de `/api/projects/{projectId}/progress` devuelven ambos campos:
+
+```json
+{ "stage": "generation", "finish_proyect": true }
+```
+
+La migración `AddProjectFinishedFlag` agrega `projects.finish_proyect` como
+columna calculada y almacenada (`last_reached_stage = 2`). Al avanzar a
+`generation`, la base actualiza la bandera en la misma operación; también resulta
+`true` para proyectos que ya estaban en esa etapa antes de aplicar la migración.
+No es un campo editable por el cliente y no se puede desincronizar del avance.
+Como el avance no retrocede, la finalización tampoco. Se aplica al iniciar la API.
+
+Esta bandera permite indicar y bloquear la apertura desde el frontend, pero no
+agrega restricciones a los endpoints de edición: ese bloqueo del backend queda
+para una tarea posterior.
+
 ## Requisitos
 
 - .NET 10 SDK
