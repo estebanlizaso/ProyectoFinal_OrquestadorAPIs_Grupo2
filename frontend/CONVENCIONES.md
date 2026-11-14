@@ -133,6 +133,7 @@ Reglas:
 - Cada pantalla, menos Proyectos (que es el inicio), muestra arriba a la izquierda, junto al título, un `BackButton` ("Volver a {pantalla}") que lleva al paso anterior del flujo (Generación y ejecución → Arquitectura propuesta → Contexto global → Proyectos), no al historial del navegador. A dónde vuelve cada ruta se define en un solo lugar, `resolveBackTarget` (`app/routes.ts`), y `App.tsx` le pasa el botón armado a la pantalla por la prop `backButton`, que la pantalla pone en su `PageHeader`.
 - La sidebar ("Orquestador IA" y "Proyectos") se oculta y se muestra con el botón de su encabezado; oculta, queda una barra angosta solo con el botón para mostrarla. El estado vive en `App.tsx`, que se lo pasa a las pantallas que lo necesitan (por ejemplo, Generación y ejecución recibe `assistantSide` y muestra el panel "Resumen" a la izquierda).
 - Arquitectura propuesta y Generación y ejecución usan todo el alto de la pantalla: el título va arriba del diagrama, el diagrama ocupa el resto del alto (`ArchitectureDiagram` crece con `flex-1` dentro de una columna `flex-col`) y los paneles laterales llegan hasta abajo.
+- Contexto global también usa todo el alto de la pantalla en escritorio: la cabecera va arriba y la grilla ocupa el resto (`flex-1` con `min-h-0`). El chat crece hasta ese alto y después la conversación scrollea adentro, sin estirar la página; el panel "Contexto detectado" scrollea igual si tiene muchos módulos.
 
 ---
 
