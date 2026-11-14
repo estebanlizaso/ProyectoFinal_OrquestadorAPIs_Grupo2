@@ -154,11 +154,12 @@ public class NodeInstructionsTests
             fixture.Db,
             ai,
             new ArchitectureZipBuilder(),
+            new PostmanCollectionBuilder(),
             new DisabledDriveStorage(),
             Options.Create(new OrchestrationOptions()),
             NullLogger<ArchitectureService>.Instance);
         var result = await service.GenerateAsync(1, "python");
-        Assert.Equal(GenerateArchitectureStatus.Success, result.Status);
+        Assert.Equal(GenerateArchitectureStatus.DriveDisabled, result.Status);
         using var input = JsonDocument.Parse(ai.ArchitectureInput!);
         var relation = input.RootElement.GetProperty("relations")[0];
         Assert.Equal("POST /new", relation.GetProperty("operation").GetString());
