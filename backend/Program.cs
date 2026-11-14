@@ -145,8 +145,6 @@ builder.Services
         options => !options.Enabled || options.IsConfigured,
         "Si Drive está habilitado, configurá DRIVE_ID, CLIENT_DRIVE, CLIENT_SECRET_DRIVE y REFRESH_TOKEN_DRIVE.")
     .ValidateOnStart();
-builder.Services.AddHttpClient<IAiProvider, GeminiAiProvider>((serviceProvider, client) =>
-
 void ConfigureAiClient(IServiceProvider serviceProvider, HttpClient client)
 {
     var options = serviceProvider.GetRequiredService<IOptions<AiOptions>>().Value;
