@@ -87,13 +87,22 @@ frontend/
         constants.ts
         types.ts              # tipos de los nodos del diagrama y del modal de detalle
         index.ts
-      generation-execution/   # Generación y ejecución (/projects/{projectId}/generation): se abre con "Confirmar flujo"; muestra el mismo diagrama y el progreso de generación (por ahora una simulación solo visual)
+      generation-execution/   # Generación y ejecución (/projects/{projectId}/generation): se abre con "Confirmar flujo"; muestra el mismo diagrama y genera el flujo con `POST /architecture`. Al terminar pasa sola a Resultados
         components/           # GenerationExecutionPage, GenerationProgressPanel
-        useSimulatedProgress.ts # avanza el progreso de 0 a 100 en GENERATION_DURATION_MS
+        useArchitectureGeneration.ts # hace el POST con la IA elegida en el chat y expone phase (running, completed, failed), el mensaje de error y retry
+        useGenerationProgress.ts # barra estimada mientras espera (se acerca a PROGRESS_WAITING_CAP sin llegar) y 100 al terminar
+        useResultsTransition.ts # al completar, espera RESULTS_TRANSITION_DELAY_MS, se desvanece y navega a Resultados
+        types.ts              # espejo de los DTOs de arquitectura (ArchitectureResponse, GenerateArchitectureRequest)
+        errorMessages.ts      # errores del POST /architecture
         getGenerationStage.ts # etapa que corresponde a un porcentaje de progreso
         formatSolutionLanguage.ts # traduce el language del planificador (python, dotnet) a su nombre visible
         buildSolutionStatus.ts # "Generando solución {lenguaje}" o "Solución {lenguaje} generada"
         constants.ts
+        index.ts
+      results/                # Resultados (/projects/{projectId}/results): el mismo diagrama, sin panel lateral, y en la cabecera "Volver a Proyectos", "Descargar colección Postman" y "Descargar flujo completo .ZIP"
+        components/           # ResultsPage, ResultsActions
+        constants.ts
+        errorMessages.ts
         index.ts
       canvas/                 # lienzo React Flow
         components/           # FlowCanvas, Toolbar, Sidebar
@@ -109,6 +118,7 @@ frontend/
       projectService.ts       # projectService (getAll, create, delete) + useProjects, useCreateProject, useDeleteProject
       aiModelsService.ts      # aiModelsService (getModels) + useAiModels
       projectContextService.ts # projectContextService (create, getInitialPrompt, getAllMessages, updateNodeNotes) + useCreateProjectContext, useInitialPrompt, useProjectMessages, useUpdateNodeNotes, useSyncNodeNotes
+      architectureService.ts  # architectureService (generate, downloadArtifact) + useGenerateArchitecture, useDownloadArchitectureArtifact
       exportService.ts        # cuando exista el endpoint de exportación (service + useExportFlow)
     shared/
       ui/                     # Button, Modal (size md/lg y closeLabel opcional para la X), Input, Select, Textarea, Card, SidePanel, PageHeader, BackButton, ProgressBar (sin lógica de negocio)
@@ -128,8 +138,8 @@ Reglas:
 - Una feature solo importa de otra a través de su `index.ts`, nunca de sus archivos internos.
 - `shared/` solo contiene código reutilizable sin conocimiento del dominio.
 - `services/` es global y tiene **un archivo por recurso del backend** (`projectService.ts`, y después `userService.ts`, etc.). Ese archivo concentra todo lo del recurso: el objeto service con sus métodos y los hooks que los ejecutan (`useProjects`, `useDeleteProject`). Los componentes usan los hooks; nunca llaman a un service directo.
-- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context`, `/projects/{projectId}/architecture` o `/projects/{projectId}/generation`).
-- Cada pantalla, menos Proyectos (que es el inicio), muestra arriba a la izquierda, junto al título, un `BackButton` ("Volver a {pantalla}") que lleva al paso anterior del flujo (Generación y ejecución → Arquitectura propuesta → Contexto global → Proyectos), no al historial del navegador. A dónde vuelve cada ruta se define en un solo lugar, `resolveBackTarget` (`app/routes.ts`), y `App.tsx` le pasa el botón armado a la pantalla por la prop `backButton`, que la pantalla pone en su `PageHeader`.
+- La navegación usa la History API sin librería: `shared/lib/navigate.ts` cambia la URL, `shared/lib/usePathname.ts` la expone como estado y `app/routes.ts` traduce la URL a una ruta (por ejemplo `/projects/{projectId}/context`, `/projects/{projectId}/architecture` , `/projects/{projectId}/generation` o `/projects/{projectId}/results`).
+- Cada pantalla, menos Proyectos (que es el inicio), muestra arriba a la izquierda, junto al título, un `BackButton` ("Volver a {pantalla}") que lleva al paso anterior del flujo (Generación y ejecución → Arquitectura propuesta → Contexto global → Proyectos), no al historial del navegador. A dónde vuelve cada ruta se define en un solo lugar, `resolveBackTarget` (`app/routes.ts`), y `App.tsx` le pasa el botón armado a la pantalla por la prop `backButton`, que la pantalla pone en su `PageHeader`. Excepción: Resultados no tiene `BackButton` (volver a Generación y ejecución generaría de nuevo); su botón "Volver a Proyectos" va con las otras acciones de la cabecera y siempre lleva al inicio.
 - La sidebar ("Orquestador IA" y "Proyectos") se oculta y se muestra con el botón de su encabezado; oculta, queda una barra angosta solo con el botón para mostrarla. El estado vive en `App.tsx`, que se lo pasa a las pantallas que lo necesitan (por ejemplo, Generación y ejecución recibe `assistantSide` y muestra el panel "Resumen" a la izquierda).
 - Arquitectura propuesta y Generación y ejecución usan todo el alto de la pantalla: el título va arriba del diagrama, el diagrama ocupa el resto del alto (`ArchitectureDiagram` crece con `flex-1` dentro de una columna `flex-col`) y los paneles laterales llegan hasta abajo.
 
@@ -156,6 +166,8 @@ Reglas:
 - `GET /api/projects/{projectId}/messages` devuelve los mensajes persistidos, paginados con `offset` y `limit`. El frontend combina ese historial con los mensajes locales que fallaron y ordena ambos por fecha. El chat no permite enviar nuevos mensajes hasta cargar el historial correctamente.
 - `GET /api/projects/{projectId}/context` devuelve solo `{ "initialPrompt": string }` (`InitialProjectPromptResponse`), o `404` si el proyecto no tiene contexto.
 - `PATCH /api/projects/{projectId}/context/nodes/{nodeKey}` recibe `{ "userNotes": string }` (`UpdateOrchestrationNodeRequest`, máximo 2000 caracteres) y responde `200` con el `OrchestrationNodeResponse` actualizado, `404` si el proyecto o el nodo no existen y `409` (`{ message }`) si el contexto cambió mientras se guardaba. No llama a la IA: el planificador y el generador de código (`POST /architecture`) toman las notas como requisitos confirmados. En el modal de detalle del módulo, "Descripción" muestra la `description` del nodo y no se puede editar (la tarjeta del diagrama muestra la misma). "Guardar" hace solo el `PATCH` con las líneas de configuración del endpoint y la autenticación (`buildConfigLines`), sin mandar un mensaje al chat ni llamar a la IA, y actualiza el nodo en el mapa guardado (`updateNode` de `useContextHistory`). Actores y pasos no tienen configuración: su modal muestra solo la descripción y "Cerrar". El back no tiene campos para la autenticación ni deja que la IA cambie por chat un método y ruta guardados en la relación, así que la única copia de la configuración del módulo son sus `userNotes`, con una línea por flecha que le llega ("Endpoint desde {origen}: MÉTODO /ruta") y "Autenticación: ...". El back permite varias flechas entre los mismos dos nodos con operaciones distintas; en ese caso hay varias líneas con el mismo origen y se asignan por orden (findSavedEndpoint). El modal, el texto de las flechas y los endpoints propuestos del resumen leen de ahí y, si no hay nada guardado, de la `operation` de la IA. Después de cada respuesta del chat (en Arquitectura propuesta o en Contexto global), si la IA cambió las flechas de un nodo que tiene endpoints guardados, el front reescribe su nota con lo de la IA (`useModuleNotesSync`); si no las tocó, se respeta lo guardado a mano, que la IA toma como requisito confirmado.
+- `POST /api/projects/{projectId}/architecture` recibe `{ "language": string | null, "aiSelection": { "provider", "model" } }` (`GenerateArchitectureRequest`; con `language` en `null` el back usa el del planificador) y responde `ArchitectureResponse`: el código por contexto, la colección de Postman y, al subir todo al Drive, `goToDrive` (link a la carpeta), `downloadFile` y `downloadPostmanCollection`. Responde `400` por selección o lenguaje inválidos, `404` si el proyecto no existe, `409` si no hay módulos `system`, `422` si se pasa de los límites, `502` (`{ message }`) si falla la IA o el Drive y `503` si el Drive no está configurado. Generación y ejecución lo llama al entrar, con la IA elegida en el chat del proyecto y el timeout de `VITE_AI_CONTEXT_TIMEOUT_MS`. Mientras espera, la barra avanza estimada hasta 90%; si falla, se frena y muestra el `message` del back (o el genérico) con "Reintentar".
+- `GET /api/projects/{projectId}/architecture/package` y `GET /api/projects/{projectId}/architecture/postman-collection` bajan del Drive el ZIP y la colección de la última generación (`getBlob`). Responden `404` (`{ message }`) si todavía no se generó y `503` si el Drive no está configurado. Resultados los descarga como `flujo-proyecto-{projectId}.zip` y `coleccion-postman-proyecto-{projectId}.json` (`ARTIFACT_FILE_NAMES`), porque los nombres del back (`architecture.zip`, `postman_collection.json`) son iguales para todos los proyectos.
 - `GET /api/projects/{projectId}/messages?offset&limit` devuelve los intercambios del chat que salieron bien (`ProjectMessageResponse`: `id`, `projectId`, `humanQuestion`, `chatBot`, `createdAt` en UTC), del más viejo al más nuevo. `chatBot` trae lo mismo que `planner`, pero con la respuesta en `message` en lugar de `reply`. `limit` va de 1 a 200 (50 por defecto); responde `404` si el proyecto no existe. El backend guarda cada intercambio en `POST /context`, incluidos los `out_of_scope`, pero no los que dieron error.
 - Al abrir Contexto global, Arquitectura propuesta o Generación y ejecución, el front pide todas las páginas de a 200 hasta que llega una incompleta (`getAllMessages`). Mientras carga, el chat muestra "Cargando conversación…" y no deja enviar; si falla, muestra un error genérico con "Reintentar" (`HistoryLoadStatus`). Los mensajes que dieron error los guarda el front en `localStorage` con su fecha y los ordena junto con los del back por `createdAt`; se ven en el chat con su aviso y no cambian el mapa. El backend no tiene un GET del mapa, así que el último mapa (nodes + relations) también sigue en `localStorage`, en la misma clave por proyecto (`useContextHistory`). Los chats guardados en `localStorage` antes de este endpoint no se migran. Al eliminar el proyecto, el back borra sus mensajes y el front borra su clave (`clearContextHistory`).
 
@@ -191,7 +203,7 @@ Reglas:
 
 ## 8. Red con Fetch
 
-- `fetch` se usa **solo** dentro de `shared/api/httpClient.ts`, que expone funciones tipadas (`getJson<T>`, `postJson<T, B>`, `deleteJson<T, B>` y, cuando haga falta, `postForBlob`). `deleteJson` acepta body porque el backend lo usa así. El cliente centraliza:
+- `fetch` se usa **solo** dentro de `shared/api/httpClient.ts`, que expone funciones tipadas (`getJson<T>`, `postJson<T, B>`, `deleteJson<T, B>` y `getBlob` para descargar archivos). `deleteJson` acepta body porque el backend lo usa así. El cliente centraliza:
   - base URL desde `import.meta.env.VITE_API_URL`
   - manejo de `!response.ok`
   - un tipo `ApiError` (`kind`, `status`, mensaje, detalle). Para `4xx`, el mensaje sale del `title` del ProblemDetails.
@@ -218,7 +230,7 @@ Reglas:
 - Tailwind directo en `className`; helper `cn()` para clases condicionales.
 - Sin estilos inline ni CSS propio, salvo overrides puntuales de React Flow en un único archivo: `src/app/reactFlow.css`, que también importa los estilos base de `@xyflow/react`. La única excepción a "sin estilos inline" es la posición de las etiquetas de las flechas (`OperationEdge`, en la mitad de la curva cuando hay flechas paralelas), que React Flow exige calcular con `transform` en `style`; el resto de esa etiqueta usa clases, como `text-diagram-edge` (definida en `@theme`). Los tamaños de los nodos del diagrama se definen una sola vez en `DIAGRAM_NODE_SIZES` (`buildDiagram.ts`) y los componentes de nodo ocupan ese tamaño con `size-full`.
 - Colores y espaciados salen de la configuración de Tailwind; sin valores mágicos repetidos.
-- La configuración de Tailwind vive en `src/app/index.css`, dentro de `@theme`. Ahí se agregan solo los valores del diseño que no existen en la paleta por defecto (por ejemplo `--color-primary-blue`, que genera `bg-primary-blue`, `text-primary-blue`, etc.) y la fuente (`Inter`, cargada desde Google Fonts en `index.html`). Se nombran por su función y su tono (`primary-blue`, `primary-blue-light`), para que se entienda sin abrir el CSS.
+- La configuración de Tailwind vive en `src/app/index.css`, dentro de `@theme`. Ahí se agregan solo los valores del diseño que no existen en la paleta por defecto (por ejemplo `--color-primary-blue`, que genera `bg-primary-blue`, `text-primary-blue`, etc.) y la fuente (`Inter`, cargada desde Google Fonts en `index.html`). También la animación `animate-fade-in` (con su `@keyframes`), que usa la transición a Resultados. Se nombran por su función y su tono (`primary-blue`, `primary-blue-light`), para que se entienda sin abrir el CSS.
 - Íconos de `lucide-react`.
 
 ---
