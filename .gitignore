@@ -4,6 +4,11 @@
 [Aa]rtifacts/
 [Pp]ublish/
 
+# Credenciales OAuth/Drive descargadas de Google (van en .env, no en el repo)
+client_secret_*.json
+**/drive-sa.json
+
+# Configuración local de JetBrains
 # .NET and NuGet generated files
 packages/
 *.nupkg
