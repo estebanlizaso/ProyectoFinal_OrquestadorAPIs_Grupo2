@@ -176,7 +176,7 @@ public class ArchitectureService : IArchitectureService
             if (responseLanguage != selectedLanguage)
             {
                 throw new AiProviderException(
-                    $"Gemini devolvió el lenguaje '{response.Language}' en lugar de '{selectedLanguage}'.");
+                    $"{_aiProvider.ProviderName} devolvió el lenguaje '{response.Language}' en lugar de '{selectedLanguage}'.");
             }
 
             var systemByKey = systemNodes.ToDictionary(
@@ -194,7 +194,7 @@ public class ArchitectureService : IArchitectureService
                 if (block is null)
                 {
                     throw new AiProviderException(
-                        "Gemini devolvió un bloque de arquitectura nulo.");
+                        $"{_aiProvider.ProviderName} devolvió un bloque de arquitectura nulo.");
                 }
 
                 var key = PlannerResponseNormalizer.Slugify(block.Key);
@@ -202,13 +202,13 @@ public class ArchitectureService : IArchitectureService
                 if (!systemByKey.TryGetValue(key, out var node))
                 {
                     throw new AiProviderException(
-                        $"Gemini devolvió código para el contexto desconocido '{block.Key}'.");
+                        $"{_aiProvider.ProviderName} devolvió código para el contexto desconocido '{block.Key}'.");
                 }
 
                 if (!seenKeys.Add(key))
                 {
                     throw new AiProviderException(
-                        $"Gemini devolvió más de un bloque para el contexto '{key}'.");
+                        $"{_aiProvider.ProviderName} devolvió más de un bloque para el contexto '{key}'.");
                 }
 
                 var code = NormalizeCode(block.Code);
@@ -216,7 +216,7 @@ public class ArchitectureService : IArchitectureService
                 if (string.IsNullOrWhiteSpace(code))
                 {
                     throw new AiProviderException(
-                        $"Gemini devolvió código vacío para el contexto '{key}'.");
+                        $"{_aiProvider.ProviderName} devolvió código vacío para el contexto '{key}'.");
                 }
 
                 var lines = CountLines(code);
@@ -245,7 +245,7 @@ public class ArchitectureService : IArchitectureService
                     if (!EnvNamePattern.IsMatch(name))
                     {
                         throw new AiProviderException(
-                            $"Gemini devolvió el nombre de variable de entorno inválido '{name}'.");
+                            $"{_aiProvider.ProviderName} devolvió el nombre de variable de entorno inválido '{name}'.");
                     }
 
                     env.Add(new ArchitectureEnvVarResponse(
@@ -280,7 +280,7 @@ public class ArchitectureService : IArchitectureService
             if (missingKeys.Count > 0)
             {
                 throw new AiProviderException(
-                    "Gemini no devolvió código para los contextos: " +
+                    $"{_aiProvider.ProviderName} no devolvió código para los contextos: " +
                     $"{string.Join(", ", missingKeys)}. " +
                     "La respuesta debe incluir un bloque por cada nodo system activo.");
             }

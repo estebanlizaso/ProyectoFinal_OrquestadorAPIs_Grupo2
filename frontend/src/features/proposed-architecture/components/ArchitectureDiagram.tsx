@@ -8,11 +8,13 @@ import type { DiagramNode, OperationFlowEdge } from '../types'
 import { ArchitectureNode } from './ArchitectureNode'
 import { DecisionNode } from './DecisionNode'
 import { OperationEdge } from './OperationEdge'
+import { DiagramUpdatingOverlay } from './DiagramUpdatingOverlay'
 import { StartNode } from './StartNode'
 
 export type ArchitectureDiagramProps = {
   map: ContextMap
-  onModuleOpen: (node: OrchestrationNodeResponse) => void
+  onModuleOpen?: (node: OrchestrationNodeResponse) => void
+  isUpdating?: boolean
 }
 
 const NODE_TYPES: NodeTypes = {
@@ -25,19 +27,21 @@ const EDGE_TYPES: EdgeTypes = {
   operation: OperationEdge,
 }
 
-export function ArchitectureDiagram({ map, onModuleOpen }: ArchitectureDiagramProps) {
-  const diagram = useMemo(() => buildDiagram(map), [map])
+export function ArchitectureDiagram({ map, onModuleOpen, isUpdating = false }: ArchitectureDiagramProps) {
+  const areModulesClickable = onModuleOpen !== undefined
+  const diagram = useMemo(() => buildDiagram(map, areModulesClickable), [map, areModulesClickable])
 
   if (diagram.nodes.length === 0) {
     return (
-      <Card className="flex min-h-[60vh] items-center justify-center p-6 lg:col-span-2">
+      <Card className="relative flex h-[60vh] items-center justify-center p-6 lg:h-auto lg:min-h-0 lg:flex-1">
         <p className="text-sm text-gray-400">{PROPOSED_ARCHITECTURE_PAGE_TEXTS.diagramEmpty}</p>
+        <DiagramUpdatingOverlay isVisible={isUpdating} />
       </Card>
     )
   }
 
   return (
-    <Card className="h-[60vh] overflow-hidden p-0 lg:col-span-2">
+    <Card className="relative h-[60vh] overflow-hidden p-0 lg:h-auto lg:min-h-0 lg:flex-1">
       <ReactFlow<DiagramNode, OperationFlowEdge>
         nodes={diagram.nodes}
         edges={diagram.edges}
@@ -48,7 +52,7 @@ export function ArchitectureDiagram({ map, onModuleOpen }: ArchitectureDiagramPr
         elementsSelectable={false}
         onNodeClick={(_event, diagramNode) => {
           if (diagramNode.type === 'architecture') {
-            onModuleOpen(diagramNode.data.node)
+            onModuleOpen?.(diagramNode.data.node)
           }
         }}
         fitView
@@ -56,6 +60,7 @@ export function ArchitectureDiagram({ map, onModuleOpen }: ArchitectureDiagramPr
         <Background />
         <Controls showInteractive={false} />
       </ReactFlow>
+      <DiagramUpdatingOverlay isVisible={isUpdating} />
     </Card>
   )
 }

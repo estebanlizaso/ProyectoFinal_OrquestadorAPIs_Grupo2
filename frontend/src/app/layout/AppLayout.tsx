@@ -4,14 +4,27 @@ import { Sidebar } from './Sidebar'
 
 export type AppLayoutProps = {
   activeNavItem: NavItemId
+  isSidebarOpen: boolean
+  onToggleSidebar: () => void
   onNewOrchestration: () => void
   children: ReactNode
 }
 
-export function AppLayout({ activeNavItem, onNewOrchestration, children }: AppLayoutProps) {
+export function AppLayout({
+  activeNavItem,
+  isSidebarOpen,
+  onToggleSidebar,
+  onNewOrchestration,
+  children,
+}: AppLayoutProps) {
   return (
     <div className="flex h-screen bg-gray-50">
-      <Sidebar activeNavItem={activeNavItem} onNewOrchestration={onNewOrchestration} />
+      <Sidebar
+        activeNavItem={activeNavItem}
+        isOpen={isSidebarOpen}
+        onToggle={onToggleSidebar}
+        onNewOrchestration={onNewOrchestration}
+      />
       <main className="flex-1 overflow-y-auto">{children}</main>
     </div>
   )

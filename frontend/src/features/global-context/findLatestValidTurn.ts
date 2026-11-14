@@ -1,6 +1,6 @@
 import { isOutOfScope } from './isOutOfScope'
-import type { ContextTurn } from './useContextHistory'
+import type { ContextTurn, PlannerTurn } from './useContextHistory'
 
-export function findLatestValidTurn(turns: ContextTurn[]): ContextTurn | null {
-  return turns.findLast((turn) => !isOutOfScope(turn.planner)) ?? null
+export function findLatestValidTurn(turns: ContextTurn[]): PlannerTurn | null {
+  return turns.findLast((turn): turn is PlannerTurn => 'planner' in turn && !isOutOfScope(turn.planner)) ?? null
 }

@@ -1,10 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
+import type { AiModelsResponse, AiSelectionRequest } from '../src/features/ai-selection/types.ts'
 import type {
-  CreateProjectContextRequest,
   InitialProjectPromptResponse,
   OrchestrationNodeResponse,
   ProjectContextResponse,
+  ProjectMessageResponse,
   UpdateOrchestrationNodeRequest,
 } from '../src/features/global-context/types.ts'
 import { FIRST_PAGE } from '../src/features/projects/constants.ts'
@@ -22,13 +23,26 @@ export type ApiMockScenario = 'success' | 'empty' | 'error'
 
 const API_MOCK_SCENARIOS: ApiMockScenario[] = ['success', 'empty', 'error']
 const PROJECTS_ROUTE = '/api/projects'
+const AI_MODELS_ROUTE = '/api/ai/models'
 const PROJECTS_ROOT_PATH = '/'
 const PROJECT_CONTEXT_PATH_PATTERN = /^\/(\d+)\/context\/?$/
+const PROJECT_MESSAGES_PATH_PATTERN = /^\/(\d+)\/messages\/?$/
 const CONTEXT_NODE_PATH_PATTERN = /^\/(\d+)\/context\/nodes\/([^/]+)\/?$/
 const MOCK_DELAY_MS = 800
 const MOCK_TRACE_ID = 'mock-trace-id'
 const MOCK_ORIGIN = 'http://localhost'
 const MOCK_PAGE_SIZE = 12
+const MOCK_MESSAGES_PAGE_SIZE = 50
+const MOCK_AI_MODELS: AiModelsResponse = {
+  defaultSelection: { provider: 'Gemini', model: null },
+  providers: [
+    { id: 'Gemini', models: [{ id: 'gemini-3.5-flash-lite', name: 'Gemini' }] },
+    { id: 'Bdt', models: [
+      { id: 'qwen-rapido', name: 'Qwen rápido' },
+      { id: 'qwen-maximo', name: 'Qwen máximo' },
+    ] },
+  ],
+}
 
 const HTTP_STATUS = {
   ok: 200,
@@ -88,7 +102,7 @@ function isCreateProjectRequest(value: unknown): value is CreateProjectRequest {
   )
 }
 
-function isCreateProjectContextRequest(value: unknown): value is CreateProjectContextRequest {
+function isCreateProjectContextRequest(value: unknown): value is { prompt: string; aiSelection?: unknown } {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -96,6 +110,18 @@ function isCreateProjectContextRequest(value: unknown): value is CreateProjectCo
     typeof value.prompt === 'string' &&
     value.prompt.trim() !== ''
   )
+}
+
+function isValidAiSelection(value: unknown): value is AiSelectionRequest {
+  if (typeof value !== 'object' || value === null ||
+      !('provider' in value) || typeof value.provider !== 'string' ||
+      !('model' in value) || (typeof value.model !== 'string' && value.model !== null)) return false
+  const providerId = value.provider
+  const provider = MOCK_AI_MODELS.providers.find((item) => item.id.toLowerCase() === providerId.toLowerCase())
+  return provider !== undefined &&
+    (value.model === null
+      ? provider.id === 'Gemini'
+      : provider.models.some((model) => model.id === value.model))
 }
 
 function isUpdateOrchestrationNodeRequest(value: unknown): value is UpdateOrchestrationNodeRequest {
@@ -113,6 +139,11 @@ function getContextNodeTarget(pathname: string): { projectId: number; nodeKey: s
 function getContextProjectId(pathname: string): number | null {
   const rawProjectId = PROJECT_CONTEXT_PATH_PATTERN.exec(pathname)?.[1]
   return rawProjectId === undefined ? null : Number(rawProjectId)
+}
+
+function getMessagesProjectId(pathname: string): number | null {
+  const rawProjectId = PROJECT_MESSAGES_PATH_PATTERN.exec(pathname)?.[1]
+  return rawProjectId ? Number(rawProjectId) : null
 }
 
 function wait(milliseconds: number): Promise<void> {
@@ -330,12 +361,52 @@ async function sendInitialPromptResult(
   sendJson(response, HTTP_STATUS.ok, payload)
 }
 
+function addMockMessage(
+  messages: ProjectMessageResponse[],
+  projectId: number,
+  humanQuestion: string,
+): void {
+  const { reply, ...planner } = MOCK_PLANNER
+  messages.push({
+    id: messages.length + 1,
+    projectId,
+    humanQuestion,
+    chatBot: { ...planner, message: reply },
+    createdAt: new Date().toISOString(),
+  })
+}
+
+async function sendMessagesResult(
+  url: URL,
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  projects: ProjectResponse[],
+  messages: ProjectMessageResponse[],
+  projectId: number,
+): Promise<void> {
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  if (!projects.some((project) => project.projectId === projectId)) {
+    sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.projectNotFound)
+    return
+  }
+  const offset = Number(url.searchParams.get('offset') ?? 0)
+  const limit = Number(url.searchParams.get('limit') ?? MOCK_MESSAGES_PAGE_SIZE)
+  const projectMessages = messages.filter((message) => message.projectId === projectId)
+  sendJson(response, HTTP_STATUS.ok, projectMessages.slice(offset, offset + limit))
+}
+
 async function sendCreateContextResult(
   request: IncomingMessage,
   response: ServerResponse,
   scenario: ApiMockScenario,
   projects: ProjectResponse[],
   contexts: Map<number, ProjectContextResponse>,
+  messages: ProjectMessageResponse[],
   projectId: number,
 ): Promise<void> {
   const payload = await readJsonBody(request).catch(() => undefined)
@@ -349,10 +420,15 @@ async function sendCreateContextResult(
     sendValidationProblem(response, MOCK_VALIDATION_ERRORS.promptRequired)
     return
   }
+  if ('aiSelection' in payload && payload.aiSelection !== null && !isValidAiSelection(payload.aiSelection)) {
+    sendJson(response, HTTP_STATUS.badRequest, { message: 'La selección de IA no está disponible.' })
+    return
+  }
   if (!projects.some((project) => project.projectId === projectId)) {
     sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.projectNotFound)
     return
   }
+  addMockMessage(messages, projectId, payload.prompt.trim())
   const existingContext = contexts.get(projectId)
   if (existingContext) {
     sendJson(response, HTTP_STATUS.ok, existingContext)
@@ -413,15 +489,37 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
   const projects: ProjectResponse[] = scenario === 'success' ? [...MOCK_PROJECTS] : []
   const contexts =
     scenario === 'success' ? buildSeedContexts() : new Map<number, ProjectContextResponse>()
+  const messages: ProjectMessageResponse[] = []
 
   return {
     name: 'api-mocks',
     apply: 'serve',
     configureServer(server) {
+      server.middlewares.use(AI_MODELS_ROUTE, (request, response, next) => {
+        if (getRequestUrl(request).pathname !== '/' || request.method !== 'GET') {
+          next()
+          return
+        }
+        setTimeout(() => {
+          if (scenario === 'error') {
+            sendServerError(response)
+          } else {
+            sendJson(response, HTTP_STATUS.ok, scenario === 'empty'
+              ? { defaultSelection: null, providers: [] }
+              : MOCK_AI_MODELS)
+          }
+        }, MOCK_DELAY_MS)
+      })
       server.middlewares.use(PROJECTS_ROUTE, (request, response, next) => {
         const url = getRequestUrl(request)
         const contextProjectId = getContextProjectId(url.pathname)
         const contextNodeTarget = getContextNodeTarget(url.pathname)
+        const messagesProjectId = getMessagesProjectId(url.pathname)
+
+        if (messagesProjectId !== null && request.method === 'GET') {
+          void sendMessagesResult(url, response, scenario, projects, messages, messagesProjectId)
+          return
+        }
 
         if (contextNodeTarget !== null && request.method === 'PATCH') {
           void sendUpdateNodeNotesResult(
@@ -436,7 +534,7 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
         }
 
         if (contextProjectId !== null && request.method === 'POST') {
-          void sendCreateContextResult(request, response, scenario, projects, contexts, contextProjectId)
+          void sendCreateContextResult(request, response, scenario, projects, contexts, messages, contextProjectId)
           return
         }
         if (contextProjectId !== null && request.method === 'GET') {

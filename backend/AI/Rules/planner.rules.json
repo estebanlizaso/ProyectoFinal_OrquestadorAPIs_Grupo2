@@ -21,6 +21,7 @@
       "Cada sistema debe tener una key estable, corta y en minúsculas, por ejemplo api-legacy o api-polizas.",
       "Reutiliza la key de los nodos que ya existen. Nunca cambies la key de un sistema ya detectado; si cambia el nombre, actualizá name y description pero conservá la key.",
       "Las relaciones unen dos keys existentes. No inventes keys que no estén en nodes.",
+      "La identidad de una relación es (from, to, label, operation). Podés devolver varias relaciones con los mismos extremos y label si sus operaciones son diferentes, por ejemplo POST /stock/reservar y POST /stock/liberar. No repitas relaciones con los cuatro campos iguales. Una operación nula, vacía o con solo espacios representa la misma operación no especificada.",
       "Usá kind=system para los sistemas que después recibirán código. Usá actor, orchestrator o step solo cuando aporten al diagrama.",
       "Máximo 10 nodos, 5 nodos system y 15 relaciones. Si el pedido tiene más, agrupá o priorizá y explicá la decisión en summary.",
       "Las notas del usuario en los nodos son requisitos confirmados. No las contradigas ni las borres. Si una nota ya no aplica, explicalo y pedí confirmación.",

@@ -39,12 +39,23 @@ API_MOCKS=
 | Variable | Para qué sirve |
 | --- | --- |
 | `VITE_API_URL` | Base de las llamadas a la API desde el navegador. Se deja en `/api` para que pasen por el proxy de Vite. |
+| `VITE_AI_CONTEXT_TIMEOUT_MS` | Tiempo máximo del turno de chat completo en milisegundos. Por defecto, `300000` (5 minutos). |
 | `API_PROXY_TARGET` | URL del backend a la que el proxy de Vite reenvía todo lo que empieza con `/api`. |
 | `API_MOCKS` | Vacía usa el backend real. Con `success`, `empty` o `error` responde con datos simulados. |
 
 `.env` no debe subirse a Git.
 
 El backend no tiene CORS configurado, por eso el front nunca lo llama directo: el navegador pide a `http://localhost:5173/api/...` y Vite lo reenvía al backend.
+
+Un turno puede incluir planificación y resumen, cada uno con el timeout de IA del backend. Configurá `VITE_AI_CONTEXT_TIMEOUT_MS` con margen suficiente para ambos y el trabajo adicional del servidor. Por ejemplo, si `AI__TimeoutSeconds=240`, usá al menos `510000` ms. Un timeout del navegador cancela la solicitud, pero no garantiza que un proveedor remoto detenga su trabajo.
+
+## Selección del modelo de IA
+
+Debajo del chat se muestran los modelos del catálogo `GET /api/ai/models`. La selección es por proyecto y pestaña, se conserva durante la sesión del navegador y se comparte entre Contexto global y Arquitectura propuesta. Al iniciar se usa el modelo predeterminado del backend si está disponible; si no, hay que elegir uno. Una selección guardada que ya no esté disponible debe reemplazarse explícitamente.
+
+Cada mensaje envía la selección al backend, que la aplica tanto a la planificación como al resumen. No hay cambio automático de proveedor si falla. El catálogo indica configuración disponible, no comprueba conectividad. Si no se puede cargar o está vacío, el chat no envía mensajes.
+
+La pantalla Generación y ejecución todavía muestra progreso simulado y no llama al endpoint de generación de arquitectura. Por lo tanto, la selección todavía no se aplica a esa operación desde el frontend.
 
 ## Ejecutar el front
 
@@ -78,6 +89,7 @@ Los mocks respetan el contrato del backend:
 - `POST /api/projects` crea un proyecto en memoria: responde `201` con el proyecto, que queda primero en la lista. Un nombre vacío responde `400`.
 - `DELETE /api/projects` lo elimina: `204`, o `404` si no existe.
 - `POST /api/projects/{projectId}/context` responde `201` con un contexto de ejemplo en estado `ready` (plan y código). Si el proyecto ya tenía contexto, devuelve el mismo con `200`. Responde `404` si el proyecto no existe y `400` si el prompt está vacío.
+- `GET /api/ai/models` devuelve Gemini y los dos modelos de BDT en `success`, un catálogo vacío en `empty` y `500` en `error`. El mock de contexto también rechaza selecciones inválidas.
 - `PATCH /api/projects/{projectId}/context/nodes/{nodeKey}` guarda las `userNotes` del nodo (la regla del modal de detalle del módulo) en el contexto en memoria: responde `200` con el nodo actualizado, `404` si el proyecto o el nodo no existen y `400` si falta `userNotes`.
 
 Los cambios se pierden al reiniciar Vite. Los mocks tardan 800 ms en responder para que se vea el estado de carga y viven en `frontend/mocks/`, fuera del build.
@@ -90,8 +102,9 @@ Los cambios se pierden al reiniciar Vite. Los mocks tardan 800 ms en responder p
 | `npm run build` | Revisa los tipos y genera el build de producción en `dist/` |
 | `npm run preview` | Sirve el build generado para probarlo |
 | `npm run lint` | Ejecuta oxlint |
+| `npm run test` | Ejecuta las pruebas automatizadas con Vitest y jsdom |
 
-Antes de abrir un PR, `npm run lint` y `npm run build` tienen que pasar sin errores.
+Antes de abrir un PR, `npm run lint`, `npm run test` y `npm run build` tienen que pasar sin errores.
 
 ## Problemas frecuentes
 

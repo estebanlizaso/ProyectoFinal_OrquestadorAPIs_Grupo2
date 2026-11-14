@@ -2,11 +2,11 @@ import { useId } from 'react'
 import { Select } from '../../../shared/ui/Select'
 import { AUTHENTICATION_TYPES, MODULE_DETAIL_TEXTS } from '../constants'
 import { isAuthenticationType } from '../module-detail/isAuthenticationType'
-import type { AuthenticationType, ModuleEndpoint } from '../types'
+import type { AuthenticationType, EndpointSlot, ModuleEndpoint } from '../types'
 import { EndpointRow } from './EndpointRow'
 
 export type EndpointConfigurationProps = {
-  endpoints: ModuleEndpoint[]
+  endpoints: EndpointSlot[]
   authentication: AuthenticationType | ''
   onEndpointChange: (index: number, endpoint: ModuleEndpoint) => void
   onAuthenticationChange: (authentication: AuthenticationType | '') => void
@@ -24,9 +24,10 @@ export function EndpointConfiguration({
     <section>
       <h3 className="text-sm font-semibold text-gray-900">{MODULE_DETAIL_TEXTS.endpointTitle}</h3>
       <div className="mt-3 flex max-h-56 flex-col gap-3 overflow-y-auto">
-        {endpoints.map((endpoint, index) => (
+        {endpoints.map(({ sourceName, endpoint }, index) => (
           <EndpointRow
-            key={index}
+            key={sourceName ?? index}
+            sourceName={sourceName}
             endpoint={endpoint}
             onChange={(changedEndpoint) => onEndpointChange(index, changedEndpoint)}
           />
