@@ -38,8 +38,13 @@ const MOCK_AI_MODELS: AiModelsResponse = {
   providers: [
     { id: 'Gemini', models: [{ id: 'gemini-3.5-flash-lite', name: 'Gemini' }] },
     { id: 'Bdt', models: [
-      { id: 'qwen-rapido', name: 'Qwen rápido' },
-      { id: 'qwen-maximo', name: 'Qwen máximo' },
+      { id: 'gpt-6-luna-high', name: 'Luna 6.0 - High' },
+      { id: 'qwen-maximo', name: 'qwen-maximo' },
+      { id: 'gpt-6.1-sol-high', name: 'Sol 6.1 - High' },
+      { id: 'gpt-6.1-sol-low', name: 'Sol 6.1 - Low' },
+      { id: 'gpt-6.1-sol-medium', name: 'Sol 6.1 - Medium' },
+      { id: 'gpt-6.1-terra-high', name: 'Terra 6.1 - High' },
+      { id: 'gpt-6.1-terra-medium', name: 'Terra 6.1 - Medium' },
     ] },
   ],
 }
