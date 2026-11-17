@@ -15,3 +15,10 @@ export const PROJECT_DELETE_ERROR_MESSAGES: ErrorMessages = {
     [HTTP_STATUS.notFound]: 'Este proyecto ya no existe.',
   },
 }
+
+export const PROJECT_CONTEXT_DOWNLOAD_ERROR_MESSAGES: ErrorMessages = {
+  preferBackendMessage: true,
+  byStatus: {
+    [HTTP_STATUS.notFound]: 'Este proyecto todavía no tiene contexto para descargar.',
+  },
+}
