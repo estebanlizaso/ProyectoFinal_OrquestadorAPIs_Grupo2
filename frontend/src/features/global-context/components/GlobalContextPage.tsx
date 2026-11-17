@@ -32,7 +32,7 @@ export function GlobalContextPage({
   }
 
   return (
-    <div className="p-8">
+    <div className="flex flex-col p-8 lg:h-full">
       <PageHeader
         title={GLOBAL_CONTEXT_PAGE_TEXTS.title}
         subtitle={GLOBAL_CONTEXT_PAGE_TEXTS.subtitle}
@@ -44,8 +44,8 @@ export function GlobalContextPage({
         }
       />
 
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 items-start gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-3 lg:grid-rows-1">
+        <div className="lg:col-span-2 lg:flex lg:h-full lg:flex-col">
           <ContextChatPanel
             projectId={projectId}
             turns={turns}
@@ -55,7 +55,9 @@ export function GlobalContextPage({
             onErrorTurnAdded={addErrorTurn}
           />
         </div>
-        <ContextDetailsPanel nodes={map.nodes} assumptions={latestAssumptions} />
+        <div className="lg:max-h-full lg:overflow-y-auto">
+          <ContextDetailsPanel nodes={map.nodes} assumptions={latestAssumptions} />
+        </div>
       </div>
     </div>
   )

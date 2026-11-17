@@ -4,13 +4,37 @@ export const PROJECT_CARD_TEXTS = {
   createdAt: 'Creado el',
   noDescription: 'Sin descripción',
   deleteAction: 'Eliminar',
-  downloadPromptAction: 'Copiar prompt inicial del proyecto',
-  downloadingPrompt: 'Obteniendo prompt...',
-  downloadPromptError: 'No se pudo obtener el prompt inicial del proyecto.',
+  downloadContextAction: 'Descargar contexto del proyecto',
+  downloadingContext: 'Preparando contexto...',
 }
 
-export function buildInitialPromptFileName(projectId: number): string {
-  return `prompt-inicial-proyecto-${projectId}.txt`
+export function buildProjectContextFileName(projectId: number): string {
+  return `contexto-proyecto-${projectId}.md`
+}
+
+export const MARKDOWN_MIME_TYPE = 'text/markdown;charset=utf-8'
+
+export const PROJECT_CONTEXT_EXPORT_TEXTS = {
+  title: (name: string): string => `Contexto del proyecto: ${name}`,
+  initialPrompt: 'Prompt inicial',
+  conversation: 'Conversación',
+  noMessages: 'Sin mensajes.',
+  message: (position: number): string => `Mensaje ${position}`,
+  user: 'Usuario',
+  ai: 'IA',
+  flowSummary: 'Resumen del flujo',
+  plan: 'Plan',
+  assumptions: 'Suposiciones',
+  language: 'Lenguaje',
+  modules: 'Módulos',
+  relations: 'Relaciones',
+  noMap: 'El mapa no está disponible en este navegador. Se guarda en el navegador donde se charló con la IA.',
+  noRelations: 'Sin relaciones.',
+  kind: 'Tipo',
+  description: 'Descripción',
+  role: 'Rol',
+  responsibility: 'Responsabilidad',
+  notes: 'Notas',
 }
 
 export const PROJECTS_PAGE_TEXTS = {
