@@ -51,7 +51,7 @@ Un turno puede incluir planificación y resumen, cada uno con el timeout de IA d
 
 ## Selección del modelo de IA
 
-Debajo del chat se muestran los modelos del catálogo `GET /api/ai/models`. La selección es por proyecto y pestaña, se conserva durante la sesión del navegador y se comparte entre Contexto global y Arquitectura propuesta. Al iniciar se usa el modelo predeterminado del backend si está disponible; si no, hay que elegir uno. Una selección guardada que ya no esté disponible debe reemplazarse explícitamente.
+Debajo del chat se muestran los modelos del catálogo `GET /api/ai/models`. La selección es por proyecto y pestaña, se conserva durante la sesión del navegador y se comparte entre Contexto global y Arquitectura propuesta. Al iniciar se usa el modelo predeterminado del backend si está disponible; si no, hay que elegir uno. Una selección guardada que ya no esté disponible, como `qwen-rapido`, debe reemplazarse explícitamente.
 
 Cada mensaje envía la selección al backend, que la aplica tanto a la planificación como al resumen. No hay cambio automático de proveedor si falla. El catálogo indica configuración disponible, no comprueba conectividad. Si no se puede cargar o está vacío, el chat no envía mensajes.
 
@@ -89,7 +89,7 @@ Los mocks respetan el contrato del backend:
 - `POST /api/projects` crea un proyecto en memoria: responde `201` con el proyecto, que queda primero en la lista. Un nombre vacío responde `400`.
 - `DELETE /api/projects` lo elimina: `204`, o `404` si no existe.
 - `POST /api/projects/{projectId}/context` responde `201` con un contexto de ejemplo en estado `ready` (plan y código). Si el proyecto ya tenía contexto, devuelve el mismo con `200`. Responde `404` si el proyecto no existe y `400` si el prompt está vacío.
-- `GET /api/ai/models` devuelve Gemini y los dos modelos de BDT en `success`, un catálogo vacío en `empty` y `500` en `error`. El mock de contexto también rechaza selecciones inválidas.
+- `GET /api/ai/models` devuelve Gemini y los siete modelos de BDT en `success`, un catálogo vacío en `empty` y `500` en `error`. El mock de contexto también rechaza selecciones inválidas.
 - `PATCH /api/projects/{projectId}/context/nodes/{nodeKey}` guarda las `userNotes` del nodo (la regla del modal de detalle del módulo) en el contexto en memoria: responde `200` con el nodo actualizado, `404` si el proyecto o el nodo no existen y `400` si falta `userNotes`.
 
 Los cambios se pierden al reiniciar Vite. Los mocks tardan 800 ms en responder para que se vea el estado de carga y viven en `frontend/mocks/`, fuera del build.

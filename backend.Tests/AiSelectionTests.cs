@@ -42,16 +42,23 @@ public class AiSelectionTests
         Assert.Null(catalog.DefaultSelection);
         Assert.Equal("Bdt", Assert.Single(catalog.Providers).Id);
         Assert.NotNull(selection.Select(null));
-        Assert.Null(selection.Select(new AiSelectionRequest { Provider = "Bdt", Model = "qwen-rapido" }));
+        Assert.Null(selection.Select(new AiSelectionRequest { Provider = "Bdt", Model = "gpt-6.1-sol-low" }));
     }
 
     [Theory]
-    [InlineData("qwen-rapido")]
+    [InlineData("gpt-6-luna-high")]
     [InlineData("qwen-maximo")]
+    [InlineData("gpt-6.1-sol-high")]
+    [InlineData("gpt-6.1-sol-low")]
+    [InlineData("gpt-6.1-sol-medium")]
+    [InlineData("gpt-6.1-terra-high")]
+    [InlineData("gpt-6.1-terra-medium")]
     public async Task Selected_bdt_model_is_used_for_all_operations(string model)
     {
         var handler = new RecordingHandler();
         using var selection = CreateSelection(CreateOptions(), handler);
+        Assert.Contains(selection.GetModels().Providers.Single(p => p.Id == "Bdt").Models,
+            item => item.Id == model);
         Assert.Null(selection.Select(new AiSelectionRequest { Provider = "Bdt", Model = model }));
 
         var plan = await selection.GeneratePlanAsync("test");
@@ -73,14 +80,14 @@ public class AiSelectionTests
         var options = CreateOptions();
         using var first = CreateSelection(options, handler);
         using var second = CreateSelection(options, handler);
-        Assert.Null(first.Select(new AiSelectionRequest { Provider = "Bdt", Model = "qwen-rapido" }));
+        Assert.Null(first.Select(new AiSelectionRequest { Provider = "Bdt", Model = "gpt-6.1-sol-low" }));
         Assert.Null(second.Select(new AiSelectionRequest { Provider = "Bdt", Model = "qwen-maximo" }));
 
         await Task.WhenAll(first.GeneratePlanAsync("one"), second.GeneratePlanAsync("two"));
 
-        Assert.Contains(handler.Bodies, body => body.Contains("\"qwen-rapido\""));
+        Assert.Contains(handler.Bodies, body => body.Contains("\"gpt-6.1-sol-low\""));
         Assert.Contains(handler.Bodies, body => body.Contains("\"qwen-maximo\""));
-        Assert.Equal("qwen-rapido", options.Bdt.Model);
+        Assert.Equal("gpt-6.1-sol-low", options.Bdt.Model);
     }
 
     [Fact]
@@ -121,13 +128,13 @@ public class AiSelectionTests
         var handler = new RecordingHandler();
         var options = CreateOptions();
         options.Provider = "Bdt";
-        options.Bdt.Model = "qwen-maximo";
+        options.Bdt.Model = "gpt-6.1-sol-low";
         using var selection = CreateSelection(options, handler);
 
-        Assert.Equal("qwen-maximo", selection.GetModels().DefaultSelection?.Model);
+        Assert.Equal("gpt-6.1-sol-low", selection.GetModels().DefaultSelection?.Model);
         Assert.Null(selection.Select(null));
         await selection.GeneratePlanAsync("test");
-        Assert.Contains("\"qwen-maximo\"", Assert.Single(handler.Bodies));
+        Assert.Contains("\"gpt-6.1-sol-low\"", Assert.Single(handler.Bodies));
     }
 
     [Fact]
@@ -135,13 +142,13 @@ public class AiSelectionTests
     {
         var options = CreateOptions();
         options.Provider = "Bdt";
-        options.Bdt.Model = "unknown";
+        options.Bdt.Model = "qwen-rapido";
         using var selection = CreateSelection(options, new RecordingHandler());
 
         Assert.Null(selection.GetModels().DefaultSelection);
-        Assert.Equal(2, selection.GetModels().Providers.Single(p => p.Id == "Bdt").Models.Count);
+        Assert.Equal(7, selection.GetModels().Providers.Single(p => p.Id == "Bdt").Models.Count);
         Assert.NotNull(selection.Select(null));
-        Assert.Null(selection.Select(new AiSelectionRequest { Provider = "Bdt", Model = "qwen-rapido" }));
+        Assert.Null(selection.Select(new AiSelectionRequest { Provider = "Bdt", Model = "gpt-6.1-sol-low" }));
     }
 
     [Theory]
@@ -149,6 +156,7 @@ public class AiSelectionTests
     [InlineData("Other", null)]
     [InlineData("Bdt", null)]
     [InlineData("Bdt", "other-model")]
+    [InlineData("Bdt", "qwen-rapido")]
     [InlineData("Gemini", "other-model")]
     public void Invalid_selections_are_rejected(string? provider, string? model)
     {
@@ -181,7 +189,7 @@ public class AiSelectionTests
         },
         Bdt = new BdtOptions
         {
-            BaseUrl = "https://bdt.test/v1", Model = "qwen-rapido", ApiKey = "secret-bdt"
+            BaseUrl = "https://bdt.test/v1", Model = "gpt-6.1-sol-low", ApiKey = "secret-bdt"
         }
     };
 
