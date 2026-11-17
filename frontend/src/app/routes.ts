@@ -22,6 +22,12 @@ export function buildProjectGenerationPath(projectId: number): string {
   return `/projects/${projectId}/generation`
 }
 
+export function resolveOpenFlowPath(project: { projectId: number; finish_proyect?: boolean }): string {
+  return project.finish_proyect === true
+    ? buildProjectGenerationPath(project.projectId)
+    : buildProjectArchitecturePath(project.projectId)
+}
+
 function parseProjectId(pathname: string, pattern: RegExp): number | null {
   const rawProjectId = pattern.exec(pathname)?.[1]
   if (rawProjectId === undefined) {

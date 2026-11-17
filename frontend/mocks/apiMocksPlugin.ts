@@ -288,6 +288,7 @@ async function sendCreateResult(
     description: null,
     projectId: getNextProjectId(projects),
     created_at: getTodayAsDateOnly(),
+    finish_proyect: false,
   }
   projects.unshift(project)
   sendJson(response, HTTP_STATUS.created, project)

@@ -11,12 +11,14 @@ export const MOCK_PROJECTS: ProjectResponse[] = [
     name: 'Orquestador de auditoría',
     description: 'Registra los eventos relevantes de cada sistema.',
     projectId: 25,
+    finish_proyect: true,
     created_at: '2026-10-05',
   },
   {
     name: 'Orquestador de reservas',
     description: 'Gestiona reservas entre proveedores externos.',
     projectId: 24,
+    finish_proyect: true,
     created_at: '2026-09-28',
   },
   {

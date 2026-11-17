@@ -13,9 +13,10 @@ import { ProjectsContent } from './ProjectsContent'
 
 export type ProjectsPageProps = {
   onNewOrchestration: () => void
+  onOpenFlow?: (project: ProjectResponse) => void
 }
 
-export function ProjectsPage({ onNewOrchestration }: ProjectsPageProps) {
+export function ProjectsPage({ onNewOrchestration, onOpenFlow }: ProjectsPageProps) {
   const [query, setQuery] = useState('')
   const searchTerm = useDebouncedValue(query.trim(), SEARCH_DEBOUNCE_MS)
   const [page, setPage] = useState(FIRST_PAGE)
@@ -61,6 +62,7 @@ export function ProjectsPage({ onNewOrchestration }: ProjectsPageProps) {
           searchTerm={searchTerm}
           onRetry={() => void run()}
           onDeleteProject={setProjectToDelete}
+          onOpenFlow={onOpenFlow}
           pagination={
             <ProjectPagination
               page={page}

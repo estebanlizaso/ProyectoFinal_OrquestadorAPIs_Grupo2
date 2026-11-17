@@ -10,9 +10,10 @@ import { ProjectCardMenu } from './ProjectCardMenu'
 export type ProjectCardProps = {
   project: ProjectResponse
   onDelete?: (project: ProjectResponse) => void
+  onOpenFlow?: (project: ProjectResponse) => void
 }
 
-export function ProjectCard({ project, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete, onOpenFlow }: ProjectCardProps) {
   const { projectId, name, description, created_at: createdAt } = project
   const { run: fetchInitialPrompt, status: promptStatus } = useInitialPrompt()
 
@@ -45,7 +46,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
       <p className="text-sm text-gray-500">{description || PROJECT_CARD_TEXTS.noDescription}</p>
 
       <footer className="mt-auto">
-        <Button variant="soft" size="sm" disabled>
+        <Button variant="soft" size="sm" disabled={!onOpenFlow} onClick={onOpenFlow && (() => onOpenFlow(project))}>
           {PROJECT_CARD_TEXTS.openFlow}
         </Button>
       </footer>
