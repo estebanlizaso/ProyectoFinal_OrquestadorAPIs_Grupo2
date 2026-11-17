@@ -41,6 +41,14 @@ public class ProjectContext
     [Column("language")]
     public string? Language { get; set; }
 
+    // Legacy nullable columns retained for databases where AddRepositoryBlueprint was applied.
+    // The flexible generator no longer reads or requires a planner repository design.
+    [Column("repository_blueprint", TypeName = "text")]
+    public string? RepositoryBlueprintJson { get; set; }
+
+    [Column("repository_blueprint_version")]
+    public int? RepositoryBlueprintVersion { get; set; }
+
     [ConcurrencyCheck]
     [Column("map_version")]
     public int MapVersion { get; set; }

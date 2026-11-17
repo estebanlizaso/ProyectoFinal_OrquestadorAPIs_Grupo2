@@ -23,6 +23,7 @@ public enum GenerateArchitectureStatus
     Success,
     NotFound,
     NoDetectedContexts,
+    PlanNotReady,
     TooManyContexts,
     LimitExceeded,
     InvalidLanguage,

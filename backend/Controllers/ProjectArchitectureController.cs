@@ -47,6 +47,7 @@ public class ProjectArchitectureController : ControllerBase
         {
             GenerateArchitectureStatus.Success => Ok(result.Response),
             GenerateArchitectureStatus.NotFound => NotFound(),
+            GenerateArchitectureStatus.PlanNotReady => Conflict(new { message = result.Message }),
             GenerateArchitectureStatus.NoDetectedContexts => Conflict(new
             {
                 message = result.Message

@@ -21,6 +21,37 @@ namespace OrquestadorApi.Tests;
 
 public class ContextGenerationTests
 {
+    [Fact]
+    public async Task Planner_accepts_the_original_map_contract_without_a_repository_design()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var created = await fixture.Service.CreateAsync(1, "Python: consultar stock");
+        Assert.Equal(CreateProjectContextStatus.Created, created.Status);
+        fixture.Db.ChangeTracker.Clear();
+        var reloaded = await fixture.Service.GetAsync(1);
+        Assert.Equal("ready", reloaded!.Planner!.Status);
+        Assert.Equal(2, reloaded.Nodes.Count);
+
+        await fixture.Service.CreateAsync(1, "Conservar la estructura");
+        using var input = JsonDocument.Parse(fixture.Ai.Input!);
+        Assert.False(input.RootElement.TryGetProperty("previousRepositoryBlueprint", out _));
+    }
+
+    [Fact]
+    public async Task Manual_notes_are_available_to_the_next_planning_request()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.Service.CreateAsync(1, "Python: consultar stock");
+        fixture.Db.ChangeTracker.Clear();
+        await fixture.Service.UpdateNodeNotesAsync(1, "source", "Usar mocks locales");
+        fixture.Db.ChangeTracker.Clear();
+        var context = await fixture.Service.GetAsync(1);
+        Assert.Equal("Usar mocks locales", context!.Nodes.Single(node => node.Key == "source").UserNotes);
+        await fixture.Service.CreateAsync(1, "Confirmar el nuevo diseño");
+        using var input = JsonDocument.Parse(fixture.Ai.Input!);
+        Assert.False(input.RootElement.TryGetProperty("previousRepositoryBlueprint", out _));
+    }
+
     private static PlannerAiRelation Relation(string? operation) =>
         new("source", "target", "stock", operation, null, "sync");
 
@@ -185,7 +216,7 @@ public class ContextGenerationTests
     {
         await using var fixture = await Fixture.CreateAsync();
         fixture.Ai.Failure = "planner";
-        var controller = new ProjectContextsController(fixture.Service);
+        var controller = new ProjectContextsController(fixture.Service, new TestRepositoryPlans.NoopSelection());
         var result = await controller.Create(1, new() { Prompt = "Objetivo" }, default);
         var response = Assert.IsType<ObjectResult>(result.Result);
         Assert.Equal(502, response.StatusCode);

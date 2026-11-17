@@ -15,7 +15,5 @@ public interface IArchitecturePackageBuilder
 
     string BuildProjectFolderName(string projectName);
 
-    string BuildSourceFileName(string contextKey, string language);
-
     string ResolveSourceMimeType(string language);
 }

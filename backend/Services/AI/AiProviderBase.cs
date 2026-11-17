@@ -315,7 +315,8 @@ public abstract class AiProviderBase : IAiProvider
         if (response is null ||
             string.IsNullOrWhiteSpace(response.Language) ||
             string.IsNullOrWhiteSpace(response.Summary) ||
-            response.Contexts is null)
+            response.Contexts is null ||
+            response.ProjectFiles is null)
         {
             throw new AiProviderException($"{ProviderName} devolvió un contrato de arquitectura incompleto.");
         }
@@ -429,6 +430,21 @@ public abstract class AiProviderBase : IAiProvider
                 @enum = new[] { "python", "dotnet" }
             },
             summary = new { type = "string" },
+            projectFiles = new
+            {
+                type = "array",
+                items = new
+                {
+                    type = "object",
+                    additionalProperties = false,
+                    properties = new
+                    {
+                        path = new { type = "string" },
+                        content = new { type = "string" }
+                    },
+                    required = new[] { "path", "content" }
+                }
+            },
             contexts = new
             {
                 type = "array",
@@ -440,7 +456,7 @@ public abstract class AiProviderBase : IAiProvider
                     {
                         key = new { type = "string" },
                         summary = new { type = "string" },
-                        code = new { type = "string" },
+                        filePath = new { type = "string" },
                         dependencies = new
                         {
                             type = "array",
@@ -475,11 +491,11 @@ public abstract class AiProviderBase : IAiProvider
                     },
                     required = new[]
                     {
-                        "key", "summary", "code", "dependencies", "env", "assumptions", "warnings"
+                        "key", "summary", "filePath", "dependencies", "env", "assumptions", "warnings"
                     }
                 }
             }
         },
-        required = new[] { "language", "summary", "contexts" }
+        required = new[] { "language", "summary", "contexts", "projectFiles" }
     };
 }

@@ -275,6 +275,14 @@ namespace OrquestadorApi.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("project_id");
 
+                    b.Property<string>("RepositoryBlueprintJson")
+                        .HasColumnType("text")
+                        .HasColumnName("repository_blueprint");
+
+                    b.Property<int?>("RepositoryBlueprintVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("repository_blueprint_version");
+
                     b.Property<string>("Resumen")
                         .HasColumnType("text")
                         .HasColumnName("resumen");

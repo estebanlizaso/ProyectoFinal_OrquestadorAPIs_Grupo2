@@ -155,11 +155,34 @@ DRIVE_ID/
   {Nombre del proyecto}/
     architecture.zip          # paquete completo (se reemplaza si ya existe)
     postman_collection.json   # collection importable en Postman
-    api-legacy.py             # código por nodo system
-    otro-sistema.py
+    node-1-buscar_cliente.py  # copia individual por nodo system; el proyecto completo está en el ZIP
+    node-2-verificar_pago.py
 ```
 
-El ZIP incluye `nodes.json`, `README.md`, `postman_collection.json`, `.env.example` si aplica, y el código por contexto.
+El ZIP incluye `nodes.json`, `README.md`, `postman_collection.json`, `.env.example` si aplica, `.gitignore` y todos los archivos generados como un único proyecto. Siempre incluye `run.sh`; para Python también `main.py` y `requirements.txt`; para .NET, `Program.cs` e `Integration.csproj` (.NET 10).
+
+#### Generación de un proyecto completo
+
+El planificador conserva su contrato original: conversa con el usuario y define nodos, relaciones, pasos, condiciones y supuestos. No necesita definir archivos, imports ni un `repositoryBlueprint`.
+
+El generador recibe el pedido inicial, resumen, plan, supuestos, nodos con sus notas actuales y relaciones del mapa en una sola solicitud. Decide libremente cómo organizar el repositorio y devuelve:
+
+- `projectFiles`: **todos** los archivos del proyecto, cada uno con `path` y `content`. Incluye código por sistema, entrada, utilidades, contratos compartidos y dependencias, sin duplicar contenidos en otro campo.
+- `contexts`: metadatos por nodo `system`, con `key`, `summary`, `filePath`, dependencias, variables de entorno, supuestos y advertencias. `filePath` referencia su implementación principal dentro de `projectFiles`. Varios sistemas pueden compartir un archivo; no se exige un módulo por nodo.
+
+Las instrucciones del generador piden diseñar todos los archivos juntos: imports que apunten a módulos entregados, firmas y datos compatibles, un punto de entrada que ejecute el flujo completo, condiciones y reintentos implementados, sin TODOs ni pasos de conexión manual. Las flechas representan comportamiento, no imports automáticos.
+
+El backend arma el ZIP usando las rutas recibidas, sin reconstruir imports, imponer nombres por nodo ni pedir al planificador que corrija un diseño de archivos. Para compatibilidad, la respuesta HTTP conserva `contexts[].code`, obtenido del archivo indicado por `filePath`; ese código no se vuelve a escribir en el ZIP. El README descargado documenta archivos, configuración, supuestos y mocks.
+
+Los mapas existentes siguen funcionando y las notas manuales se envían directamente al generador, sin exigir una replanificación de archivos. Si el mapa cambia mientras se genera el código, se devuelve HTTP 409 para evitar publicar un paquete basado en otra versión.
+
+Las columnas nullable de la migración anterior `AddRepositoryBlueprint` se conservan únicamente por compatibilidad con bases donde ya se aplicó; el enfoque flexible no las lee ni las exige. No se eliminan datos ni se revierte esa migración. Para obtener el nuevo formato de descarga, regenerá el código; no hace falta recrear el proyecto ni su contexto.
+
+Después de descomprimir, revisá el script y ejecutá `bash run.sh` en macOS/Linux o un entorno Bash compatible. El generador debe adaptar el script al proyecto: comprobar Python 3.10+ o SDK .NET 10, instalar las dependencias en `.venv` o restaurar los paquetes .NET y arrancar la aplicación en primer plano. Debe funcionar desde otro directorio, tolerar rutas con espacios, permitir volver a ejecutarlo y detenerse si falla algún paso. No instala runtimes ni paquetes del sistema, no usa `sudo`, no sobrescribe `.env` ni ejecuta su contenido como shell. Completá `.env` si la integración real requiere configuración; los mocks no requieren credenciales. La descarga inicial de dependencias puede necesitar Internet.
+
+Si el proyecto expone una API, el script debe mostrar la URL local configurada y una petición curl al endpoint real de entrada. El servidor y el ejemplo deben coincidir en host, puerto, método y ruta. El usuario espera a que el servidor esté escuchando y luego hace esa llamada desde Postman u otra terminal; el script no ejecuta llamadas de negocio automáticamente. Si el proyecto es CLI, inicia el comando correspondiente sin inventar un endpoint HTTP. El README también conserva los pasos manuales como alternativa.
+
+La validación es **básica**: rutas seguras, archivos no duplicados, límites de tamaño, entrada, manifiesto y `run.sh` no vacío presentes, y referencias de contexto a archivos entregados. El ZIP guarda el script con finales LF y permisos Unix ejecutables; `bash run.sh` no depende de esos permisos. No analiza imports, firmas ni comportamiento del script, ni compila o ejecuta código generado, ni prueba APIs externas o credenciales. Que el contenido funcione es un objetivo de la generación, no una garantía de esta validación. Los ZIP anteriores deben regenerarse para incorporar el script.
 
 La respuesta de architecture también incluye `postmanCollection` (formato Postman Collection v2.1):
 una carpeta por nodo destino con requests armados desde las relaciones que tienen `httpMethod` + `path`.
@@ -387,7 +410,7 @@ Si no está claro, el planificador pregunta una sola vez: `¿Python o .NET?`. Py
 { "language": "python" }
 ```
 
-Si se omite el body o `language`, se usa el lenguaje guardado en el contexto o Python. La respuesta incluye un bloque por sistema, sus dependencias, variables de entorno, supuestos y advertencias. El backend arma `envExample` con las variables declaradas; no genera un archivo `.env` real ni persiste el código.
+Si se omite el body o `language`, se usa el lenguaje guardado en el contexto o Python. La respuesta incluye `projectFiles` con el proyecto completo y los metadatos por sistema (`filePath`, `code`, dependencias, variables de entorno, supuestos y advertencias). El backend arma `envExample` con las variables declaradas; no genera un archivo `.env` real ni persiste el código en PostgreSQL.
 
 Una sola llamada al agente de arquitectura recibe el mapa completo y los límites del MVP.
 
@@ -683,7 +706,7 @@ Códigos de descarga:
 - Máximo 5 contextos `kind=system`.
 - Máximo 10 nodos en total.
 - Máximo 15 relaciones.
-- Máximo 150 líneas de código por contexto.
+- El código se limita por proyecto completo, sin imponer un archivo ni un límite individual de líneas por nodo.
 - Máximo 500 líneas de código en total.
 - Máximo 3 preguntas por iteración.
 

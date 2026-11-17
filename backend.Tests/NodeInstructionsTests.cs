@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
+using System.IO.Compression;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -161,6 +162,7 @@ public class NodeInstructionsTests
         var result = await service.GenerateAsync(1, "python");
         Assert.Equal(GenerateArchitectureStatus.DriveDisabled, result.Status);
         using var input = JsonDocument.Parse(ai.ArchitectureInput!);
+        Assert.False(input.RootElement.TryGetProperty("contextFiles", out _));
         var relation = input.RootElement.GetProperty("relations")[0];
         Assert.Equal("POST /new", relation.GetProperty("operation").GetString());
         Assert.Equal("POST", relation.GetProperty("httpMethod").GetString());
@@ -168,6 +170,55 @@ public class NodeInstructionsTests
         var source = input.RootElement.GetProperty("nodes").EnumerateArray()
             .Single(node => node.GetProperty("key").GetString() == "source");
         Assert.Equal("Registrar errores en un archivo separado.", source.GetProperty("userNotes").GetString());
+        Assert.False(input.RootElement.TryGetProperty("repositoryBlueprint", out _));
+    }
+
+    [Fact]
+    public async Task Generation_supports_existing_maps_and_current_manual_notes_without_replanning()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var ai = new RecordingAiProvider();
+        var service = new ArchitectureService(fixture.Db, ai, new ArchitectureZipBuilder(), new PostmanCollectionBuilder(),
+            new DisabledDriveStorage(), Options.Create(new OrchestrationOptions()), NullLogger<ArchitectureService>.Instance);
+        Assert.Equal(GenerateArchitectureStatus.DriveDisabled, (await service.GenerateAsync(1, "python")).Status);
+        await fixture.Service.UpdateNodeNotesAsync(1, "source", "Ahora usar mocks");
+        Assert.Equal(GenerateArchitectureStatus.DriveDisabled, (await service.GenerateAsync(1, "python")).Status);
+        using var input = JsonDocument.Parse(ai.ArchitectureInput!);
+        Assert.Contains(input.RootElement.GetProperty("nodes").EnumerateArray(), node =>
+            node.GetProperty("key").GetString() == "source" && node.GetProperty("userNotes").GetString() == "Ahora usar mocks");
+    }
+
+    [Fact]
+    public async Task Generator_selected_paths_survive_upload_and_download()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var ai = new RecordingAiProvider();
+        var drive = new MemoryDriveStorage();
+        var service = new ArchitectureService(fixture.Db, ai, new ArchitectureZipBuilder(), new PostmanCollectionBuilder(),
+            drive, Options.Create(new OrchestrationOptions()), NullLogger<ArchitectureService>.Instance);
+        var result = await service.GenerateAsync(1, "python");
+        Assert.Equal(GenerateArchitectureStatus.Success, result.Status);
+        var download = await service.DownloadPackageAsync(1);
+        Assert.Equal(DownloadArchitectureStatus.Success, download.Status);
+        using var zip = new ZipArchive(new MemoryStream(download.Content!));
+        foreach (var file in result.Response!.ProjectFiles!)
+        {
+            using var content = new StreamReader(zip.GetEntry("project-1-architecture/" + file.Path)!.Open());
+            Assert.Equal(file.Content.TrimEnd(), content.ReadToEnd().TrimEnd());
+        }
+        Assert.Null(zip.GetEntry("project-1-architecture/repository-blueprint.json"));
+    }
+
+    [Fact]
+    public async Task Unsafe_generator_files_are_rejected_before_upload()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var ai = new RecordingAiProvider { ExtraFile = new("../unsafe.py", "pass") };
+        var drive = new MemoryDriveStorage();
+        var service = new ArchitectureService(fixture.Db, ai, new ArchitectureZipBuilder(), new PostmanCollectionBuilder(),
+            drive, Options.Create(new OrchestrationOptions()), NullLogger<ArchitectureService>.Instance);
+        Assert.Equal(GenerateArchitectureStatus.AiProviderFailed, (await service.GenerateAsync(1, "python")).Status);
+        Assert.Empty(drive.Files);
     }
 
     [Fact]
@@ -246,16 +297,19 @@ public class NodeInstructionsTests
 
     private sealed class RecordingAiProvider : IAiProvider
     {
+        public ArchitectureProjectFile? ExtraFile { get; init; }
         public string? ArchitectureInput { get; private set; }
         public string? PlannerInput { get; private set; }
 
         public Task<PlannerAiResponse> GeneratePlanAsync(string input, CancellationToken cancellationToken = default)
         {
             PlannerInput = input;
+            using var document = JsonDocument.Parse(input);
+            var operation = document.RootElement.GetProperty("previousRelations")[0].GetProperty("operation").GetString();
             return Task.FromResult(new PlannerAiResponse("ready", "Listo", "Consultar pólizas", [], ["Consultar"], [], "python",
                 [new("source", "Source", null, "system", "consumer", null, "confirmed"),
                  new("target", "Target", null, "system", "provider", null, "confirmed")],
-                [new("source", "target", "consulta", "GET /old", null, "sync")]));
+                [new("source", "target", "consulta", operation, null, "sync")]));
         }
 
         public Task<string> GenerateResumenAsync(string initialPrompt, string? previousResumen, string userMessage,
@@ -265,10 +319,37 @@ public class NodeInstructionsTests
         public Task<ArchitectureAiResponse> GenerateArchitectureAsync(string input, CancellationToken cancellationToken = default)
         {
             ArchitectureInput = input;
+            using var document = JsonDocument.Parse(input);
+            var keys = document.RootElement.GetProperty("requiredContextKeys").EnumerateArray().Select(value => value.GetString()!).ToList();
+            var files = keys.Select(key => new ArchitectureProjectFile(key + ".py", "def run():\n    return {'id': 42}\n")).ToList();
+            files.Add(new("main.py", string.Join("\n", keys.Select(key => "import " + key)) +
+                "\n\ndef main():\n    print(" + string.Join(", ", keys.Select(key => key + ".run()")) + ")\n\nif __name__ == '__main__':\n    main()"));
+            files.Add(new("requirements.txt", ""));
+            files.Add(new("run.sh", "#!/usr/bin/env bash\nset -Eeuo pipefail\ncd -- \"$(dirname -- \"${BASH_SOURCE[0]}\")\"\npython3 -m venv .venv\n.venv/bin/python -m pip install -r requirements.txt\nexec .venv/bin/python main.py\n"));
+            if (ExtraFile is not null) files.Add(ExtraFile);
             return Task.FromResult(new ArchitectureAiResponse("python", "Generated",
-                new[] { "source", "target", "unrelated" }
-                    .Select(key => new ArchitectureAiContext(key, "Generated", "pass", [], [], [], [])).ToList()));
+                keys.Select(key => new ArchitectureAiContext(key, "Generated", key + ".py", [], [], [], [])).ToList(), files));
         }
+    }
+
+    private sealed class MemoryDriveStorage : IDriveStorage
+    {
+        public Dictionary<string, byte[]> Files { get; } = [];
+        public bool IsEnabled => true;
+        public Task<DriveFolderResult?> FindFolderAsync(string name, string? parentFolderId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult<DriveFolderResult?>(new(true, name, "folder", "https://drive.test/folder"));
+        public Task<DriveFolderResult> GetOrCreateFolderAsync(string name, string? parentFolderId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new DriveFolderResult(true, name, "folder", "https://drive.test/folder"));
+        public async Task<DriveUploadResult> UploadOrReplaceFileAsync(string name, string mimeType, Stream content,
+            string? parentFolderId = null, CancellationToken cancellationToken = default)
+        {
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, cancellationToken);
+            Files[name] = buffer.ToArray();
+            return new(true, name, name, "https://drive.test/" + name);
+        }
+        public Task<DriveDownloadResult?> DownloadFileByNameAsync(string name, string? parentFolderId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Files.TryGetValue(name, out var content) ? new DriveDownloadResult(name, "application/zip", content, name) : null);
     }
 
     private sealed class NoAiProvider : IAiProvider
