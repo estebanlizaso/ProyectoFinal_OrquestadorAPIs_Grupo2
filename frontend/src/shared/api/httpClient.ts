@@ -74,6 +74,8 @@ async function request<T>(
   path: string,
   body: unknown,
   { signal, timeoutMs = DEFAULT_TIMEOUT_MS }: RequestOptions = {},
+  readBody: (response: Response) => Promise<T | undefined> = readJsonBody,
+  accept = 'application/json',
 ): Promise<T | undefined> {
   const apiUrl = getApiUrl()
   const controller = new AbortController()
@@ -88,7 +90,7 @@ async function request<T>(
     controller.abort()
   }
 
-  const headers: Record<string, string> = { Accept: 'application/json' }
+  const headers: Record<string, string> = { Accept: accept }
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json'
   }
@@ -111,7 +113,7 @@ async function request<T>(
       })
     }
 
-    return await readJsonBody<T>(response)
+    return await readBody(response)
   } catch (error) {
     if (error instanceof ApiError) {
       throw error
@@ -167,4 +169,12 @@ export async function deleteJson<T = undefined, B = undefined>(
   options?: RequestOptions,
 ): Promise<T | undefined> {
   return request<T>('DELETE', path, body, options)
+}
+
+async function readBlobBody(response: Response): Promise<Blob> {
+  return response.blob()
+}
+
+export async function getBlob(path: string, options?: RequestOptions): Promise<Blob> {
+  return requireBody(await request<Blob>('GET', path, undefined, options, readBlobBody, '*/*'))
 }

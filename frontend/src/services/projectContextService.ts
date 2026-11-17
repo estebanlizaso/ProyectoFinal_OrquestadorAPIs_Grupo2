@@ -23,7 +23,7 @@ export class ContextTimeoutConfigurationError extends Error {
   }
 }
 
-function createContextTimeout(): number {
+export function createContextTimeout(): number {
   const configured = import.meta.env.VITE_AI_CONTEXT_TIMEOUT_MS
   if (!configured) return DEFAULT_CREATE_CONTEXT_TIMEOUT_MS
   const timeout = Number(configured)

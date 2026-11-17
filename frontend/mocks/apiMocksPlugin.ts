@@ -15,6 +15,13 @@ import type {
   ProjectResponse,
   ProjectsResponse,
 } from '../src/features/projects/types.ts'
+import {
+  buildMockArchitecture,
+  MOCK_EMPTY_ZIP,
+  MOCK_NOT_GENERATED_MESSAGE,
+  MOCK_PACKAGE_FILE_NAME,
+  MOCK_POSTMAN_FILE_NAME,
+} from './architecture.ts'
 import { MOCK_INITIAL_PROMPTS } from './initialPrompts.ts'
 import { MOCK_GENERATED_CONTENT, MOCK_NODES, MOCK_PLANNER, MOCK_RELATIONS } from './projectContexts.ts'
 import { MOCK_PROJECTS } from './projects.ts'
@@ -28,6 +35,9 @@ const PROJECTS_ROOT_PATH = '/'
 const PROJECT_CONTEXT_PATH_PATTERN = /^\/(\d+)\/context\/?$/
 const PROJECT_MESSAGES_PATH_PATTERN = /^\/(\d+)\/messages\/?$/
 const CONTEXT_NODE_PATH_PATTERN = /^\/(\d+)\/context\/nodes\/([^/]+)\/?$/
+const ARCHITECTURE_PATH_PATTERN = /^\/(\d+)\/architecture\/?$/
+const ARCHITECTURE_ARTIFACT_PATH_PATTERN = /^\/(\d+)\/architecture\/(package|postman-collection)\/?$/
+const MOCK_ARCHITECTURE_DELAY_MS = 4000
 const MOCK_DELAY_MS = 800
 const MOCK_TRACE_ID = 'mock-trace-id'
 const MOCK_ORIGIN = 'http://localhost'
@@ -149,6 +159,21 @@ function getContextProjectId(pathname: string): number | null {
 function getMessagesProjectId(pathname: string): number | null {
   const rawProjectId = PROJECT_MESSAGES_PATH_PATTERN.exec(pathname)?.[1]
   return rawProjectId ? Number(rawProjectId) : null
+}
+
+function getArchitectureProjectId(pathname: string): number | null {
+  const rawProjectId = ARCHITECTURE_PATH_PATTERN.exec(pathname)?.[1]
+  return rawProjectId ? Number(rawProjectId) : null
+}
+
+function getArchitectureArtifactTarget(
+  pathname: string,
+): { projectId: number; artifact: 'package' | 'postman-collection' } | null {
+  const match = ARCHITECTURE_ARTIFACT_PATH_PATTERN.exec(pathname)
+  if (!match?.[1] || (match[2] !== 'package' && match[2] !== 'postman-collection')) {
+    return null
+  }
+  return { projectId: Number(match[1]), artifact: match[2] }
 }
 
 function wait(milliseconds: number): Promise<void> {
@@ -490,11 +515,64 @@ async function sendUpdateNodeNotesResult(
   sendJson(response, HTTP_STATUS.ok, updatedNode)
 }
 
+async function sendGenerateArchitectureResult(
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  contexts: Map<number, ProjectContextResponse>,
+  generatedProjectIds: Set<number>,
+  projectId: number,
+): Promise<void> {
+  await wait(MOCK_ARCHITECTURE_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  const context = contexts.get(projectId)
+  if (!context) {
+    sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.projectNotFound)
+    return
+  }
+  generatedProjectIds.add(projectId)
+  sendJson(response, HTTP_STATUS.ok, buildMockArchitecture(projectId, context.contextId))
+}
+
+async function sendArchitectureArtifactResult(
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  generatedProjectIds: Set<number>,
+  projectId: number,
+  artifact: 'package' | 'postman-collection',
+): Promise<void> {
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  if (!generatedProjectIds.has(projectId)) {
+    sendJson(response, HTTP_STATUS.notFound, { message: MOCK_NOT_GENERATED_MESSAGE })
+    return
+  }
+  const isPackage = artifact === 'package'
+  const content = isPackage
+    ? MOCK_EMPTY_ZIP
+    : Buffer.from(JSON.stringify(buildMockArchitecture(projectId, 0).postmanCollection))
+  response.statusCode = HTTP_STATUS.ok
+  response.setHeader('Content-Type', isPackage ? 'application/zip' : 'application/json')
+  response.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${isPackage ? MOCK_PACKAGE_FILE_NAME : MOCK_POSTMAN_FILE_NAME}"`,
+  )
+  response.end(content)
+}
+
 export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
   const projects: ProjectResponse[] = scenario === 'success' ? [...MOCK_PROJECTS] : []
   const contexts =
     scenario === 'success' ? buildSeedContexts() : new Map<number, ProjectContextResponse>()
   const messages: ProjectMessageResponse[] = []
+  const generatedProjectIds = new Set<number>()
 
   return {
     name: 'api-mocks',
@@ -520,6 +598,24 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
         const contextProjectId = getContextProjectId(url.pathname)
         const contextNodeTarget = getContextNodeTarget(url.pathname)
         const messagesProjectId = getMessagesProjectId(url.pathname)
+        const architectureProjectId = getArchitectureProjectId(url.pathname)
+        const architectureArtifactTarget = getArchitectureArtifactTarget(url.pathname)
+
+        if (architectureProjectId !== null && request.method === 'POST') {
+          void sendGenerateArchitectureResult(response, scenario, contexts, generatedProjectIds, architectureProjectId)
+          return
+        }
+
+        if (architectureArtifactTarget !== null && request.method === 'GET') {
+          void sendArchitectureArtifactResult(
+            response,
+            scenario,
+            generatedProjectIds,
+            architectureArtifactTarget.projectId,
+            architectureArtifactTarget.artifact,
+          )
+          return
+        }
 
         if (messagesProjectId !== null && request.method === 'GET') {
           void sendMessagesResult(url, response, scenario, projects, messages, messagesProjectId)
