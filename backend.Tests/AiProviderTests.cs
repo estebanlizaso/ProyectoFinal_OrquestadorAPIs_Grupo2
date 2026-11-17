@@ -10,11 +10,7 @@ namespace OrquestadorApi.Tests;
 
 public class AiProviderTests
 {
-    private const string PlannerJson =
-        """
-        {"status":"ready","reply":"ok","summary":"s","questions":[],"plan":[],
-         "assumptions":[],"language":null,"nodes":[],"relations":[]}
-        """;
+    private static readonly string PlannerJson = TestRepositoryPlans.SimplePlanJson;
 
     [Fact]
     public async Task Bdt_sends_openai_request_and_parses_planner_response()
@@ -43,6 +39,40 @@ public class AiProviderTests
         Assert.Equal(JsonValueKind.Array, language.ValueKind);
         Assert.Equal(["string", "null"], language.EnumerateArray().Select(e => e.GetString()));
         Assert.DoesNotContain("nullable", request.Body);
+        var schema = format.GetProperty("json_schema").GetProperty("schema");
+        Assert.False(schema.GetProperty("properties").TryGetProperty("repositoryBlueprint", out _));
+    }
+
+    [Fact]
+    public async Task Ready_response_without_repository_design_is_accepted()
+    {
+        var provider = CreateBdt(new StubHandler(_ => Json(HttpStatusCode.OK, Completion(
+            """{"status":"ready","reply":"ok","summary":"s","questions":[],"plan":[],"assumptions":[],"language":"python","nodes":[],"relations":[]}"""))));
+        Assert.Equal("ready", (await provider.GeneratePlanAsync("planificar")).Status);
+    }
+
+    [Fact]
+    public async Task Architecture_returns_all_source_files_together_without_duplicate_context_code()
+    {
+        const string generated = """
+            {
+              "language": "python", "summary": "Proyecto mock completo",
+              "contexts": [{"key": "source", "summary": "Implementado en la entrada",
+                "filePath": "main.py", "dependencies": [], "env": [], "assumptions": [], "warnings": []}],
+              "projectFiles": [{"path": "main.py", "content": "def main():\n    print('mock')\n\nif __name__ == '__main__':\n    main()\n"},
+                {"path": "requirements.txt", "content": ""},
+                {"path": "USAGE.md", "content": "Ejecutar bash run.sh para iniciar el flujo mock de consola."}]
+            }
+            """;
+        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, Completion(generated)));
+        var response = await CreateBdt(handler).GenerateArchitectureAsync("Generar el proyecto completo");
+        Assert.Equal("main.py", Assert.Single(response.Contexts).FilePath);
+        Assert.Equal(3, response.ProjectFiles!.Count);
+        using var request = JsonDocument.Parse(Assert.Single(handler.Requests).Body);
+        var contextSchema = request.RootElement.GetProperty("response_format").GetProperty("json_schema")
+            .GetProperty("schema").GetProperty("properties").GetProperty("contexts").GetProperty("items");
+        Assert.False(contextSchema.GetProperty("properties").TryGetProperty("code", out _));
+        Assert.True(contextSchema.GetProperty("properties").TryGetProperty("filePath", out _));
     }
 
     [Fact]

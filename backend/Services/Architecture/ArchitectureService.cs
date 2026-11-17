@@ -187,7 +187,10 @@ public class ArchitectureService : IArchitectureService
             var contextResponses = new List<ArchitectureContextResponse>();
             var envLines = new List<string>();
             var envNames = new HashSet<string>(StringComparer.Ordinal);
-            var totalLines = 0;
+            var projectFiles = StartupScriptBuilder.WithTemplate(selectedLanguage, response.ProjectFiles);
+            ArchitectureProjectValidator.ValidateFiles(selectedLanguage, projectFiles);
+            var totalLines = projectFiles.Where(file => file.Path.EndsWith(selectedLanguage == "python" ? ".py" : ".cs", StringComparison.Ordinal))
+                .Sum(file => CountLines(file.Content));
 
             foreach (var block in response.Contexts)
             {
@@ -211,25 +214,16 @@ public class ArchitectureService : IArchitectureService
                         $"{_aiProvider.ProviderName} devolvió más de un bloque para el contexto '{key}'.");
                 }
 
-                var code = NormalizeCode(block.Code);
+                var sourceFile = projectFiles.SingleOrDefault(file => file.Path == block.FilePath);
+                if (sourceFile is null)
+                    throw new AiProviderException($"El contexto '{key}' referencia el archivo inexistente '{block.FilePath}'.");
+                var code = NormalizeCode(sourceFile.Content);
 
                 if (string.IsNullOrWhiteSpace(code))
                 {
                     throw new AiProviderException(
                         $"{_aiProvider.ProviderName} devolvió código vacío para el contexto '{key}'.");
                 }
-
-                var lines = CountLines(code);
-
-                if (lines > _options.MaxCodeLinesPerContext)
-                {
-                    return new GenerateArchitectureResult(
-                        GenerateArchitectureStatus.LimitExceeded,
-                        Message: $"El código del contexto '{key}' tiene {lines} líneas y el máximo es " +
-                            $"{_options.MaxCodeLinesPerContext}.");
-                }
-
-                totalLines += lines;
 
                 var env = new List<ArchitectureEnvVarResponse>();
 
@@ -269,7 +263,8 @@ public class ArchitectureService : IArchitectureService
                     NormalizeStrings(block.Dependencies),
                     env,
                     NormalizeStrings(block.Assumptions),
-                    NormalizeStrings(block.Warnings)));
+                    NormalizeStrings(block.Warnings),
+                    sourceFile.Path));
             }
 
             var missingKeys = systemNodes
@@ -304,9 +299,8 @@ public class ArchitectureService : IArchitectureService
 
             if (contextChanged)
             {
-                warnings.Add(
-                    "El mapa de orquestación cambió durante la generación. " +
-                    "Revisá el resultado o generá la arquitectura nuevamente.");
+                return new GenerateArchitectureResult(GenerateArchitectureStatus.PlanNotReady,
+                    Message: "El mapa cambió durante la generación. No se publicó el paquete; volvé a generar con el mapa vigente.");
             }
 
             var map = ProjectContextMapper.ToResponse(projectContext, nodes, relations);
@@ -320,7 +314,10 @@ public class ArchitectureService : IArchitectureService
                 envLines.Count > 0 ? string.Join(Environment.NewLine, envLines) : null,
                 contextResponses,
                 warnings,
-                contextChanged);
+                contextChanged,
+                ProjectFiles: projectFiles);
+
+            ArchitectureProjectValidator.Validate(architecture);
 
             var postmanCollection = _postmanCollectionBuilder.Build(
                 project.ProjectName,
@@ -576,11 +573,11 @@ public class ArchitectureService : IArchitectureService
 
             var sourceMimeType = _packageBuilder.ResolveSourceMimeType(architecture.Language);
 
-            foreach (var context in architecture.Contexts)
+            foreach (var (context, index) in architecture.Contexts.Select((context, index) => (context, index)))
             {
-                var sourceFileName = _packageBuilder.BuildSourceFileName(
-                    context.Key,
-                    architecture.Language);
+                // Drive's loose copies are secondary artifacts. Prefix them so equal basenames
+                // from different directories cannot overwrite each other; the ZIP preserves exact paths.
+                var sourceFileName = $"node-{index + 1}-" + Path.GetFileName(context.FilePath!);
                 var sourceBytes = Encoding.UTF8.GetBytes(NormalizeNewLines(context.Code));
                 await using var sourceStream = new MemoryStream(sourceBytes);
                 var sourceUpload = await _driveStorage.UploadOrReplaceFileAsync(

@@ -8,9 +8,6 @@ namespace OrquestadorApi.Services.Architecture;
 
 public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
 {
-    private static readonly Regex UnsafeFileNameChars =
-        new(@"[^A-Za-z0-9._-]+", RegexOptions.Compiled);
-
     private static readonly Regex UnsafeFolderNameChars =
         new(@"[\\/:*?""<>|]+", RegexOptions.Compiled);
 
@@ -30,9 +27,6 @@ public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
         return string.IsNullOrWhiteSpace(sanitized) ? "proyecto" : sanitized;
     }
 
-    public string BuildSourceFileName(string contextKey, string language) =>
-        SanitizeFileName(contextKey) + ResolveExtension(language);
-
     public string ResolveSourceMimeType(string language) =>
         string.Equals(language, "dotnet", StringComparison.OrdinalIgnoreCase)
             ? "text/plain"
@@ -44,12 +38,22 @@ public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
         IReadOnlyList<OrchestrationRelationResponse> relations,
         JsonElement? postmanCollection = null)
     {
+        architecture = architecture with
+        {
+            ProjectFiles = StartupScriptBuilder.WithTemplate(architecture.Language, architecture.ProjectFiles)
+        };
+        ArchitectureProjectValidator.Validate(architecture);
         using var memory = new MemoryStream();
         using (var archive = new ZipArchive(memory, ZipArchiveMode.Create, leaveOpen: true))
         {
             var root = $"project-{architecture.ProjectId}-architecture";
             WriteEntry(archive, $"{root}/README.md", BuildReadme(architecture));
             WriteEntry(archive, $"{root}/nodes.json", BuildNodesJson(architecture, nodes, relations));
+            WriteEntry(archive, $"{root}/.gitignore", ".env\n.venv/\n__pycache__/\nbin/\nobj/\n");
+            foreach (var file in architecture.ProjectFiles!)
+            {
+                WriteEntry(archive, $"{root}/{file.Path}", NormalizeNewLines(file.Content));
+            }
 
             if (postmanCollection is { } collection &&
                 collection.ValueKind is not JsonValueKind.Undefined and not JsonValueKind.Null)
@@ -65,15 +69,6 @@ public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
                 WriteEntry(archive, $"{root}/.env.example", architecture.EnvExample.TrimEnd() + "\n");
             }
 
-            var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var context in architecture.Contexts)
-            {
-                var fileName = EnsureUniqueFileName(
-                    BuildSourceFileName(context.Key, architecture.Language),
-                    usedNames);
-                WriteEntry(archive, $"{root}/{fileName}", NormalizeNewLines(context.Code));
-            }
         }
 
         return memory.ToArray();
@@ -101,6 +96,11 @@ public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
     private static void WriteEntry(ZipArchive archive, string entryName, string content)
     {
         var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+        if (entryName.EndsWith("/run.sh", StringComparison.Ordinal))
+        {
+            // Unix regular file with mode 0755; bash run.sh also works without executable-bit support.
+            entry.ExternalAttributes = unchecked((int)0x81ED0000);
+        }
         using var writer = new StreamWriter(entry.Open(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         writer.Write(content);
     }
@@ -120,6 +120,54 @@ public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
         builder.AppendLine();
         builder.AppendLine(architecture.Summary.Trim());
         builder.AppendLine();
+        builder.AppendLine("## Ejecutar el proyecto");
+        builder.AppendLine();
+        builder.AppendLine("Desde esta carpeta, con Python 3.10+ o el SDK .NET 10 según el lenguaje:");
+        builder.AppendLine();
+        builder.AppendLine("Revisá el script y ejecutá (macOS/Linux, o un entorno Bash compatible en Windows):");
+        builder.AppendLine();
+        builder.AppendLine("```sh");
+        builder.AppendLine("bash run.sh");
+        builder.AppendLine("```");
+        builder.AppendLine();
+        builder.AppendLine("El script prepara las dependencias del proyecto y lo inicia en primer plano. " +
+            "Está generado desde una plantilla fija del backend, no por la IA. No instala Python/.NET en el sistema ni requiere sudo. " +
+            "Para APIs, muestra la URL configurada; consultá `USAGE.md` para el endpoint y un ejemplo curl: " +
+            "esperá a que el servidor indique que está escuchando y hacé la petición desde otra terminal o Postman. " +
+            "Detenelo con Ctrl+C. La instalación inicial de dependencias puede requerir acceso a Internet.");
+        builder.AppendLine();
+        builder.AppendLine("Las APIs usan por defecto `http://127.0.0.1:5000`. Podés cambiarlo con `HOST=127.0.0.1 PORT=8080 bash run.sh`. " +
+            "Estos valores del proceso prevalecen sobre `.env`; el script no ejecuta ni sobrescribe ese archivo. " +
+            "Para argumentos CLI, usá `bash run.sh argumentos...`. Las instrucciones específicas están en `USAGE.md`.");
+        builder.AppendLine();
+        builder.AppendLine("### Alternativa manual");
+        builder.AppendLine();
+        builder.AppendLine("```sh");
+        if (architecture.Language == "python")
+        {
+            builder.AppendLine("python3 -m venv .venv");
+            builder.AppendLine("# Activar .venv (Windows: .venv\\Scripts\\activate; macOS/Linux: source .venv/bin/activate)");
+            builder.AppendLine("python3 -m pip install -r requirements.txt");
+            builder.AppendLine("python3 main.py  # también: python3 -m main");
+        }
+        else
+        {
+            builder.AppendLine("dotnet restore Integration.csproj");
+            builder.AppendLine("dotnet run --project Integration.csproj");
+        }
+        builder.AppendLine("```");
+        builder.AppendLine();
+        builder.AppendLine("Si existe `.env.example`, copiá sus valores a un `.env` y completá la configuración. " +
+            "El punto de entrada carga ese archivo. Revisá los supuestos y mocks antes de habilitar llamadas reales. " +
+            "La estructura fue validada; el backend no ejecutó ni verificó la integración contra servicios externos.");
+        builder.AppendLine();
+        builder.AppendLine("## Archivos del proyecto");
+        builder.AppendLine();
+        foreach (var file in architecture.ProjectFiles!)
+        {
+            builder.AppendLine($"- `{file.Path}`");
+        }
+        builder.AppendLine();
         builder.AppendLine("## Contextos");
         builder.AppendLine();
 
@@ -128,7 +176,12 @@ public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
             builder.AppendLine($"### {context.Name} (`{context.Key}`)");
             builder.AppendLine();
             builder.AppendLine(context.Summary.Trim());
+            builder.AppendLine($"Archivo principal: `{context.FilePath}`.");
             builder.AppendLine();
+            foreach (var assumption in context.Assumptions)
+                builder.AppendLine($"- Supuesto: {assumption}");
+            foreach (var warning in context.Warnings)
+                builder.AppendLine($"- Advertencia: {warning}");
 
             if (context.Dependencies.Count > 0)
             {
@@ -153,36 +206,6 @@ public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
         }
 
         return builder.ToString();
-    }
-
-    private static string ResolveExtension(string language) =>
-        string.Equals(language, "dotnet", StringComparison.OrdinalIgnoreCase)
-            ? ".cs"
-            : ".py";
-
-    private static string SanitizeFileName(string value)
-    {
-        var sanitized = UnsafeFileNameChars.Replace(value.Trim(), "-").Trim('-', '.');
-        return string.IsNullOrWhiteSpace(sanitized) ? "context" : sanitized;
-    }
-
-    private static string EnsureUniqueFileName(string fileName, HashSet<string> usedNames)
-    {
-        if (usedNames.Add(fileName))
-        {
-            return fileName;
-        }
-
-        var extension = Path.GetExtension(fileName);
-        var stem = Path.GetFileNameWithoutExtension(fileName);
-        var index = 2;
-
-        while (!usedNames.Add($"{stem}-{index}{extension}"))
-        {
-            index++;
-        }
-
-        return $"{stem}-{index}{extension}";
     }
 
     private static string NormalizeNewLines(string content) =>

@@ -41,6 +41,88 @@ una iteración posterior. Tampoco cambia el contexto enviado al modelo.
 Cada POST exitoso agrega un intercambio: reenviar manualmente el mismo mensaje
 crea otra fila; no hay deduplicación por contenido ni claves de idempotencia.
 
+## Recuperar el mapa por proyecto
+
+```http
+GET /api/projects/42/context/map
+```
+
+Devuelve `200` con el `ProjectContextResponse` persistido: `contextId`, `projectId`,
+`initialPrompt`, `generatedContent`, `planner`, `nodes`, `relations`, `mapVersion`,
+`resumen` y `updatedAt`. No llama a la IA ni modifica la base de datos.
+
+`nodes` incluye los nodos activos con todos sus datos y notas del usuario.
+`relations` incluye las conexiones entre esos nodos, con `id`, `from`, `to`,
+`label`, `operation`, `description`, `kind`, `sortOrder`, `httpMethod` y `path`.
+`from` y `to` referencian el `key` de cada nodo. Se conservan las distintas
+operaciones entre el mismo par de nodos y el orden del mapa.
+
+Si existe un contexto sin mapa, ambas listas están vacías. Si el proyecto no
+existe o todavía no tiene contexto, devuelve `404`. `mapVersion` permite enviar
+la versión vigente al guardar instrucciones de nodos.
+
+El endpoint existente `GET /api/projects/{projectId}/context` sigue devolviendo
+únicamente el prompt inicial; su contrato no cambia.
+
+## Retomar la última etapa alcanzada
+
+El avance pertenece al proyecto, no a la sesión ni al usuario. Las etapas, en
+orden, son `context`, `architecture` y `generation`. Los proyectos nuevos y los
+existentes comienzan en `context` al aplicar la migración `AddProjectProgress`.
+La migración se aplica al iniciar la API, igual que las demás.
+
+Al avanzar de etapa, el frontend envía:
+
+```http
+PATCH /api/projects/42/progress
+Content-Type: application/json
+
+{ "stage": "architecture" }
+```
+
+Devuelve `200` con `{ "stage": "architecture" }`. Solo admite los tres valores
+exactos en minúsculas; un cuerpo inválido devuelve `400` y un proyecto inexistente,
+`404`. Repetir una etapa o enviar una anterior devuelve `200` con la etapa actual,
+sin retroceder ni reescribir el avance. La actualización condicional es atómica
+incluso ante peticiones concurrentes. Se puede avanzar directamente a una etapa
+posterior: este endpoint registra navegación, no valida la finalización de tareas
+ni implica que se haya generado código.
+
+Al hacer clic en **Abrir flujo**:
+
+```http
+GET /api/projects/42/progress
+```
+
+Devuelve `200` con `{ "stage": "architecture" }` (o `404` si no existe). El frontend
+resuelve la ruta: `context` → `/projects/42/context`, `architecture` →
+`/projects/42/architecture`, `generation` → `/projects/42/generation`.
+Volver a una pantalla anterior no cambia la última etapa alcanzada. No se guarda
+una URL ni se modifica el contrato del listado de proyectos. Los GET de progreso
+e historial pueden ejecutarse en paralelo. Si el GET debe reflejar un PATCH recién
+enviado, esperar primero la respuesta del PATCH, que ya incluye la etapa actual.
+
+### Bandera de proyecto finalizado
+
+`GET /api/projects` incluye `finish_proyect` (booleano) en cada proyecto del
+listado. `POST /api/projects` también lo devuelve, inicialmente `false`.
+Los GET y PATCH de `/api/projects/{projectId}/progress` devuelven ambos campos:
+
+```json
+{ "stage": "generation", "finish_proyect": true }
+```
+
+La migración `AddProjectFinishedFlag` agrega `projects.finish_proyect` como
+columna calculada y almacenada (`last_reached_stage = 2`). Al avanzar a
+`generation`, la base actualiza la bandera en la misma operación; también resulta
+`true` para proyectos que ya estaban en esa etapa antes de aplicar la migración.
+No es un campo editable por el cliente y no se puede desincronizar del avance.
+Como el avance no retrocede, la finalización tampoco. Se aplica al iniciar la API.
+
+Esta bandera permite indicar y bloquear la apertura desde el frontend, pero no
+agrega restricciones a los endpoints de edición: ese bloqueo del backend queda
+para una tarea posterior.
+
 ## Requisitos
 
 - .NET 10 SDK
@@ -96,11 +178,38 @@ DRIVE_ID/
   {Nombre del proyecto}/
     architecture.zip          # paquete completo (se reemplaza si ya existe)
     postman_collection.json   # collection importable en Postman
-    api-legacy.py             # código por nodo system
-    otro-sistema.py
+    node-1-buscar_cliente.py  # copia individual por nodo system; el proyecto completo está en el ZIP
+    node-2-verificar_pago.py
 ```
 
-El ZIP incluye `nodes.json`, `README.md`, `postman_collection.json`, `.env.example` si aplica, y el código por contexto.
+El ZIP incluye `nodes.json`, `README.md`, `postman_collection.json`, `.env.example` si aplica, `.gitignore` y todos los archivos generados como un único proyecto. Siempre incluye `run.sh`; para Python también `main.py` y `requirements.txt`; para .NET, `Program.cs` e `Integration.csproj` (.NET 10).
+
+#### Generación de un proyecto completo
+
+El planificador conserva su contrato original: conversa con el usuario y define nodos, relaciones, pasos, condiciones y supuestos. No necesita definir archivos, imports ni un `repositoryBlueprint`.
+
+El generador recibe el pedido inicial, resumen, plan, supuestos, nodos con sus notas actuales y relaciones del mapa en una sola solicitud. Decide libremente cómo organizar el repositorio y devuelve:
+
+- `projectFiles`: **todos** los archivos del proyecto, cada uno con `path` y `content`. El modelo entrega código por sistema, entrada, utilidades, contratos compartidos, dependencias e instrucciones `USAGE.md`. El backend agrega `run.sh` desde una plantilla fija; no se le pide redactar ese script a la IA.
+- `contexts`: metadatos por nodo `system`, con `key`, `summary`, `filePath`, dependencias, variables de entorno, supuestos y advertencias. `filePath` referencia su implementación principal dentro de `projectFiles`. Varios sistemas pueden compartir un archivo; no se exige un módulo por nodo.
+
+Las instrucciones del generador piden diseñar todos los archivos juntos: imports que apunten a módulos entregados, firmas y datos compatibles, un punto de entrada que ejecute el flujo completo, condiciones y reintentos implementados, sin TODOs ni pasos de conexión manual. Las flechas representan comportamiento, no imports automáticos.
+
+El backend arma el ZIP usando las rutas recibidas, sin reconstruir imports, imponer nombres por nodo ni pedir al planificador que corrija un diseño de archivos. Para compatibilidad, la respuesta HTTP conserva `contexts[].code`, obtenido del archivo indicado por `filePath`; ese código no se vuelve a escribir en el ZIP. El README descargado documenta archivos, configuración, supuestos y mocks.
+
+Los mapas existentes siguen funcionando y las notas manuales se envían directamente al generador, sin exigir una replanificación de archivos. Si el mapa cambia mientras se genera el código, se devuelve HTTP 409 para evitar publicar un paquete basado en otra versión.
+
+Las columnas nullable de la migración anterior `AddRepositoryBlueprint` se conservan únicamente por compatibilidad con bases donde ya se aplicó; el enfoque flexible no las lee ni las exige. No se eliminan datos ni se revierte esa migración. Para obtener el nuevo formato de descarga, regenerá el código; no hace falta recrear el proyecto ni su contexto.
+
+Después de descomprimir, revisá el script y ejecutá `bash run.sh` en macOS/Linux o un entorno Bash compatible. **El script ya no lo escribe el modelo.** El backend usa `Services/Architecture/Templates/python.run.sh` o `dotnet.run.sh`, embebidos como recursos de la aplicación. Lo agrega tanto a la respuesta HTTP como al ZIP, y reemplaza cualquier `run.sh` que un modelo anterior todavía devuelva (incluso con sintaxis inválida o mayúsculas en el nombre).
+
+Las plantillas comprueban Python 3.10+ o SDK .NET 10, crean/reutilizan `.venv` e instalan `requirements.txt` o restauran `Integration.csproj`, y arrancan `main.py` o `dotnet run --no-restore --no-launch-profile --project Integration.csproj` en primer plano con `exec`. Funcionan desde otro directorio, con rutas con espacios, y se detienen si falla un paso. Los argumentos de `bash run.sh argumentos...` se pasan a la aplicación. No instalan runtimes ni paquetes del sistema, no usan `sudo`, no borran entornos inválidos, no sobrescriben `.env` ni ejecutan su contenido como shell. Completá `.env` si la integración real requiere configuración; los mocks no requieren credenciales. La descarga inicial de dependencias puede necesitar Internet.
+
+Para APIs, ambas plantillas exportan `HOST=127.0.0.1` y `PORT=5000`, configurables por ejemplo con `HOST=127.0.0.1 PORT=8080 bash run.sh` (puertos 1024–65535). La plantilla .NET también configura `ASPNETCORE_URLS`. La IA debe implementar el servidor respetando estas variables, sin URLs hardcodeadas ni pasos de arranque especiales. La configuración del proceso prevalece sobre `.env`.
+
+Los ejemplos variables (método, ruta, ID, payload y curl) van en **`USAGE.md`**, no se interpolan como comandos del script. El script muestra la URL configurada y remite a ese archivo. El usuario espera a que el servidor esté escuchando y luego hace la llamada desde Postman u otra terminal; el script no llama endpoints de negocio automáticamente. Para CLI, `USAGE.md` documenta los argumentos sin inventar un endpoint. El README conserva pasos manuales como alternativa.
+
+La validación es **básica**: rutas seguras, archivos no duplicados, límites de tamaño, entrada, manifiesto, `USAGE.md` y plantilla `run.sh` presentes, y referencias de contexto a archivos entregados. El ZIP guarda el script con finales LF y permisos Unix ejecutables; `bash run.sh` no depende de esos permisos. Las plantillas se prueban con `bash -n` y runtimes simulados (instalación, argumentos, directorios con espacios, reuso de venv y fallos), sin instalar paquetes ni ejecutar código del modelo en esas pruebas. No se compila ni ejecuta la aplicación generada ni se prueban APIs externas o credenciales: un script fijo no garantiza que el código generado compile. Los ZIP anteriores deben regenerarse para incorporar estas plantillas.
 
 La respuesta de architecture también incluye `postmanCollection` (formato Postman Collection v2.1):
 una carpeta por nodo destino con requests armados desde las relaciones que tienen `httpMethod` + `path`.
@@ -340,7 +449,7 @@ Si no está claro, el planificador pregunta una sola vez: `¿Python o .NET?`. Py
 { "language": "python" }
 ```
 
-Si se omite el body o `language`, se usa el lenguaje guardado en el contexto o Python. La respuesta incluye un bloque por sistema, sus dependencias, variables de entorno, supuestos y advertencias. El backend arma `envExample` con las variables declaradas; no genera un archivo `.env` real ni persiste el código.
+Si se omite el body o `language`, se usa el lenguaje guardado en el contexto o Python. La respuesta incluye `projectFiles` con el proyecto completo y los metadatos por sistema (`filePath`, `code`, dependencias, variables de entorno, supuestos y advertencias). El backend arma `envExample` con las variables declaradas; no genera un archivo `.env` real ni persiste el código en PostgreSQL.
 
 Una sola llamada al agente de arquitectura recibe el mapa completo y los límites del MVP.
 
@@ -636,7 +745,7 @@ Códigos de descarga:
 - Máximo 5 contextos `kind=system`.
 - Máximo 10 nodos en total.
 - Máximo 15 relaciones.
-- Máximo 150 líneas de código por contexto.
+- El código se limita por proyecto completo, sin imponer un archivo ni un límite individual de líneas por nodo.
 - Máximo 500 líneas de código en total.
 - Máximo 3 preguntas por iteración.
 

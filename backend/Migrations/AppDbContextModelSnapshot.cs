@@ -188,6 +188,18 @@ namespace OrquestadorApi.Migrations
                         .HasColumnType("text")
                         .HasColumnName("description");
 
+                    b.Property<bool>("FinishProyect")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("boolean")
+                        .HasColumnName("finish_proyect")
+                        .HasComputedColumnSql("last_reached_stage = 2", true);
+
+                    b.Property<int>("LastReachedStage")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("last_reached_stage");
+
                     b.Property<string>("ProjectName")
                         .IsRequired()
                         .HasColumnType("text")
@@ -206,7 +218,10 @@ namespace OrquestadorApi.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_projects_project_name_normalized");
 
-                    b.ToTable("projects");
+                    b.ToTable("projects", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_projects_last_reached_stage", "last_reached_stage IN (0, 1, 2)");
+                        });
                 });
 
             modelBuilder.Entity("OrquestadorApi.Models.ProjectContext", b =>
@@ -259,6 +274,14 @@ namespace OrquestadorApi.Migrations
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer")
                         .HasColumnName("project_id");
+
+                    b.Property<string>("RepositoryBlueprintJson")
+                        .HasColumnType("text")
+                        .HasColumnName("repository_blueprint");
+
+                    b.Property<int?>("RepositoryBlueprintVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("repository_blueprint_version");
 
                     b.Property<string>("Resumen")
                         .HasColumnType("text")

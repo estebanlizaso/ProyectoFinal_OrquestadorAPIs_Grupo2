@@ -228,8 +228,8 @@ public class AiSelectionTests
             var content = userInput is not null && userInput.StartsWith("{\"initialPrompt\"", StringComparison.Ordinal)
                 ? "{\"resumen\":\"ok\"}"
                 : userInput == "architecture"
-                    ? "{\"language\":\"python\",\"summary\":\"ok\",\"contexts\":[]}"
-                    : "{\"status\":\"ready\",\"reply\":\"ok\",\"summary\":\"ok\",\"questions\":[],\"plan\":[],\"assumptions\":[],\"nodes\":[],\"relations\":[]}";
+                    ? "{\"language\":\"python\",\"summary\":\"ok\",\"contexts\":[],\"projectFiles\":[]}"
+                    : TestRepositoryPlans.SimplePlanJson;
             var response = request.RequestUri!.Host == "gemini.test"
                 ? JsonSerializer.Serialize(new { candidates = new[] { new { content = new { parts = new[] { new { text = content } } } } } })
                 : JsonSerializer.Serialize(new { choices = new[] { new { message = new { content }, finish_reason = "stop" } } });
