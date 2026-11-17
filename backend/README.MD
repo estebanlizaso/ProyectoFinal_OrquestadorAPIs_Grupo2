@@ -140,17 +140,25 @@ El backend usa el proveedor predeterminado elegido con `AI:Provider` (por defect
 AI__Provider=Bdt
 BDT_API_URL=https://URL_DE_BDT/v1
 BDT_API_KEY=TU_API_KEY_DE_BDT
-BDT_MODEL=qwen-rapido
+BDT_MODEL=gpt-6.1-sol-low
 ```
 
 | Variable / setting | Descripción |
 |---|---|
 | `AI__Provider` | `Gemini` (por defecto) o `Bdt`. |
 | `BDT_API_URL`, `BDT_API_KEY` | URL base (incluye `/v1`) y API key de BDT. Obligatorias si el proveedor es `Bdt`. |
-| `BDT_MODEL` | Modelo de BDT. Por defecto `AI:Bdt:Model` (`qwen-rapido`); también existe `qwen-maximo`. |
+| `BDT_MODEL` | Modelo predeterminado de BDT. Si no se define, se usa `AI:Bdt:Model` (`gpt-6.1-sol-low`). Un valor anterior como `qwen-rapido` debe quitarse o reemplazarse en `.env`. |
 | `AI:Bdt:ResponseFormat` | `json_schema` (por defecto, envía el contrato al modelo) o `json_object` (solo exige JSON válido). |
-| `AI:Bdt:MaxTokens` | Límite opcional de tokens de salida. Sin definir, lo decide el servidor. Un valor bajo puede dejar vacía la respuesta de `qwen-maximo`, que gasta tokens razonando. |
-| `AI:TimeoutSeconds`, `AI:ArchitectureTimeoutSeconds` | Timeouts por solicitud. `qwen-rapido` responde en unos 15 s; `qwen-maximo` puede tardar cerca de 2 minutos, por lo que conviene subirlos (por ejemplo `AI__TimeoutSeconds=240`). |
+| `AI:Bdt:MaxTokens` | Límite opcional de tokens de salida por solicitud, configurable como `AI__Bdt__MaxTokens`. Sin definir, lo decide el servidor. Un valor bajo puede truncar la respuesta, especialmente en modelos de razonamiento. |
+| `AI:TimeoutSeconds`, `AI:ArchitectureTimeoutSeconds` | Timeouts por solicitud. Los modelos pueden tardar tiempos diferentes; ajustar según las pruebas (por ejemplo `AI__TimeoutSeconds=240`). |
+
+Falta confirmar con BDT los límites de entrada, salida, contexto y cuota, así como la
+compatibilidad de cada modelo con el formato y los parámetros enviados. No hay
+un valor universal de `MaxTokens`: configurarlo no limita los tokens de entrada
+ni controla una cuota acumulada. Cada turno de chat puede generar solicitudes
+separadas de planificación y resumen, y los reintentos ante errores transitorios
+pueden generar solicitudes adicionales. Las pruebas reales consumen cuota. Una
+respuesta con `finish_reason: length` se informa como incompleta.
 
 Al iniciar, la API valida el nombre del proveedor predeterminado y los timeouts.
 Un proveedor sin configuración completa no aparece en el catálogo, pero no
@@ -168,14 +176,18 @@ Los endpoints `POST /api/projects/{projectId}/context` y
 
 ```json
 {
-  "aiSelection": { "provider": "Bdt", "model": "qwen-rapido" }
+  "aiSelection": { "provider": "Bdt", "model": "gpt-6.1-sol-low" }
 }
 ```
 
 En el chat también se debe enviar `prompt`; en arquitectura se puede enviar
 `language` como hasta ahora. Para Gemini, enviar
 `"aiSelection": { "provider": "Gemini" }` usa el modelo configurado. BDT
-admite `qwen-rapido` y `qwen-maximo`. Una selección inválida o no configurada
+admite `qwen-maximo`, `gpt-6-luna-high`, `gpt-6.1-sol-low`,
+`gpt-6.1-sol-medium`, `gpt-6.1-sol-high`, `gpt-6.1-terra-medium` y
+`gpt-6.1-terra-high`. La presencia en el catálogo no garantiza que la clave
+tenga acceso al modelo ni que este sea compatible con los parámetros enviados.
+Una selección inválida o no configurada
 devuelve `400` antes de modificar el contexto. Omitir `aiSelection` conserva
 el proveedor y modelo predeterminados. La selección no se guarda en el
 proyecto y debe enviarse en cada operación; no existe fallback automático.

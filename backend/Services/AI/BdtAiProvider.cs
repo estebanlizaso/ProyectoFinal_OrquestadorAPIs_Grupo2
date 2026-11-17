@@ -72,11 +72,11 @@ public class BdtAiProvider : AiProviderBase
         var choice = payload?.Choices?.FirstOrDefault();
         var content = StripMarkdownFence(choice?.Message?.Content);
 
-        if (string.IsNullOrWhiteSpace(content) && choice?.FinishReason == "length")
+        if (choice?.FinishReason == "length")
         {
             throw new AiProviderException(
-                "BDT agotó el límite de tokens antes de generar la respuesta. " +
-                "Aumentá AI:Bdt:MaxTokens o usá un modelo más rápido.");
+                "BDT agotó el límite de tokens antes de completar la respuesta. " +
+                "Revisá los límites del modelo y AI:Bdt:MaxTokens antes de reintentar.");
         }
 
         return content;

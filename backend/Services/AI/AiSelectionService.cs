@@ -7,7 +7,16 @@ namespace OrquestadorApi.Services.AI;
 
 public sealed class AiSelectionService : IAiSelectionService, IAiProvider, IDisposable
 {
-    private static readonly string[] BdtModels = ["qwen-rapido", "qwen-maximo"];
+    private static readonly AiModelResponse[] BdtModels =
+    [
+        new("gpt-6-luna-high", "Luna 6.0 - High"),
+        new("qwen-maximo", "qwen-maximo"),
+        new("gpt-6.1-sol-high", "Sol 6.1 - High"),
+        new("gpt-6.1-sol-low", "Sol 6.1 - Low"),
+        new("gpt-6.1-sol-medium", "Sol 6.1 - Medium"),
+        new("gpt-6.1-terra-high", "Terra 6.1 - High"),
+        new("gpt-6.1-terra-medium", "Terra 6.1 - Medium")
+    ];
     private readonly IOptions<AiOptions> _options;
     private readonly AiOptionsValidator _validator;
     private readonly IHttpClientFactory _clients;
@@ -38,14 +47,12 @@ public sealed class AiSelectionService : IAiSelectionService, IAiProvider, IDisp
         }
         if (IsAvailable(AiOptions.BdtProvider))
         {
-            providers.Add(new AiProviderResponse(AiOptions.BdtProvider,
-                [new AiModelResponse("qwen-rapido", "Qwen rápido"),
-                 new AiModelResponse("qwen-maximo", "Qwen máximo")]));
+            providers.Add(new AiProviderResponse(AiOptions.BdtProvider, BdtModels));
         }
 
         AiSelectionRequest? defaultSelection = null;
         if (IsAvailable(options.Provider) &&
-            (!options.IsBdt || BdtModels.Contains(options.Bdt.Model, StringComparer.Ordinal)))
+            (!options.IsBdt || BdtModels.Any(m => m.Id == options.Bdt.Model)))
         {
             defaultSelection = new AiSelectionRequest
             {
@@ -79,9 +86,9 @@ public sealed class AiSelectionService : IAiSelectionService, IAiProvider, IDisp
             return "El modelo indicado no está disponible para Gemini.";
         }
         if (isBdt && (string.IsNullOrWhiteSpace(model) ||
-            !BdtModels.Contains(model, StringComparer.Ordinal)))
+            !BdtModels.Any(m => m.Id == model)))
         {
-            return "El modelo de BDT debe ser 'qwen-rapido' o 'qwen-maximo'.";
+            return "El modelo indicado no está disponible para BDT. Consultá el catálogo de modelos.";
         }
         if (!IsAvailable(provider))
         {

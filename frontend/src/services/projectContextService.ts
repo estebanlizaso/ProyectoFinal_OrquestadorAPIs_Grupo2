@@ -202,33 +202,45 @@ export function useCreateProjectContext(): UseCreateProjectContextResult {
   return { context, run, status, error }
 }
 
-export type UseInitialPromptResult = {
-  run: (projectId: ProjectContextResponse['projectId']) => Promise<string | null>
+export type ProjectContextExport = {
+  initialPrompt: string
+  messages: ProjectMessageResponse[]
+}
+
+export type UseProjectContextExportResult = {
+  run: (projectId: ProjectContextResponse['projectId']) => Promise<ProjectContextExport | null>
   status: RequestStatus
   error: Error | null
 }
 
-export function useInitialPrompt(): UseInitialPromptResult {
+export function useProjectContextExport(): UseProjectContextExportResult {
   const [status, setStatus] = useState<RequestStatus>('idle')
   const [error, setError] = useState<Error | null>(null)
 
-  const run = useCallback(async (projectId: ProjectContextResponse['projectId']): Promise<string | null> => {
-    setStatus('loading')
-    setError(null)
+  const run = useCallback(
+    async (projectId: ProjectContextResponse['projectId']): Promise<ProjectContextExport | null> => {
+      setStatus('loading')
+      setError(null)
 
-    try {
-      const prompt = await projectContextService.getInitialPrompt(projectId)
-      setStatus('success')
-      return prompt
-    } catch (caught) {
-      setError(toError(caught))
-      setStatus('error')
-      return null
-    }
-  }, [])
+      try {
+        const [initialPrompt, messages] = await Promise.all([
+          projectContextService.getInitialPrompt(projectId),
+          projectContextService.getAllMessages(projectId),
+        ])
+        setStatus('success')
+        return { initialPrompt, messages }
+      } catch (caught) {
+        setError(toError(caught))
+        setStatus('error')
+        return null
+      }
+    },
+    [],
+  )
 
   return { run, status, error }
 }
+
 export type UseUpdateNodeNotesResult = {
   run: (
     projectId: ProjectContextResponse['projectId'],
