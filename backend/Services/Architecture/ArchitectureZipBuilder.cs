@@ -38,6 +38,10 @@ public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
         IReadOnlyList<OrchestrationRelationResponse> relations,
         JsonElement? postmanCollection = null)
     {
+        architecture = architecture with
+        {
+            ProjectFiles = StartupScriptBuilder.WithTemplate(architecture.Language, architecture.ProjectFiles)
+        };
         ArchitectureProjectValidator.Validate(architecture);
         using var memory = new MemoryStream();
         using (var archive = new ZipArchive(memory, ZipArchiveMode.Create, leaveOpen: true))
@@ -127,9 +131,14 @@ public sealed class ArchitectureZipBuilder : IArchitecturePackageBuilder
         builder.AppendLine("```");
         builder.AppendLine();
         builder.AppendLine("El script prepara las dependencias del proyecto y lo inicia en primer plano. " +
-            "No instala Python/.NET en el sistema ni requiere sudo. Para APIs, muestra la URL configurada y un ejemplo curl: " +
+            "Está generado desde una plantilla fija del backend, no por la IA. No instala Python/.NET en el sistema ni requiere sudo. " +
+            "Para APIs, muestra la URL configurada; consultá `USAGE.md` para el endpoint y un ejemplo curl: " +
             "esperá a que el servidor indique que está escuchando y hacé la petición desde otra terminal o Postman. " +
             "Detenelo con Ctrl+C. La instalación inicial de dependencias puede requerir acceso a Internet.");
+        builder.AppendLine();
+        builder.AppendLine("Las APIs usan por defecto `http://127.0.0.1:5000`. Podés cambiarlo con `HOST=127.0.0.1 PORT=8080 bash run.sh`. " +
+            "Estos valores del proceso prevalecen sobre `.env`; el script no ejecuta ni sobrescribe ese archivo. " +
+            "Para argumentos CLI, usá `bash run.sh argumentos...`. Las instrucciones específicas están en `USAGE.md`.");
         builder.AppendLine();
         builder.AppendLine("### Alternativa manual");
         builder.AppendLine();

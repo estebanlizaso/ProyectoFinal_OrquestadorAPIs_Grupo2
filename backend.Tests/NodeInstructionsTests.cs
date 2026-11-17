@@ -221,6 +221,25 @@ public class NodeInstructionsTests
         Assert.Empty(drive.Files);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("if true; then\nend\nexec dotnet dotnet run")]
+    public async Task Generation_publishes_the_trusted_script_even_when_model_omits_or_breaks_it(string? modelScript)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var ai = new RecordingAiProvider { ExtraFile = modelScript is null ? null : new("run.sh", modelScript) };
+        var drive = new MemoryDriveStorage();
+        var service = new ArchitectureService(fixture.Db, ai, new ArchitectureZipBuilder(), new PostmanCollectionBuilder(),
+            drive, Options.Create(new OrchestrationOptions()), NullLogger<ArchitectureService>.Instance);
+        var result = await service.GenerateAsync(1, "python");
+        Assert.Equal(GenerateArchitectureStatus.Success, result.Status);
+        var returnedScript = Assert.Single(result.Response!.ProjectFiles!, file => file.Path == "run.sh");
+        Assert.Equal(StartupScriptBuilder.ForLanguage("python"), returnedScript.Content);
+        using var zip = new ZipArchive(new MemoryStream(drive.Files["architecture.zip"]));
+        using var packagedScript = new StreamReader(zip.GetEntry("project-1-architecture/run.sh")!.Open());
+        Assert.Equal(returnedScript.Content, packagedScript.ReadToEnd());
+    }
+
     [Fact]
     public async Task ReplanningPreservesExplicitOperationAndNotes()
     {
@@ -325,7 +344,7 @@ public class NodeInstructionsTests
             files.Add(new("main.py", string.Join("\n", keys.Select(key => "import " + key)) +
                 "\n\ndef main():\n    print(" + string.Join(", ", keys.Select(key => key + ".run()")) + ")\n\nif __name__ == '__main__':\n    main()"));
             files.Add(new("requirements.txt", ""));
-            files.Add(new("run.sh", "#!/usr/bin/env bash\nset -Eeuo pipefail\ncd -- \"$(dirname -- \"${BASH_SOURCE[0]}\")\"\npython3 -m venv .venv\n.venv/bin/python -m pip install -r requirements.txt\nexec .venv/bin/python main.py\n"));
+            files.Add(new("USAGE.md", "Ejecutar bash run.sh para iniciar el flujo mock de consola.\n"));
             if (ExtraFile is not null) files.Add(ExtraFile);
             return Task.FromResult(new ArchitectureAiResponse("python", "Generated",
                 keys.Select(key => new ArchitectureAiContext(key, "Generated", key + ".py", [], [], [], [])).ToList(), files));

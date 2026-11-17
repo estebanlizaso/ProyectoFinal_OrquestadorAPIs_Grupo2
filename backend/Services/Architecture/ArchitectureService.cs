@@ -187,8 +187,8 @@ public class ArchitectureService : IArchitectureService
             var contextResponses = new List<ArchitectureContextResponse>();
             var envLines = new List<string>();
             var envNames = new HashSet<string>(StringComparer.Ordinal);
-            ArchitectureProjectValidator.ValidateFiles(selectedLanguage, response.ProjectFiles);
-            var projectFiles = response.ProjectFiles!;
+            var projectFiles = StartupScriptBuilder.WithTemplate(selectedLanguage, response.ProjectFiles);
+            ArchitectureProjectValidator.ValidateFiles(selectedLanguage, projectFiles);
             var totalLines = projectFiles.Where(file => file.Path.EndsWith(selectedLanguage == "python" ? ".py" : ".cs", StringComparison.Ordinal))
                 .Sum(file => CountLines(file.Content));
 

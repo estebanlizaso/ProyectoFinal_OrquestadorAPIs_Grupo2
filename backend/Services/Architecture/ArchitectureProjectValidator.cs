@@ -49,8 +49,8 @@ public static class ArchitectureProjectValidator
         }
 
         var required = language == "python"
-            ? new[] { "main.py", "requirements.txt", "run.sh" }
-            : new[] { "Program.cs", "Integration.csproj", "run.sh" };
+            ? new[] { "main.py", "requirements.txt", "run.sh", "USAGE.md" }
+            : new[] { "Program.cs", "Integration.csproj", "run.sh", "USAGE.md" };
         foreach (var path in required)
         {
             // Exact casing matters on Linux.

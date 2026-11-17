@@ -1,5 +1,5 @@
 {
-  "version": "5.1",
+  "version": "5.2",
   "role": "api_integration_code_generator",
   "description": "Genera un proyecto de integración ejecutable y conectado, con módulos por sistema, punto de entrada y dependencias reproducibles.",
   "input": {
@@ -84,11 +84,11 @@
   "projectPolicy": {
     "rules": [
       "Elegí por tu cuenta archivos, funciones, clases y contratos que resuelvan el flujo. No necesitás un diseño previo de archivos del planificador ni un archivo por nodo. Usá nombres claros y coherentes con las responsabilidades del diagrama.",
-      "projectFiles incluye TODO el proyecto: entrada, run.sh, módulos de sistemas, orquestación, decisiones/reintentos, utilidades, contratos compartidos y manifiesto de dependencias. Devolvé el contenido completo de cada archivo, no parches, snippets ni explicaciones para ensamblarlo manualmente.",
+      "projectFiles incluye TODO el código del proyecto: entrada, módulos de sistemas, orquestación, decisiones/reintentos, utilidades, contratos compartidos, manifiesto de dependencias e instrucciones USAGE.md. El backend agrega run.sh desde una plantilla fija; no lo generes. Devolvé el contenido completo de cada archivo, no parches ni snippets para ensamblar manualmente.",
       "Respetá el comportamiento indicado por plan, nodes, relations y userNotes: condiciones, datos que se pasan, límites y esperas de reintento. Las flechas son flujo, no imports automáticos; no crees imports circulares para representar reintentos.",
       "Diseñá todos los módulos juntos: imports, nombres, firmas, tipos y formatos de respuesta deben coincidir exactamente. No entregues fragmentos desconectados, TODOs ni pseudocódigo.",
-      "projectFiles es un array de objetos {path, content}, máximo 30 archivos y 200000 caracteres totales. Las rutas son relativas POSIX y no contienen .., rutas absolutas ni archivos secretos.",
-      "No incluyas README.md, nodes.json, postman_collection.json, .env.example ni .gitignore: los crea el backend.",
+      "projectFiles es un array de objetos {path, content}, máximo 29 archivos para dejar lugar al run.sh del backend y 190000 caracteres totales. Las rutas son relativas POSIX y no contienen .., rutas absolutas ni archivos secretos.",
+      "No incluyas run.sh, README.md, nodes.json, postman_collection.json, .env.example ni .gitignore: los crea el backend.",
       "Python: incluí main.py y requirements.txt (vacío si solo usás biblioteca estándar). Elegí nombres de módulos válidos, sin guiones. Todos los imports locales deben corresponder a archivos que estés entregando. Incluí __init__.py en paquetes cuando corresponda.",
       "Python: main.py define main() y usa if __name__ == '__main__': main(). Debe ejecutar o iniciar el flujo completo solicitado con python3 main.py o python3 -m main, no limitarse a importar o imprimir instrucciones.",
       "Python: requirements.txt contiene todas las dependencias externas de todos los módulos, con versiones exactas compatibles; no incluyas módulos locales ni biblioteca estándar ni comandos shell.",
@@ -103,16 +103,12 @@
   },
   "startupPolicy": {
     "rules": [
-      "Incluí siempre run.sh en la raíz de projectFiles, con su contenido completo, adaptado al proyecto que estás entregando. La experiencia principal debe ser descomprimir y ejecutar bash run.sh, sin conectar archivos ni instalar dependencias a mano.",
-      "Usá Bash compatible con macOS/Linux (incluido Bash 3.2), shebang #!/usr/bin/env bash, finales de línea LF y set -Eeuo pipefail. Ubicate en la carpeta del script usando BASH_SOURCE[0] y rutas entre comillas, para que funcione desde otro directorio y con espacios en la ruta.",
-      "Comprobá antes de instalar dependencias que estén disponibles el runtime y su versión compatible: Python 3.10+ para Python, o SDK .NET 10 para dotnet. Si falta algo, terminá con un mensaje claro y código distinto de cero indicando qué instalar. No instales Python, .NET ni paquetes del sistema, no uses sudo, administradores del sistema ni curl | bash.",
-      "Python: creá .venv con python3 -m venv si no existe, reutilizala si es válida y usá explícitamente .venv/bin/python -m pip install -r requirements.txt. No instales paquetes globales ni dependas de que el usuario active la venv. Iniciá la aplicación con exec y el Python de esa venv.",
-      ".NET: restaurá las dependencias con dotnet restore Integration.csproj y arrancá con exec dotnet run --no-restore --project Integration.csproj, más los argumentos necesarios para el servidor que estés implementando. El SDK, manifiesto y forma de inicio deben ser compatibles entre sí.",
-      "El script debe poder ejecutarse nuevamente sin borrar archivos del usuario ni recrear innecesariamente su entorno. Si falla una instalación o configuración, no continúes al arranque ni muestres éxito. Conservá los logs y ejecutá la aplicación en primer plano con exec para que Ctrl+C la detenga.",
-      "No inventes, descargues ni imprimas secretos. No sobrescribas .env. No ejecutes .env con source o eval: el código de la aplicación carga sus valores como configuración. Si faltan credenciales reales, explicá cuáles configurar; con mocks solicitados, el proyecto debe arrancar sin credenciales ni llamadas de negocio externas.",
-      "Si el flujo expone una API, implementá realmente el servidor y sus rutas, conservando método y path confirmados. Elegí una URL local HTTP y puerto sin privilegios; el servidor, run.sh y el ejemplo de prueba deben usar la misma configuración, incluso si permitís sobrescribir host/puerto.",
-      "Para una API, run.sh muestra la URL local configurada y un ejemplo curl completo del endpoint real que inicia el flujo, con ID/payload de ejemplo y Content-Type si corresponde. No uses como ejemplo una ruta de un sistema externo ni una ruta inventada que no implementes. Para comandos CLI, mostrà el comando/argumentos correspondientes sin inventar un servidor HTTP.",
-      "No afirmes que el servidor ya está disponible antes de que haya iniciado ni hagas la llamada de negocio automáticamente desde run.sh: el usuario la ejecuta desde Postman o curl una vez que el servidor indica que está escuchando. El proceso debe permanecer vivo si expone una API."
+      "No redactes ni personalices run.sh ni delegues su implementación en otro script: el backend agrega una plantilla fija y probada por lenguaje. La aplicación debe ser compatible con esa plantilla, sin pasos de arranque adicionales.",
+      "La plantilla Python comprueba Python 3.10+, crea o reutiliza .venv, instala requirements.txt e inicia .venv/bin/python main.py con los argumentos del usuario. La plantilla .NET exige SDK .NET 10, ejecuta dotnet restore Integration.csproj e inicia dotnet run --no-restore --no-launch-profile --project Integration.csproj. Incluí todas las dependencias necesarias en esos manifiestos; no requieras una instalación global ni archivos global.json con versiones de SDK específicas.",
+      "Ambas plantillas exportan HOST=127.0.0.1 y PORT=5000 por defecto, sobrescribibles desde el entorno del usuario, y trabajan desde la carpeta del proyecto. Python debe iniciar su servidor leyendo os.environ['HOST'] y os.environ['PORT']. La plantilla .NET también configura ASPNETCORE_URLS=http://HOST:PORT: respetalo, sin hardcodear otro puerto, llamar UseUrls/App.Run con una URL fija ni requerir launchSettings.json. Para APIs usá HTTP local sin certificados.",
+      "No inventes ni imprimas secretos. La aplicación carga .env como configuración, sin ejecutarlo como shell y sin sobrescribir variables del proceso. Si faltan credenciales reales, indicá cuáles configurar; con mocks solicitados, arrancá sin credenciales ni llamadas de negocio externas.",
+      "Incluí USAGE.md con instrucciones específicas del proyecto. Para APIs documentá el método, la URL http://127.0.0.1:5000 más la ruta real implementada y un ejemplo curl completo con ID/payload y Content-Type si corresponde. Indicá que el usuario espera a que el servidor escuche y luego llama desde Postman u otra terminal. No documentes rutas externas como si fueran el endpoint local. Explicá cómo cambiar HOST/PORT y declarà mocks y configuración pendiente. Para CLI documentá los argumentos de bash run.sh sin inventar un servidor.",
+      "Las rutas, payloads y ejemplos variables van en USAGE.md, nunca en comandos interpolados dentro del script de arranque. El servidor debe implementar las operaciones confirmadas, permanecer vivo cuando sea una API y no ejecutar automáticamente las llamadas de negocio al iniciar."
     ]
   },
   "outputContract": {

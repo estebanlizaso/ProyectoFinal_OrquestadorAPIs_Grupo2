@@ -16,6 +16,7 @@ public class ArchitecturePackageTests
         [], false, ProjectFiles:
         [new("main.py", "from buscar_cliente import consultar\n\ndef main():\n    print(consultar())\n\nif __name__ == '__main__':\n    main()\n"),
          new("requirements.txt", ""),
+         new("USAGE.md", "Ejecutar bash run.sh para iniciar el flujo mock de consola.\n"),
          new("run.sh", "#!/usr/bin/env bash\nset -Eeuo pipefail\ncd -- \"$(dirname -- \"${BASH_SOURCE[0]}\")\"\ncommand -v python3 >/dev/null || { echo 'Instalá Python 3.10+' >&2; exit 1; }\npython3 -m venv .venv\n.venv/bin/python -m pip install -r requirements.txt\nexec .venv/bin/python main.py\n"),
          new("buscar_cliente.py", "def consultar():\n    return {'id': 42}\n")]);
 
@@ -50,6 +51,7 @@ public class ArchitecturePackageTests
             Language = "dotnet",
             Contexts = [],
             ProjectFiles = [new("Program.cs", "Console.WriteLine(42);"),
+                new("USAGE.md", "Ejecutar bash run.sh para iniciar el programa de consola.\n"),
                 new("run.sh", "#!/usr/bin/env bash\nset -Eeuo pipefail\ncd -- \"$(dirname -- \"${BASH_SOURCE[0]}\")\"\ncommand -v dotnet >/dev/null || { echo 'Instalá SDK .NET 10' >&2; exit 1; }\ndotnet restore Integration.csproj\nexec dotnet run --no-restore --project Integration.csproj\n"),
                 new("Integration.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>")]
         };
@@ -136,8 +138,8 @@ public class ArchitecturePackageTests
     public void Startup_script_is_required_and_cannot_be_empty(string language, string? script)
     {
         ArchitectureProjectFile[] files = language == "python"
-            ? [new("main.py", "print('mock')"), new("requirements.txt", "")]
-            : [new("Program.cs", "Console.WriteLine(42);"), new("Integration.csproj", "<Project />")];
+            ? [new("main.py", "print('mock')"), new("requirements.txt", ""), new("USAGE.md", "Uso del programa")]
+            : [new("Program.cs", "Console.WriteLine(42);"), new("Integration.csproj", "<Project />"), new("USAGE.md", "Uso del programa")];
         if (script is not null) files = [.. files, new("run.sh", script)];
         var error = Assert.Throws<AiProviderException>(() => ArchitectureProjectValidator.ValidateFiles(language, files));
         Assert.Contains("run.sh", error.Message);
@@ -157,5 +159,28 @@ public class ArchitecturePackageTests
         var content = script.ReadToEnd();
         Assert.StartsWith("#!/usr/bin/env bash\n", content);
         Assert.DoesNotContain("\r", content);
+        Assert.Equal(StartupScriptBuilder.ForLanguage("python"), content);
+    }
+
+    [Theory]
+    [InlineData("python")]
+    [InlineData("dotnet")]
+    public void Zip_always_replaces_model_script_with_the_backend_template(string language)
+    {
+        var architecture = PythonProject() with
+        {
+            Language = language,
+            Contexts = [],
+            ProjectFiles = language == "python"
+                ? [new("main.py", "print('mock')"), new("requirements.txt", ""), new("USAGE.md", "Uso"),
+                    new("RUN.SH", "if true; then\nend\nexec dotnet dotnet run")]
+                : [new("Program.cs", "Console.WriteLine(42);"), new("Integration.csproj", "<Project />"), new("USAGE.md", "Uso"),
+                    new("run.sh", "if true; then\nend\nexec dotnet dotnet run")]
+        };
+        using var zip = new ZipArchive(new MemoryStream(_builder.BuildZip(architecture, [], [])));
+        var entry = Assert.Single(zip.Entries, item => item.Name.Equals("run.sh", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("run.sh", entry.Name);
+        using var script = new StreamReader(entry.Open());
+        Assert.Equal(StartupScriptBuilder.ForLanguage(language), script.ReadToEnd());
     }
 }

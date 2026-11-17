@@ -61,7 +61,7 @@ public class AiProviderTests
                 "filePath": "main.py", "dependencies": [], "env": [], "assumptions": [], "warnings": []}],
               "projectFiles": [{"path": "main.py", "content": "def main():\n    print('mock')\n\nif __name__ == '__main__':\n    main()\n"},
                 {"path": "requirements.txt", "content": ""},
-                {"path": "run.sh", "content": "#!/usr/bin/env bash\nset -Eeuo pipefail\nexec python3 main.py\n"}]
+                {"path": "USAGE.md", "content": "Ejecutar bash run.sh para iniciar el flujo mock de consola."}]
             }
             """;
         var handler = new StubHandler(_ => Json(HttpStatusCode.OK, Completion(generated)));
