@@ -41,6 +41,29 @@ una iteración posterior. Tampoco cambia el contexto enviado al modelo.
 Cada POST exitoso agrega un intercambio: reenviar manualmente el mismo mensaje
 crea otra fila; no hay deduplicación por contenido ni claves de idempotencia.
 
+## Recuperar el mapa por proyecto
+
+```http
+GET /api/projects/42/context/map
+```
+
+Devuelve `200` con el `ProjectContextResponse` persistido: `contextId`, `projectId`,
+`initialPrompt`, `generatedContent`, `planner`, `nodes`, `relations`, `mapVersion`,
+`resumen` y `updatedAt`. No llama a la IA ni modifica la base de datos.
+
+`nodes` incluye los nodos activos con todos sus datos y notas del usuario.
+`relations` incluye las conexiones entre esos nodos, con `id`, `from`, `to`,
+`label`, `operation`, `description`, `kind`, `sortOrder`, `httpMethod` y `path`.
+`from` y `to` referencian el `key` de cada nodo. Se conservan las distintas
+operaciones entre el mismo par de nodos y el orden del mapa.
+
+Si existe un contexto sin mapa, ambas listas están vacías. Si el proyecto no
+existe o todavía no tiene contexto, devuelve `404`. `mapVersion` permite enviar
+la versión vigente al guardar instrucciones de nodos.
+
+El endpoint existente `GET /api/projects/{projectId}/context` sigue devolviendo
+únicamente el prompt inicial; su contrato no cambia.
+
 ## Retomar la última etapa alcanzada
 
 El avance pertenece al proyecto, no a la sesión ni al usuario. Las etapas, en

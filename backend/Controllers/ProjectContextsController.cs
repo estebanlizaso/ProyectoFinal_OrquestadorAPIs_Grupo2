@@ -81,6 +81,23 @@ public class ProjectContextsController : ControllerBase
         return Ok(new InitialProjectPromptResponse(initialPrompt));
     }
 
+    [HttpGet("map")]
+    [ProducesResponseType(typeof(ProjectContextResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ProjectContextResponse>> GetMap(
+        [FromRoute] int projectId,
+        CancellationToken cancellationToken)
+    {
+        var context = await _projectContextService.GetAsync(projectId, cancellationToken);
+
+        if (context is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(context);
+    }
+
     [HttpPost("nodes/{nodeKey}/instructions")]
     [ProducesResponseType(typeof(NodeInstructionsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
