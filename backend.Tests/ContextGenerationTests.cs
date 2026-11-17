@@ -185,7 +185,7 @@ public class ContextGenerationTests
     {
         await using var fixture = await Fixture.CreateAsync();
         fixture.Ai.Failure = "planner";
-        var controller = new ProjectContextsController(fixture.Service);
+        var controller = new ProjectContextsController(fixture.Service, new DefaultAiSelection());
         var result = await controller.Create(1, new() { Prompt = "Objetivo" }, default);
         var response = Assert.IsType<ObjectResult>(result.Result);
         Assert.Equal(502, response.StatusCode);
@@ -366,6 +366,17 @@ public class ContextGenerationTests
                 .HasComputedColumnSql("lower(project_name)", stored: true);
             modelBuilder.Entity<OrchestrationRelation>().Property(r => r.OperationKey)
                 .HasComputedColumnSql("trim(coalesce(case when http_method is not null and path is not null then http_method || ' ' || path else operation end, ''), char(32, 9, 10, 11, 12, 13))", stored: true);
+        }
+    }
+
+    private sealed class DefaultAiSelection : IAiSelectionService
+    {
+        public AiModelsResponse GetModels() => throw new NotSupportedException();
+
+        public string? Select(AiSelectionRequest? selection)
+        {
+            if (selection is not null) throw new NotSupportedException();
+            return null;
         }
     }
 
