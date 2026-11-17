@@ -12,8 +12,13 @@ const catalog: AiModelsResponse = {
   providers: [
     { id: 'Gemini', models: [{ id: 'gemini-test', name: 'Gemini' }] },
     { id: 'Bdt', models: [
-      { id: 'qwen-rapido', name: 'Qwen rápido' },
-      { id: 'qwen-maximo', name: 'Qwen máximo' },
+      { id: 'gpt-6-luna-high', name: 'Luna 6.0 - High' },
+      { id: 'qwen-maximo', name: 'qwen-maximo' },
+      { id: 'gpt-6.1-sol-high', name: 'Sol 6.1 - High' },
+      { id: 'gpt-6.1-sol-low', name: 'Sol 6.1 - Low' },
+      { id: 'gpt-6.1-sol-medium', name: 'Sol 6.1 - Medium' },
+      { id: 'gpt-6.1-terra-high', name: 'Terra 6.1 - High' },
+      { id: 'gpt-6.1-terra-medium', name: 'Terra 6.1 - Medium' },
     ] },
   ],
 }
@@ -60,17 +65,17 @@ describe('catálogo de IA', () => {
     expect(resolveSelection({ provider: 'Bdt', model: null }, catalog)).toBeNull()
   })
 
-  it('usa la selección predeterminada y permite elegir ambos modelos de BDT', async () => {
+  it('usa la selección predeterminada y permite elegir los modelos de BDT', async () => {
     const user = userEvent.setup()
     renderChat()
     const select = await screen.findByLabelText('Modelo de IA') as HTMLSelectElement
     await waitFor(() => expect(select.value).toBe(option('Gemini', 'gemini-test')))
-    await user.selectOptions(select, option('Bdt', 'qwen-rapido'))
-    expect(select.value).toBe(option('Bdt', 'qwen-rapido'))
-    await user.selectOptions(select, option('Bdt', 'qwen-maximo'))
-    expect(select.value).toBe(option('Bdt', 'qwen-maximo'))
+    for (const model of catalog.providers[1].models) {
+      await user.selectOptions(select, option('Bdt', model.id))
+      expect(select.value).toBe(option('Bdt', model.id))
+    }
     expect(JSON.parse(sessionStorage.getItem('ai-selection:1') ?? 'null')).toEqual({
-      provider: 'Bdt', model: 'qwen-maximo',
+      provider: 'Bdt', model: 'gpt-6.1-terra-medium',
     })
   })
 
@@ -78,7 +83,7 @@ describe('catálogo de IA', () => {
     const user = userEvent.setup()
     const first = renderChat(1)
     const firstSelect = await screen.findByRole('combobox') as HTMLSelectElement
-    await user.selectOptions(firstSelect, option('Bdt', 'qwen-rapido'))
+    await user.selectOptions(firstSelect, option('Bdt', 'gpt-6.1-sol-low'))
     first.unmount()
     const second = renderChat(2)
     const secondSelect = await screen.findByRole('combobox') as HTMLSelectElement
@@ -86,13 +91,13 @@ describe('catálogo de IA', () => {
     second.unmount()
     renderChat(1)
     const restored = await screen.findByRole('combobox') as HTMLSelectElement
-    expect(restored.value).toBe(option('Bdt', 'qwen-rapido'))
+    expect(restored.value).toBe(option('Bdt', 'gpt-6.1-sol-low'))
   })
 
   it('conserva el valor predeterminado inicial aunque el backend cambie su predeterminado', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse(catalog))
-      .mockResolvedValueOnce(jsonResponse({ ...catalog, defaultSelection: { provider: 'Bdt', model: 'qwen-rapido' } }))
+      .mockResolvedValueOnce(jsonResponse({ ...catalog, defaultSelection: { provider: 'Bdt', model: 'gpt-6.1-sol-low' } }))
     vi.stubGlobal('fetch', fetchMock)
     const first = renderChat()
     await screen.findByRole('combobox')
@@ -103,7 +108,7 @@ describe('catálogo de IA', () => {
   })
 
   it('informa una selección guardada que ya no existe, sin cambiarla automáticamente', async () => {
-    sessionStorage.setItem('ai-selection:1', JSON.stringify({ provider: 'Bdt', model: 'retirado' }))
+    sessionStorage.setItem('ai-selection:1', JSON.stringify({ provider: 'Bdt', model: 'qwen-rapido' }))
     renderChat()
     expect(await screen.findByText(/modelo guardado ya no está disponible/i)).toBeTruthy()
     expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('')
@@ -156,7 +161,7 @@ describe('catálogo de IA', () => {
     renderChat()
     const select = await screen.findByRole('combobox')
     expect(screen.getByText(/No se pudo guardar la selección/)).toBeTruthy()
-    await userEvent.selectOptions(select, option('Bdt', 'qwen-rapido'))
+    await userEvent.selectOptions(select, option('Bdt', 'gpt-6.1-sol-low'))
     expect(screen.getByText(/No se pudo guardar la selección/)).toBeTruthy()
   })
 })
@@ -190,7 +195,7 @@ describe('envío del chat', () => {
 
   it.each([
     { provider: 'Gemini', model: 'gemini-test' },
-    { provider: 'Bdt', model: 'qwen-rapido' },
+    { provider: 'Bdt', model: 'gpt-6.1-sol-low' },
     { provider: 'Bdt', model: 'qwen-maximo' },
   ])('envía la selección explícita $provider / $model', async (selection) => {
     const fetchMock = vi.fn(async (_url: string, _options: RequestInit) => jsonResponse({ projectId: 7 }))

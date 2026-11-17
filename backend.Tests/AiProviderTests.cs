@@ -27,7 +27,7 @@ public class AiProviderTests
 
         using var body = JsonDocument.Parse(request.Body);
         var root = body.RootElement;
-        Assert.Equal("qwen-rapido", root.GetProperty("model").GetString());
+        Assert.Equal("gpt-6.1-sol-low", root.GetProperty("model").GetString());
         Assert.Equal("system", root.GetProperty("messages")[0].GetProperty("role").GetString());
         Assert.Equal("hola", root.GetProperty("messages")[1].GetProperty("content").GetString());
         Assert.False(root.TryGetProperty("max_tokens", out _));
@@ -105,11 +105,13 @@ public class AiProviderTests
         Assert.Equal("ready", response.Status);
     }
 
-    [Fact]
-    public async Task Bdt_reports_token_exhaustion_when_content_is_empty()
+    [Theory]
+    [InlineData("")]
+    [InlineData("{\"status\":\"ready\"}")]
+    public async Task Bdt_reports_token_exhaustion_when_response_is_truncated(string content)
     {
         var provider = CreateBdt(new StubHandler(_ =>
-            Json(HttpStatusCode.OK, Completion(string.Empty, "length"))));
+            Json(HttpStatusCode.OK, Completion(content, "length"))));
 
         var exception = await Assert.ThrowsAsync<AiProviderException>(
             () => provider.GeneratePlanAsync("hola"));
@@ -196,7 +198,7 @@ public class AiProviderTests
         var bdtReady = new AiOptions
         {
             Provider = "bdt",
-            Bdt = new BdtOptions { BaseUrl = "https://bdt.test/v1", Model = "qwen-rapido", ApiKey = "k" }
+            Bdt = new BdtOptions { BaseUrl = "https://bdt.test/v1", Model = "gpt-6.1-sol-low", ApiKey = "k" }
         };
         Assert.True(validator.ValidateProvider(bdtReady, "Bdt").Succeeded);
 
@@ -217,7 +219,7 @@ public class AiProviderTests
             Bdt = new BdtOptions
             {
                 BaseUrl = "https://bdt.test/v1",
-                Model = "qwen-rapido",
+                Model = "gpt-6.1-sol-low",
                 ApiKey = "test-key"
             }
         };

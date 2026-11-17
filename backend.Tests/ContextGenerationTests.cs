@@ -483,6 +483,17 @@ public class ContextGenerationTests
         }
     }
 
+    private sealed class DefaultAiSelection : IAiSelectionService
+    {
+        public AiModelsResponse GetModels() => throw new NotSupportedException();
+
+        public string? Select(AiSelectionRequest? selection)
+        {
+            if (selection is not null) throw new NotSupportedException();
+            return null;
+        }
+    }
+
     private sealed class FakeAi : IAiProvider
     {
         public string? Failure { get; set; }
