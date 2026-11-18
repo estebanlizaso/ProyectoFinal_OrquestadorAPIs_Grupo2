@@ -152,3 +152,6 @@ export const MOCK_PROJECTS: ProjectResponse[] = [
     created_at: '2026-01-10',
   },
 ]
+
+/** Proyectos que ya llegaron a la etapa de generación (finish_proyect = true). */
+export const MOCK_FINISHED_PROJECT_IDS = [25, 24]

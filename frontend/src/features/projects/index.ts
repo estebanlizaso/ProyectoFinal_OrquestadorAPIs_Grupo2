@@ -1,5 +1,13 @@
 export { ProjectCard } from './components/ProjectCard'
 export type { ProjectCardProps } from './components/ProjectCard'
 export { ProjectsPage } from './components/ProjectsPage'
-export type { CreateProjectRequest, DeleteProjectRequest, ProjectResponse, ProjectsResponse } from './types'
+export type {
+  CreateProjectRequest,
+  DeleteProjectRequest,
+  ProjectProgressResponse,
+  ProjectResponse,
+  ProjectsResponse,
+  ProjectStage,
+  UpdateProjectProgressRequest,
+} from './types'
 export { CreateProjectModal } from './components/CreateProjectModal'

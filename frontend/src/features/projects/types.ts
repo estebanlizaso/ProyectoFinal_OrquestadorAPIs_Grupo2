@@ -18,3 +18,14 @@ export type DeleteProjectRequest = {
 export type CreateProjectRequest = {
   name: string
 }
+
+export type ProjectStage = 'context' | 'architecture' | 'generation'
+
+export type ProjectProgressResponse = {
+  stage: ProjectStage
+  finish_proyect: boolean
+}
+
+export type UpdateProjectProgressRequest = {
+  stage: ProjectStage
+}
