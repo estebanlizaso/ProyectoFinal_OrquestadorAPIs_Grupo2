@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AiSelectionRequest } from '../features/ai-selection'
 import type {
+  ContextMap,
   CreateProjectContextRequest,
   InitialProjectPromptResponse,
   OrchestrationNodeResponse,
@@ -10,6 +11,7 @@ import type {
 } from '../features/global-context'
 import { ApiError } from '../shared/api/ApiError'
 import { getJson, patchJson, postJson, type RequestOptions } from '../shared/api/httpClient'
+import { HTTP_STATUS } from '../shared/api/httpStatus'
 import type { RequestStatus } from '../shared/api/requestStatus'
 import { toError } from '../shared/lib/toError'
 
@@ -55,9 +57,16 @@ async function create(
 async function getInitialPrompt(
   projectId: ProjectContextResponse['projectId'],
   options?: RequestOptions,
-): Promise<string> {
-  const { initialPrompt } = await getJson<InitialProjectPromptResponse>(buildContextPath(projectId), options)
-  return initialPrompt
+): Promise<InitialProjectPromptResponse> {
+  return getJson<InitialProjectPromptResponse>(buildContextPath(projectId), options)
+}
+
+async function getMap(
+  projectId: ProjectContextResponse['projectId'],
+  options?: RequestOptions,
+): Promise<ContextMap> {
+  const { nodes, relations } = await getJson<ProjectContextResponse>(`${buildContextPath(projectId)}/map`, options)
+  return { nodes, relations }
 }
 
 async function updateNodeNotes(
@@ -99,6 +108,7 @@ async function getAllMessages(
 export const projectContextService = {
   create,
   getInitialPrompt,
+  getMap,
   getAllMessages,
   updateNodeNotes,
 }
@@ -159,6 +169,78 @@ export function useProjectMessages(projectId: ProjectContextResponse['projectId'
   return { messages, run, status, error }
 }
 
+const EMPTY_CONTEXT_MAP: ContextMap = { nodes: [], relations: [] }
+
+async function getMapOrEmpty(
+  projectId: ProjectContextResponse['projectId'],
+  options?: RequestOptions,
+): Promise<ContextMap> {
+  try {
+    return await projectContextService.getMap(projectId, options)
+  } catch (caught) {
+    if (caught instanceof ApiError && caught.status === HTTP_STATUS.notFound) {
+      return EMPTY_CONTEXT_MAP
+    }
+    throw caught
+  }
+}
+
+export type UseProjectContextMapResult = {
+  map: ContextMap
+  run: () => Promise<void>
+  status: RequestStatus
+  error: Error | null
+}
+
+export function useProjectContextMap(projectId: ProjectContextResponse['projectId']): UseProjectContextMapResult {
+  const [map, setMap] = useState<ContextMap>(EMPTY_CONTEXT_MAP)
+  const [status, setStatus] = useState<RequestStatus>('loading')
+  const [error, setError] = useState<Error | null>(null)
+  const controllerRef = useRef<AbortController | null>(null)
+
+  const handleSuccess = useCallback((result: ContextMap): void => {
+    setMap(result)
+    setError(null)
+    setStatus('success')
+  }, [])
+
+  const handleFailure = useCallback((caught: unknown): void => {
+    if (caught instanceof ApiError && caught.kind === 'aborted') {
+      return
+    }
+    setError(toError(caught))
+    setStatus('error')
+  }, [])
+
+  const run = useCallback(async (): Promise<void> => {
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
+    setStatus('loading')
+    setError(null)
+
+    try {
+      const result = await getMapOrEmpty(projectId, { signal: controller.signal })
+      if (controllerRef.current === controller) {
+        handleSuccess(result)
+      }
+    } catch (caught) {
+      if (controllerRef.current === controller) {
+        handleFailure(caught)
+      }
+    }
+  }, [projectId, handleSuccess, handleFailure])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    controllerRef.current = controller
+    getMapOrEmpty(projectId, { signal: controller.signal }).then(handleSuccess, handleFailure)
+    return () => controller.abort()
+  }, [projectId, handleSuccess, handleFailure])
+
+  return { map, run, status, error }
+}
+
 export type CreateProjectContextOutcome =
   | { context: ProjectContextResponse; error: null }
   | { context: null; error: Error }
@@ -204,7 +286,9 @@ export function useCreateProjectContext(): UseCreateProjectContextResult {
 
 export type ProjectContextExport = {
   initialPrompt: string
+  summary: string
   messages: ProjectMessageResponse[]
+  map: ContextMap
 }
 
 export type UseProjectContextExportResult = {
@@ -223,12 +307,13 @@ export function useProjectContextExport(): UseProjectContextExportResult {
       setError(null)
 
       try {
-        const [initialPrompt, messages] = await Promise.all([
+        const [{ initialPrompt, summary }, messages, map] = await Promise.all([
           projectContextService.getInitialPrompt(projectId),
           projectContextService.getAllMessages(projectId),
+          projectContextService.getMap(projectId),
         ])
         setStatus('success')
-        return { initialPrompt, messages }
+        return { initialPrompt, summary, messages, map }
       } catch (caught) {
         setError(toError(caught))
         setStatus('error')

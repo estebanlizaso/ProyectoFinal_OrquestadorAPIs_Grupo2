@@ -33,6 +33,7 @@ const PROJECTS_ROUTE = '/api/projects'
 const AI_MODELS_ROUTE = '/api/ai/models'
 const PROJECTS_ROOT_PATH = '/'
 const PROJECT_CONTEXT_PATH_PATTERN = /^\/(\d+)\/context\/?$/
+const CONTEXT_MAP_PATH_PATTERN = /^\/(\d+)\/context\/map\/?$/
 const PROJECT_MESSAGES_PATH_PATTERN = /^\/(\d+)\/messages\/?$/
 const CONTEXT_NODE_PATH_PATTERN = /^\/(\d+)\/context\/nodes\/([^/]+)\/?$/
 const ARCHITECTURE_PATH_PATTERN = /^\/(\d+)\/architecture\/?$/
@@ -73,6 +74,7 @@ const MOCK_ERROR_TITLES = {
   invalidPage: 'Número de página inválido',
   projectNotFound: 'Proyecto no encontrado',
   promptNotFound: 'Prompt inicial no encontrado',
+  contextNotFound: 'Contexto no encontrado',
   nodeNotFound: 'Nodo no encontrado',
   validation: 'One or more validation errors occurred.',
 }
@@ -154,6 +156,11 @@ function getContextNodeTarget(pathname: string): { projectId: number; nodeKey: s
 function getContextProjectId(pathname: string): number | null {
   const rawProjectId = PROJECT_CONTEXT_PATH_PATTERN.exec(pathname)?.[1]
   return rawProjectId === undefined ? null : Number(rawProjectId)
+}
+
+function getContextMapProjectId(pathname: string): number | null {
+  const rawProjectId = CONTEXT_MAP_PATH_PATTERN.exec(pathname)?.[1]
+  return rawProjectId ? Number(rawProjectId) : null
 }
 
 function getMessagesProjectId(pathname: string): number | null {
@@ -387,8 +394,32 @@ async function sendInitialPromptResult(
     sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.promptNotFound)
     return
   }
-  const payload: InitialProjectPromptResponse = { initialPrompt: context.initialPrompt }
+  const payload: InitialProjectPromptResponse = {
+    initialPrompt: context.initialPrompt,
+    summary: context.planner?.summary ?? '',
+    status: HTTP_STATUS.ok,
+  }
   sendJson(response, HTTP_STATUS.ok, payload)
+}
+
+async function sendContextMapResult(
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  contexts: Map<number, ProjectContextResponse>,
+  projectId: number,
+): Promise<void> {
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  const context = contexts.get(projectId)
+  if (!context) {
+    sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.contextNotFound)
+    return
+  }
+  sendJson(response, HTTP_STATUS.ok, context)
 }
 
 function addMockMessage(
@@ -597,6 +628,7 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
         const url = getRequestUrl(request)
         const contextProjectId = getContextProjectId(url.pathname)
         const contextNodeTarget = getContextNodeTarget(url.pathname)
+        const contextMapProjectId = getContextMapProjectId(url.pathname)
         const messagesProjectId = getMessagesProjectId(url.pathname)
         const architectureProjectId = getArchitectureProjectId(url.pathname)
         const architectureArtifactTarget = getArchitectureArtifactTarget(url.pathname)
@@ -619,6 +651,11 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
 
         if (messagesProjectId !== null && request.method === 'GET') {
           void sendMessagesResult(url, response, scenario, projects, messages, messagesProjectId)
+          return
+        }
+
+        if (contextMapProjectId !== null && request.method === 'GET') {
+          void sendContextMapResult(response, scenario, contexts, contextMapProjectId)
           return
         }
 

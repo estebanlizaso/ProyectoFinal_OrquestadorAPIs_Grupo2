@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useProjectMessages } from '../../services/projectContextService'
+import { useProjectContextMap, useProjectMessages } from '../../services/projectContextService'
 import type { RequestStatus } from '../../shared/api/requestStatus'
 import type { OrchestrationNodeResponse, OrchestrationRelationResponse, PlannerContentResponse, ProjectMessageResponse } from './types'
 
@@ -23,7 +23,6 @@ export type ContextMap = {
 }
 
 type StoredContext = {
-  map: ContextMap
   errorTurns: ErrorTurn[]
 }
 
@@ -31,13 +30,14 @@ export type UseContextHistoryResult = {
   turns: ContextTurn[]
   map: ContextMap
   status: RequestStatus
+  mapStatus: RequestStatus
   retry: () => void
   addTurn: (turn: PlannerTurn, map: ContextMap) => void
   addErrorTurn: (turn: ErrorTurn) => void
   updateNode: (node: OrchestrationNodeResponse) => void
 }
 
-const EMPTY_STORED_CONTEXT: StoredContext = { map: { nodes: [], relations: [] }, errorTurns: [] }
+const EMPTY_STORED_CONTEXT: StoredContext = { errorTurns: [] }
 
 function buildStorageKey(projectId: number): string {
   return `global-context:${projectId}`
@@ -45,60 +45,6 @@ function buildStorageKey(projectId: number): string {
 
 function isObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null
-}
-
-function isNullableString(value: unknown): value is string | null {
-  return typeof value === 'string' || value === null
-}
-
-function isOrchestrationNode(value: unknown): value is OrchestrationNodeResponse {
-  return (
-    isObject(value) &&
-    'id' in value &&
-    typeof value.id === 'number' &&
-    'key' in value &&
-    typeof value.key === 'string' &&
-    'name' in value &&
-    typeof value.name === 'string' &&
-    'description' in value &&
-    isNullableString(value.description) &&
-    'kind' in value &&
-    typeof value.kind === 'string' &&
-    'role' in value &&
-    isNullableString(value.role) &&
-    'responsibility' in value &&
-    isNullableString(value.responsibility) &&
-    'status' in value &&
-    typeof value.status === 'string' &&
-    'userNotes' in value &&
-    isNullableString(value.userNotes) &&
-    'isActive' in value &&
-    typeof value.isActive === 'boolean' &&
-    'sortOrder' in value &&
-    typeof value.sortOrder === 'number'
-  )
-}
-
-function isOrchestrationRelation(value: unknown): value is OrchestrationRelationResponse {
-  return (
-    isObject(value) &&
-    'id' in value &&
-    typeof value.id === 'number' &&
-    'from' in value &&
-    typeof value.from === 'string' &&
-    'to' in value &&
-    typeof value.to === 'string' &&
-    'label' in value &&
-    typeof value.label === 'string' &&
-    'operation' in value &&
-    isNullableString(value.operation) &&
-    'description' in value &&
-    isNullableString(value.description) &&
-    'kind' in value &&
-    isNullableString(value.kind) &&
-    'sortOrder' in value &&
-    typeof value.sortOrder === 'number'
-  )
 }
 
 function isErrorTurn(value: unknown): value is ErrorTurn {
@@ -113,18 +59,6 @@ function isErrorTurn(value: unknown): value is ErrorTurn {
   )
 }
 
-function isContextMap(value: unknown): value is ContextMap {
-  return (
-    isObject(value) &&
-    'nodes' in value &&
-    Array.isArray(value.nodes) &&
-    value.nodes.every(isOrchestrationNode) &&
-    'relations' in value &&
-    Array.isArray(value.relations) &&
-    value.relations.every(isOrchestrationRelation)
-  )
-}
-
 function readStoredContext(projectId: number): StoredContext {
   try {
     const storedContext: unknown = JSON.parse(localStorage.getItem(buildStorageKey(projectId)) ?? 'null')
@@ -132,7 +66,6 @@ function readStoredContext(projectId: number): StoredContext {
       return EMPTY_STORED_CONTEXT
     }
     return {
-      map: 'map' in storedContext && isContextMap(storedContext.map) ? storedContext.map : EMPTY_STORED_CONTEXT.map,
       errorTurns:
         'errorTurns' in storedContext &&
         Array.isArray(storedContext.errorTurns) &&
@@ -153,10 +86,6 @@ function writeStoredContext(projectId: number, storedContext: StoredContext): vo
   }
 }
 
-export function readContextMap(projectId: number): ContextMap {
-  return readStoredContext(projectId).map
-}
-
 export function clearContextHistory(projectId: number): void {
   try {
     localStorage.removeItem(buildStorageKey(projectId))
@@ -174,10 +103,25 @@ function sortByCreatedAt(turns: ContextTurn[]): ContextTurn[] {
   return turns.toSorted((first, second) => Date.parse(first.createdAt) - Date.parse(second.createdAt))
 }
 
+function combineStatus(first: RequestStatus, second: RequestStatus): RequestStatus {
+  if (first === 'error' || second === 'error') {
+    return 'error'
+  }
+  return first === 'loading' || second === 'loading' ? 'loading' : first
+}
+
+function replaceNode(map: ContextMap, node: OrchestrationNodeResponse): ContextMap {
+  const nodes = map.nodes.map((currentNode) => (currentNode.key === node.key ? node : currentNode))
+  return { ...map, nodes }
+}
+
 export function useContextHistory(projectId: number): UseContextHistoryResult {
-  const { messages, status, run } = useProjectMessages(projectId)
+  const { messages, status: messagesStatus, run: runMessages } = useProjectMessages(projectId)
+  const { map: loadedMap, status: mapStatus, run: runMap } = useProjectContextMap(projectId)
   const [storedContext, setStoredContext] = useState<StoredContext>(() => readStoredContext(projectId))
   const [addedTurns, setAddedTurns] = useState<PlannerTurn[]>([])
+  const [changedMap, setChangedMap] = useState<ContextMap | null>(null)
+  const map = changedMap ?? loadedMap
 
   const turns = useMemo(
     () => sortByCreatedAt([...messages.map(toPlannerTurn), ...addedTurns, ...storedContext.errorTurns]),
@@ -186,20 +130,15 @@ export function useContextHistory(projectId: number): UseContextHistoryResult {
 
   const retry = useCallback((): void => {
     setAddedTurns([])
-    void run()
-  }, [run])
+    setChangedMap(null)
+    void runMessages()
+    void runMap()
+  }, [runMessages, runMap])
 
-  const addTurn = useCallback(
-    (turn: PlannerTurn, map: ContextMap): void => {
-      setAddedTurns((currentTurns) => [...currentTurns, turn])
-      setStoredContext((currentContext) => {
-        const nextContext = { ...currentContext, map }
-        writeStoredContext(projectId, nextContext)
-        return nextContext
-      })
-    },
-    [projectId],
-  )
+  const addTurn = useCallback((turn: PlannerTurn, nextMap: ContextMap): void => {
+    setAddedTurns((currentTurns) => [...currentTurns, turn])
+    setChangedMap(nextMap)
+  }, [])
 
   const addErrorTurn = useCallback(
     (turn: ErrorTurn): void => {
@@ -214,17 +153,19 @@ export function useContextHistory(projectId: number): UseContextHistoryResult {
 
   const updateNode = useCallback(
     (node: OrchestrationNodeResponse): void => {
-      setStoredContext((currentContext) => {
-        const nodes = currentContext.map.nodes.map((currentNode) =>
-          currentNode.key === node.key ? node : currentNode,
-        )
-        const nextContext = { ...currentContext, map: { ...currentContext.map, nodes } }
-        writeStoredContext(projectId, nextContext)
-        return nextContext
-      })
+      setChangedMap((currentMap) => replaceNode(currentMap ?? loadedMap, node))
     },
-    [projectId],
+    [loadedMap],
   )
 
-  return { turns, map: storedContext.map, status, retry, addTurn, addErrorTurn, updateNode }
+  return {
+    turns,
+    map,
+    status: combineStatus(messagesStatus, mapStatus),
+    mapStatus,
+    retry,
+    addTurn,
+    addErrorTurn,
+    updateNode,
+  }
 }

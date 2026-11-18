@@ -28,7 +28,7 @@ export const PROJECT_CONTEXT_EXPORT_TEXTS = {
   language: 'Lenguaje',
   modules: 'Módulos',
   relations: 'Relaciones',
-  noMap: 'El mapa no está disponible en este navegador. Se guarda en el navegador donde se charló con la IA.',
+  noMap: 'Sin módulos.',
   noRelations: 'Sin relaciones.',
   kind: 'Tipo',
   description: 'Descripción',
