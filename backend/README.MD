@@ -159,12 +159,12 @@ Crea `backend/.env` tomando `.env.example` como referencia. El archivo debe cont
 ConnectionStrings__Postgres=Host=localhost;Port=5432;Database=orquestador;Username=postgres;Password=TU_PASSWORD
 GEMINI_API_KEY=TU_API_KEY_DE_GEMINI
 
-# Google Drive (cuenta compartida del grupo)
+# Google Drive envs obligatorias para guardar en el drive
 DRIVE_ENABLED=true
-DRIVE_ID=1KPuHWKhQi5rLiB9po_je6wYH4Dmn15vu
-CLIENT_DRIVE=....apps.googleusercontent.com
-CLIENT_SECRET_DRIVE=GOCSPX-...
-REFRESH_TOKEN_DRIVE=1//...
+DRIVE_ID=ID DEL DRIVE
+CLIENT_DRIVE= client del email
+CLIENT_SECRET_DRIVE= secret del email
+REFRESH_TOKEN_DRIVE= refresh token generado con client y secret
 ```
 
 La API key se obtiene desde Google AI Studio. `.env` contiene credenciales y no debe subirse a Git.
