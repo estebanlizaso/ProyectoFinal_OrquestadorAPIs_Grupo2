@@ -1,6 +1,7 @@
 import { PanelLeftClose, PanelLeftOpen, Plus } from 'lucide-react'
 import { useId } from 'react'
 import { Button } from '../../shared/ui/Button'
+import { ThemeToggle } from '../../features/theme'
 import { APP_TEXTS, NAV_ITEMS, type NavItemId } from '../constants'
 import { SidebarNavItem } from './SidebarNavItem'
 
@@ -16,7 +17,7 @@ export function Sidebar({ activeNavItem, isOpen, onToggle, onNewOrchestration }:
 
   if (!isOpen) {
     return (
-      <aside className="flex h-screen w-16 shrink-0 flex-col items-center gap-2 border-r border-gray-100 bg-white py-4">
+      <aside className="flex h-screen w-16 shrink-0 flex-col items-center gap-2 border-r border-gray-100 bg-surface py-4">
         <Button
           variant="ghost"
           size="icon"
@@ -26,13 +27,14 @@ export function Sidebar({ activeNavItem, isOpen, onToggle, onNewOrchestration }:
         >
           <PanelLeftOpen className="size-4.5" aria-hidden="true" />
         </Button>
+        <ThemeToggle />
       </aside>
     )
   }
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-gray-100 bg-white p-4">
-      <div className="mb-8 flex items-center gap-2">
+    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-gray-100 bg-surface p-4">
+      <div className="mb-4 flex items-center gap-2">
         <Button size="icon" aria-label={APP_TEXTS.newOrchestration} onClick={onNewOrchestration}>
           <Plus className="size-4.5" aria-hidden="true" />
         </Button>
@@ -48,6 +50,8 @@ export function Sidebar({ activeNavItem, isOpen, onToggle, onNewOrchestration }:
           <PanelLeftClose className="size-4.5" aria-hidden="true" />
         </Button>
       </div>
+
+      <ThemeToggle className="mb-8" />
 
       <nav aria-labelledby={navigationTitleId}>
         <p

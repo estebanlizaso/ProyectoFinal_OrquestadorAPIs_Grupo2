@@ -59,7 +59,7 @@ export function PromptExampleButton({ disabled, onUse }: PromptExampleButtonProp
           id={popoverId}
           role="dialog"
           aria-label={PROMPT_EXAMPLE_TEXTS.title}
-          className="absolute top-full right-0 z-10 mt-3 w-80 rounded-xl border border-gray-200 bg-white p-4 shadow-lg"
+          className="absolute top-full right-0 z-10 mt-3 w-80 rounded-xl border border-gray-200 bg-surface p-4 shadow-lg"
         >
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm font-semibold text-gray-900">{PROMPT_EXAMPLE_TEXTS.title}</p>

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Background, Controls, ReactFlow, type EdgeTypes, type NodeTypes } from '@xyflow/react'
 import type { ContextMap, OrchestrationNodeResponse } from '../../global-context'
 import { Card } from '../../../shared/ui/Card'
+import { useTheme } from '../../theme'
 import { buildDiagram } from '../buildDiagram'
 import { PROPOSED_ARCHITECTURE_PAGE_TEXTS } from '../constants'
 import type { DiagramNode, OperationFlowEdge } from '../types'
@@ -30,6 +31,7 @@ const EDGE_TYPES: EdgeTypes = {
 export function ArchitectureDiagram({ map, onModuleOpen, isUpdating = false }: ArchitectureDiagramProps) {
   const areModulesClickable = onModuleOpen !== undefined
   const diagram = useMemo(() => buildDiagram(map, areModulesClickable), [map, areModulesClickable])
+  const { theme } = useTheme()
 
   if (diagram.nodes.length === 0) {
     return (
@@ -47,6 +49,7 @@ export function ArchitectureDiagram({ map, onModuleOpen, isUpdating = false }: A
         edges={diagram.edges}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
+        colorMode={theme}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}

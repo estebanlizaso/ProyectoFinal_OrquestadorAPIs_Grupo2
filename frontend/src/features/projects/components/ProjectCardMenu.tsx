@@ -61,7 +61,7 @@ export function ProjectCardMenu({
       {isOpen && (
         <div
           role="menu"
-          className="absolute right-0 z-10 mt-1 w-64 rounded-lg border border-gray-100 bg-white py-1 shadow-md"
+          className="absolute right-0 z-10 mt-1 w-64 rounded-lg border border-gray-100 bg-surface py-1 shadow-md"
         >
           <button
             type="button"

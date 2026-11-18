@@ -13,7 +13,7 @@ export function DiagramUpdatingOverlay({ isVisible }: DiagramUpdatingOverlayProp
       aria-label={isVisible ? PROPOSED_ARCHITECTURE_PAGE_TEXTS.diagramUpdating : undefined}
       aria-hidden={!isVisible}
       className={cn(
-        'absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 backdrop-blur-sm transition-opacity duration-300',
+        'absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-surface/60 backdrop-blur-sm transition-opacity duration-300',
         isVisible ? 'opacity-100' : 'pointer-events-none opacity-0',
       )}
     >
