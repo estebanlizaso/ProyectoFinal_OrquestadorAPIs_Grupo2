@@ -85,14 +85,17 @@ public class ProjectContextService : IProjectContextService
         return ProjectContextMapper.ToResponse(projectContext, nodes, relations);
     }
 
-    public async Task<string?> GetInitialPromptAsync(
+    public async Task<InitialProjectPromptResponse?> GetInitialPromptAsync(
         int projectId,
         CancellationToken cancellationToken = default)
     {
         return await _dbContext.Contexts
             .AsNoTracking()
             .Where(context => context.ProjectId == projectId)
-            .Select(context => context.InitialPrompt)
+            .Select(context => new InitialProjectPromptResponse(
+                context.InitialPrompt,
+                context.PlannerSummary ?? string.Empty,
+                StatusCodes.Status200OK))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
