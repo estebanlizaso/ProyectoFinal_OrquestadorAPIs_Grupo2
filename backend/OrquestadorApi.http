@@ -14,8 +14,11 @@ Content-Type: application/json
 
 {
   "prompt": "Conectar la tienda con el ERP",
-  "aiSelection": { "provider": "Bdt", "model": "qwen-rapido" }
+  "aiSelection": { "provider": "Bdt", "model": "gpt-6.1-sol-low" }
 }
+
+### Recuperar los nodos y conexiones guardados del proyecto
+GET {{OrquestadorApi_HostAddress}}/api/projects/{{projectId}}/context/map
 
 ### Generar arquitectura con Gemini
 POST {{OrquestadorApi_HostAddress}}/api/projects/{{projectId}}/architecture

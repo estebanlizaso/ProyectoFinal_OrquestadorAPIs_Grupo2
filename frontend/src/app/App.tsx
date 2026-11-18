@@ -3,6 +3,7 @@ import { GenerationExecutionPage } from '../features/generation-execution'
 import { GlobalContextPage } from '../features/global-context'
 import { CreateProjectModal, ProjectsPage, type ProjectResponse } from '../features/projects'
 import { ProposedArchitecturePage, useModuleNotesSync } from '../features/proposed-architecture'
+import { ResultsPage } from '../features/results'
 import { navigate } from '../shared/lib/navigate'
 import { usePathname } from '../shared/lib/usePathname'
 import { BackButton } from '../shared/ui/BackButton'
@@ -12,6 +13,8 @@ import {
   buildProjectArchitecturePath,
   buildProjectContextPath,
   buildProjectGenerationPath,
+  buildProjectResultsPath,
+  PROJECTS_PATH,
   resolveBackTarget,
   resolveOpenFlowPath,
   resolveRoute,
@@ -74,6 +77,15 @@ export function App() {
             projectId={currentRoute.projectId}
             backButton={backButton}
             assistantSide={assistantSide}
+            onCompleted={() => navigate(buildProjectResultsPath(currentRoute.projectId))}
+          />
+        )
+      case 'projectResults':
+        return (
+          <ResultsPage
+            key={currentRoute.projectId}
+            projectId={currentRoute.projectId}
+            onBackToProjects={() => navigate(PROJECTS_PATH)}
           />
         )
       case 'projects':

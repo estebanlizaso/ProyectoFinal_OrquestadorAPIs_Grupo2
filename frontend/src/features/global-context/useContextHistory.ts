@@ -153,6 +153,10 @@ function writeStoredContext(projectId: number, storedContext: StoredContext): vo
   }
 }
 
+export function readContextMap(projectId: number): ContextMap {
+  return readStoredContext(projectId).map
+}
+
 export function clearContextHistory(projectId: number): void {
   try {
     localStorage.removeItem(buildStorageKey(projectId))

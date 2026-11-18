@@ -21,6 +21,120 @@ namespace OrquestadorApi.Tests;
 
 public class ContextGenerationTests
 {
+    [Fact]
+    public async Task GetMapReturnsPersistedNodesAndCompleteConnectionsWithoutCallingAi()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var created = await fixture.Service.CreateAsync(1, "Stock");
+        await fixture.Service.SaveNodeInstructionsAsync(1, "source", new()
+        {
+            ExpectedMapVersion = created.Context!.MapVersion,
+            UserNotes = "Conservar nota",
+            RelationId = created.Context.Relations[0].Id,
+            HttpMethod = "PUT",
+            Path = "/stock/manual"
+        });
+        fixture.Db.ChangeTracker.Clear();
+        var expected = await fixture.Service.GetAsync(1);
+        fixture.Ai.Failure = "planner";
+        fixture.Ai.BeforeSummary = () => throw new InvalidOperationException("Must not call AI");
+        var controller = new ProjectContextsController(fixture.Service, new TestRepositoryPlans.NoopSelection());
+
+        var result = await controller.GetMap(1, CancellationToken.None);
+
+        var response = Assert.IsType<ProjectContextResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(response));
+        Assert.Equal(1, response.ProjectId);
+        Assert.Equal(2, response.Nodes.Count);
+        Assert.Equal("Conservar nota", response.Nodes.Single(node => node.Key == "source").UserNotes);
+        Assert.Equal(2, response.Relations.Count);
+        var manual = response.Relations.Single(relation => relation.Path == "/stock/manual");
+        Assert.Equal("PUT", manual.HttpMethod);
+        Assert.Equal("PUT /stock/manual", manual.Operation);
+        Assert.Equal("source", manual.From);
+        Assert.Equal("target", manual.To);
+        Assert.Equal(created.Context.MapVersion + 1, response.MapVersion);
+        Assert.Empty(fixture.Db.ChangeTracker.Entries());
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(999)]
+    public async Task GetMapReturnsNotFoundWhenProjectOrContextIsMissing(int projectId)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var controller = new ProjectContextsController(fixture.Service, new TestRepositoryPlans.NoopSelection());
+
+        var result = await controller.GetMap(projectId, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetMapExcludesInactiveNodesAndTheirConnections()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.Service.CreateAsync(1, "Stock");
+        var target = await fixture.Db.OrchestrationNodes.SingleAsync(node => node.Key == "target");
+        target.IsActive = false;
+        await fixture.Db.SaveChangesAsync();
+        fixture.Db.ChangeTracker.Clear();
+        var controller = new ProjectContextsController(fixture.Service, new TestRepositoryPlans.NoopSelection());
+
+        var result = await controller.GetMap(1, CancellationToken.None);
+
+        var response = Assert.IsType<ProjectContextResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal("source", Assert.Single(response.Nodes).Key);
+        Assert.Empty(response.Relations);
+    }
+
+    [Fact]
+    public async Task GetMapReturnsEmptyListsForContextWithoutNodes()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Db.Contexts.Add(new() { ProjectId = 1, InitialPrompt = "Stock" });
+        await fixture.Db.SaveChangesAsync();
+        fixture.Db.ChangeTracker.Clear();
+        var controller = new ProjectContextsController(fixture.Service, new TestRepositoryPlans.NoopSelection());
+
+        var result = await controller.GetMap(1, CancellationToken.None);
+
+        var response = Assert.IsType<ProjectContextResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Empty(response.Nodes);
+        Assert.Empty(response.Relations);
+    }
+
+    [Fact]
+    public async Task Planner_accepts_the_original_map_contract_without_a_repository_design()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var created = await fixture.Service.CreateAsync(1, "Python: consultar stock");
+        Assert.Equal(CreateProjectContextStatus.Created, created.Status);
+        fixture.Db.ChangeTracker.Clear();
+        var reloaded = await fixture.Service.GetAsync(1);
+        Assert.Equal("ready", reloaded!.Planner!.Status);
+        Assert.Equal(2, reloaded.Nodes.Count);
+
+        await fixture.Service.CreateAsync(1, "Conservar la estructura");
+        using var input = JsonDocument.Parse(fixture.Ai.Input!);
+        Assert.False(input.RootElement.TryGetProperty("previousRepositoryBlueprint", out _));
+    }
+
+    [Fact]
+    public async Task Manual_notes_are_available_to_the_next_planning_request()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        await fixture.Service.CreateAsync(1, "Python: consultar stock");
+        fixture.Db.ChangeTracker.Clear();
+        await fixture.Service.UpdateNodeNotesAsync(1, "source", "Usar mocks locales");
+        fixture.Db.ChangeTracker.Clear();
+        var context = await fixture.Service.GetAsync(1);
+        Assert.Equal("Usar mocks locales", context!.Nodes.Single(node => node.Key == "source").UserNotes);
+        await fixture.Service.CreateAsync(1, "Confirmar el nuevo diseño");
+        using var input = JsonDocument.Parse(fixture.Ai.Input!);
+        Assert.False(input.RootElement.TryGetProperty("previousRepositoryBlueprint", out _));
+    }
+
     private static PlannerAiRelation Relation(string? operation) =>
         new("source", "target", "stock", operation, null, "sync");
 
@@ -185,7 +299,7 @@ public class ContextGenerationTests
     {
         await using var fixture = await Fixture.CreateAsync();
         fixture.Ai.Failure = "planner";
-        var controller = new ProjectContextsController(fixture.Service);
+        var controller = new ProjectContextsController(fixture.Service, new TestRepositoryPlans.NoopSelection());
         var result = await controller.Create(1, new() { Prompt = "Objetivo" }, default);
         var response = Assert.IsType<ObjectResult>(result.Result);
         Assert.Equal(502, response.StatusCode);
@@ -366,6 +480,17 @@ public class ContextGenerationTests
                 .HasComputedColumnSql("lower(project_name)", stored: true);
             modelBuilder.Entity<OrchestrationRelation>().Property(r => r.OperationKey)
                 .HasComputedColumnSql("trim(coalesce(case when http_method is not null and path is not null then http_method || ' ' || path else operation end, ''), char(32, 9, 10, 11, 12, 13))", stored: true);
+        }
+    }
+
+    private sealed class DefaultAiSelection : IAiSelectionService
+    {
+        public AiModelsResponse GetModels() => throw new NotSupportedException();
+
+        public string? Select(AiSelectionRequest? selection)
+        {
+            if (selection is not null) throw new NotSupportedException();
+            return null;
         }
     }
 

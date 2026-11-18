@@ -5,10 +5,12 @@ export type AppRoute =
   | { name: 'projectContext'; projectId: number }
   | { name: 'projectArchitecture'; projectId: number }
   | { name: 'projectGeneration'; projectId: number }
+  | { name: 'projectResults'; projectId: number }
 
 const PROJECT_CONTEXT_PATH_PATTERN = /^\/projects\/(\d+)\/context\/?$/
 const PROJECT_ARCHITECTURE_PATH_PATTERN = /^\/projects\/(\d+)\/architecture\/?$/
 const PROJECT_GENERATION_PATH_PATTERN = /^\/projects\/(\d+)\/generation\/?$/
+const PROJECT_RESULTS_PATH_PATTERN = /^\/projects\/(\d+)\/results\/?$/
 
 export function buildProjectContextPath(projectId: number): string {
   return `/projects/${projectId}/context`
@@ -22,9 +24,13 @@ export function buildProjectGenerationPath(projectId: number): string {
   return `/projects/${projectId}/generation`
 }
 
-export function resolveOpenFlowPath(project: { projectId: number; finish_proyect?: boolean }): string {
-  return project.finish_proyect === true
-    ? buildProjectGenerationPath(project.projectId)
+export function buildProjectResultsPath(projectId: number): string {
+  return `/projects/${projectId}/results`
+}
+
+export function resolveOpenFlowPath(project: { projectId: number; finish_proyect: boolean }): string {
+  return project.finish_proyect
+    ? buildProjectResultsPath(project.projectId)
     : buildProjectArchitecturePath(project.projectId)
 }
 
@@ -49,6 +55,10 @@ export function resolveRoute(pathname: string): AppRoute {
   const generationProjectId = parseProjectId(pathname, PROJECT_GENERATION_PATH_PATTERN)
   if (generationProjectId !== null) {
     return { name: 'projectGeneration', projectId: generationProjectId }
+  }
+  const resultsProjectId = parseProjectId(pathname, PROJECT_RESULTS_PATH_PATTERN)
+  if (resultsProjectId !== null) {
+    return { name: 'projectResults', projectId: resultsProjectId }
   }
   return { name: 'projects' }
 }
@@ -76,5 +86,7 @@ export function resolveBackTarget(route: AppRoute): BackTarget | null {
         path: buildProjectArchitecturePath(route.projectId),
         screenName: SCREEN_NAMES.projectArchitecture,
       }
+    case 'projectResults':
+      return null
   }
 }

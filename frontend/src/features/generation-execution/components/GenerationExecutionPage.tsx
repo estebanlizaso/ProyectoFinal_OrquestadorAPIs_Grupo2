@@ -8,31 +8,38 @@ import {
 } from '../../proposed-architecture'
 import { cn } from '../../../shared/lib/cn'
 import { PageHeader } from '../../../shared/ui/PageHeader'
-import { GENERATION_DURATION_MS, GENERATION_PAGE_TEXTS } from '../constants'
+import { GENERATION_PAGE_TEXTS } from '../constants'
 import { formatSolutionLanguage } from '../formatSolutionLanguage'
-import { useSimulatedProgress } from '../useSimulatedProgress'
+import { useArchitectureGeneration } from '../useArchitectureGeneration'
+import { useGenerationProgress } from '../useGenerationProgress'
+import { useResultsTransition } from '../useResultsTransition'
 import { GenerationProgressPanel } from './GenerationProgressPanel'
 
 export type GenerationExecutionPageProps = {
   projectId: number
   backButton: ReactNode
   assistantSide: AssistantPanelSide
+  onCompleted: () => void
 }
 
 export function GenerationExecutionPage({
   projectId,
   backButton,
   assistantSide,
+  onCompleted,
 }: GenerationExecutionPageProps) {
   const { turns, map } = useContextHistory(projectId)
   const latestPlanner = findLatestValidTurn(turns)?.planner ?? null
-  const progress = useSimulatedProgress(GENERATION_DURATION_MS)
+  const { phase, attempt, errorMessage, retry } = useArchitectureGeneration(projectId)
+  const progress = useGenerationProgress(phase, attempt)
+  const isLeaving = useResultsTransition(phase === 'completed', onCompleted)
   const isAssistantVisible = assistantSide === 'left'
 
   return (
     <div
       className={cn(
-        'grid grid-cols-1 items-start gap-6 p-8 lg:h-full lg:grid-rows-1',
+        'grid grid-cols-1 items-start gap-6 p-8 transition-opacity duration-300 lg:h-full lg:grid-rows-1',
+        isLeaving && 'opacity-0',
         isAssistantVisible ? 'lg:grid-cols-4' : 'lg:grid-cols-3',
       )}
     >
@@ -49,7 +56,10 @@ export function GenerationExecutionPage({
       </div>
       <GenerationProgressPanel
         progress={progress}
+        phase={phase}
         languageLabel={formatSolutionLanguage(latestPlanner?.language ?? null)}
+        errorMessage={errorMessage}
+        onRetry={retry}
       />
     </div>
   )

@@ -3,16 +3,16 @@ import { useEffect, useRef, useState } from 'react'
 import { PROJECT_CARD_TEXTS } from '../constants'
 
 export type ProjectCardMenuProps = {
-  onDownloadPrompt: () => void
-  isDownloadingPrompt: boolean
-  hasDownloadPromptError: boolean
+  onDownloadContext: () => void
+  isDownloadingContext: boolean
+  downloadContextError: string | null
   onDelete?: () => void
 }
 
 export function ProjectCardMenu({
-  onDownloadPrompt,
-  isDownloadingPrompt,
-  hasDownloadPromptError,
+  onDownloadContext,
+  isDownloadingContext,
+  downloadContextError,
   onDelete,
 }: ProjectCardMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -66,21 +66,21 @@ export function ProjectCardMenu({
           <button
             type="button"
             role="menuitem"
-            onClick={onDownloadPrompt}
-            disabled={isDownloadingPrompt}
-            aria-busy={isDownloadingPrompt}
+            onClick={onDownloadContext}
+            disabled={isDownloadingContext}
+            aria-busy={isDownloadingContext}
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400"
           >
-            {isDownloadingPrompt ? (
+            {isDownloadingContext ? (
               <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
             ) : (
               <FileDown className="size-4" aria-hidden="true" />
             )}
-            {isDownloadingPrompt ? PROJECT_CARD_TEXTS.downloadingPrompt : PROJECT_CARD_TEXTS.downloadPromptAction}
+            {isDownloadingContext ? PROJECT_CARD_TEXTS.downloadingContext : PROJECT_CARD_TEXTS.downloadContextAction}
           </button>
-          {hasDownloadPromptError && (
+          {downloadContextError && (
             <p role="alert" className="px-3 pb-2 text-xs text-red-600">
-              {PROJECT_CARD_TEXTS.downloadPromptError}
+              {downloadContextError}
             </p>
           )}
           {onDelete && (

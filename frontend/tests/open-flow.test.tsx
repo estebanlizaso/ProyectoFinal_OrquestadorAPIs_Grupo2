@@ -11,6 +11,7 @@ const project: ProjectResponse = {
   description: null,
   projectId: 7,
   created_at: null,
+  finish_proyect: false,
 }
 
 afterEach(() => {
@@ -19,15 +20,11 @@ afterEach(() => {
 
 describe('resolveOpenFlowPath', () => {
   it('lleva a la pantalla final si el proyecto está finalizado', () => {
-    expect(resolveOpenFlowPath({ ...project, finish_proyect: true })).toBe('/projects/7/generation')
+    expect(resolveOpenFlowPath({ ...project, finish_proyect: true })).toBe('/projects/7/results')
   })
 
   it('lleva al diseño del flujo si el proyecto no está finalizado', () => {
     expect(resolveOpenFlowPath({ ...project, finish_proyect: false })).toBe('/projects/7/architecture')
-  })
-
-  it('toma como no finalizado al proyecto sin el flag', () => {
-    expect(resolveOpenFlowPath(project)).toBe('/projects/7/architecture')
   })
 })
 

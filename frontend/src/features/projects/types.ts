@@ -3,8 +3,7 @@ export type ProjectResponse = {
   description: string | null
   projectId: number
   created_at: string | null
-  /** Lo publica el back en `finish_proyect`; mientras no llegue se toma como no finalizado. */
-  finish_proyect?: boolean
+  finish_proyect: boolean
 }
 
 export type ProjectsResponse = {

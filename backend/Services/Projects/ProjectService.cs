@@ -45,7 +45,8 @@ public class ProjectService : IProjectService
             project.ProjectName,
             project.Description,
             project.ProjectId,
-            DateOnly.FromDateTime(createdAt)));
+            DateOnly.FromDateTime(createdAt),
+            project.FinishProyect));
     }
 
     public async Task<ProjectPage> GetAllAsync(
@@ -79,7 +80,8 @@ public class ProjectService : IProjectService
                 project.ProjectId,
                 project.CreatedAt.HasValue
                     ? DateOnly.FromDateTime(project.CreatedAt.Value)
-                    : null))
+                    : null,
+                project.FinishProyect))
             .ToList();
 
         return new ProjectPage(body, projects.Count > PaginationSettings.PageSize);
@@ -100,5 +102,47 @@ public class ProjectService : IProjectService
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return true;
+    }
+
+    public async Task<ProjectProgressResponse?> GetProgressAsync(
+        int projectId,
+        CancellationToken cancellationToken = default)
+    {
+        var progress = await _dbContext.Projects
+            .AsNoTracking()
+            .Where(project => project.ProjectId == projectId)
+            .Select(project => new { project.LastReachedStage, project.FinishProyect })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return progress is null ? null : new ProjectProgressResponse(progress.LastReachedStage switch
+        {
+            ProjectStage.Context => "context",
+            ProjectStage.Architecture => "architecture",
+            ProjectStage.Generation => "generation",
+            _ => throw new InvalidOperationException("Etapa de proyecto desconocida.")
+        }, progress.FinishProyect);
+    }
+
+    public async Task<ProjectProgressResponse?> AdvanceProgressAsync(
+        int projectId,
+        string stage,
+        CancellationToken cancellationToken = default)
+    {
+        var requestedStage = stage switch
+        {
+            "context" => ProjectStage.Context,
+            "architecture" => ProjectStage.Architecture,
+            "generation" => ProjectStage.Generation,
+            _ => throw new ArgumentException("Etapa de proyecto inválida.", nameof(stage))
+        };
+
+        // Compare and update in one SQL statement: concurrent requests cannot regress progress.
+        await _dbContext.Projects
+            .Where(project => project.ProjectId == projectId &&
+                (int)project.LastReachedStage < (int)requestedStage)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(project => project.LastReachedStage, requestedStage), cancellationToken);
+
+        return await GetProgressAsync(projectId, cancellationToken);
     }
 }

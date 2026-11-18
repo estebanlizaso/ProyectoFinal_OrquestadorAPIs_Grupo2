@@ -14,6 +14,12 @@ public interface IProjectService
         CancellationToken cancellationToken = default);
 
     Task<bool> DeleteAsync(int projectId, CancellationToken cancellationToken = default);
+
+    Task<ProjectProgressResponse?> GetProgressAsync(
+        int projectId, CancellationToken cancellationToken = default);
+
+    Task<ProjectProgressResponse?> AdvanceProgressAsync(
+        int projectId, string stage, CancellationToken cancellationToken = default);
 }
 
 public enum CreateProjectStatus
