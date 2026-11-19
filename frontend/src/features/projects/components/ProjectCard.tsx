@@ -4,7 +4,6 @@ import { downloadTextFile } from '../../../shared/lib/downloadTextFile'
 import { formatDateOnly } from '../../../shared/lib/formatDateOnly'
 import { Button } from '../../../shared/ui/Button'
 import { Card } from '../../../shared/ui/Card'
-import { readContextMap } from '../../global-context'
 import { buildProjectContextMarkdown } from '../buildProjectContextMarkdown'
 import { buildProjectContextFileName, MARKDOWN_MIME_TYPE, PROJECT_CARD_TEXTS } from '../constants'
 import { PROJECT_CONTEXT_DOWNLOAD_ERROR_MESSAGES } from '../errorMessages'
@@ -24,11 +23,7 @@ export function ProjectCard({ project, onDelete, onOpenFlow }: ProjectCardProps)
   async function handleDownloadContext(): Promise<void> {
     const contextExport = await fetchContextExport(projectId)
     if (contextExport !== null) {
-      const markdown = buildProjectContextMarkdown({
-        projectName: name,
-        ...contextExport,
-        map: readContextMap(projectId),
-      })
+      const markdown = buildProjectContextMarkdown({ projectName: name, ...contextExport })
       downloadTextFile(buildProjectContextFileName(projectId), markdown, MARKDOWN_MIME_TYPE)
     }
   }
