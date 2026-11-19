@@ -38,7 +38,7 @@ export function PromptComposer({ value, onChange, onSubmit, isSending, disabled 
       <label htmlFor={textareaId} className="sr-only">
         {PROMPT_COMPOSER_TEXTS.label}
       </label>
-      <div className="flex items-end gap-2 rounded-lg border border-gray-200 bg-white py-2 pr-2 pl-4 focus-within:border-primary-blue has-disabled:bg-gray-50">
+      <div className="flex items-end gap-2 rounded-lg border border-gray-200 bg-surface py-2 pr-2 pl-4 focus-within:border-primary-blue has-disabled:bg-gray-50">
         <textarea
           id={textareaId}
           value={value}
