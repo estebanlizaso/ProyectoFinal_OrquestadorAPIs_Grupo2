@@ -50,7 +50,7 @@ export function GenerationExecutionPage({
         <PageHeader
           title={GENERATION_PAGE_TEXTS.title}
           subtitle={GENERATION_PAGE_TEXTS.subtitle}
-          backButton={backButton}
+          backButton={phase === 'failed' ? backButton : null}
         />
         <ArchitectureDiagram map={map} />
       </div>

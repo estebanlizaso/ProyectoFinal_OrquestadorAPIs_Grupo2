@@ -177,3 +177,6 @@ export const MOCK_PROJECTS: ProjectResponse[] = [
     finish_proyect: false,
   },
 ]
+
+/** Proyectos que ya llegaron a la etapa de generación (finish_proyect = true). */
+export const MOCK_FINISHED_PROJECT_IDS = [25, 24]

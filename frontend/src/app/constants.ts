@@ -7,6 +7,12 @@ export const APP_TEXTS = {
   backTo: 'Volver a ',
 }
 
+export const FINISHED_PROJECT_GUARD_TEXTS = {
+  loading: 'Verificando el estado del proyecto',
+  errorTitle: 'No pudimos verificar el estado del proyecto',
+  retry: 'Reintentar',
+}
+
 export const SCREEN_NAMES = {
   projects: 'proyectos',
   projectContext: 'contexto global',
