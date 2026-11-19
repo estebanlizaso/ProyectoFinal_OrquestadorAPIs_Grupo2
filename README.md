@@ -2,6 +2,22 @@
 
 Repositorio del proyecto Orquestador de APIs dinámico para BDT, en el marco de la materia Proyecto Final del Instituto Tecnológico ORT.
 
+## Introducción
+
+El Orquestador de APIs es una herramienta para diseñar flujos de integración. A partir de la descripción de un proyecto, permite construir un mapa de sistemas y relaciones con asistencia de IA, revisar la arquitectura propuesta y generar un paquete de código y una colección de Postman.
+
+Esta es una entrega preliminar: la herramienta y su documentación continúan en desarrollo. El código generado debe revisarse y validarse antes de utilizarlo en una integración real.
+
+## Instalación y ejecución
+
+Para ejecutar la aplicación con el backend real:
+
+1. Consultá los [requisitos del backend](backend/README.MD#requisitos), configurá PostgreSQL y las variables de entorno según su [guía de configuración](backend/README.MD#configuración-inicial) y luego [iniciá la API](backend/README.MD#ejecutar-la-api).
+2. Consultá los [requisitos del frontend](frontend/README.MD#requisitos), seguí su [guía de configuración](frontend/README.MD#configuración-inicial) y [ejecutá la aplicación](frontend/README.MD#ejecutar-el-front).
+3. Abrí `http://localhost:5173` en el navegador. También es posible ejecutar el frontend con [datos simulados](frontend/README.MD#mocks), sin iniciar el backend.
+
+En desarrollo, el frontend usa el proxy de Vite para reenviar las solicitudes `/api` al backend. La API también configura una política CORS para los orígenes indicados en `Cors:FrontendOrigins`; en el entorno de desarrollo se incluye `http://localhost:5173`.
+
 ---
 
 ## 📚 Documentación de Trabajo
