@@ -28,6 +28,12 @@ export function buildProjectResultsPath(projectId: number): string {
   return `/projects/${projectId}/results`
 }
 
+export function resolveOpenFlowPath(project: { projectId: number; finish_proyect: boolean }): string {
+  return project.finish_proyect
+    ? buildProjectResultsPath(project.projectId)
+    : buildProjectArchitecturePath(project.projectId)
+}
+
 function parseProjectId(pathname: string, pattern: RegExp): number | null {
   const rawProjectId = pattern.exec(pathname)?.[1]
   if (rawProjectId === undefined) {

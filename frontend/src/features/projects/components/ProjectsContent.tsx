@@ -16,6 +16,7 @@ export type ProjectsContentProps = {
   searchTerm: string
   onRetry: () => void
   onDeleteProject: (project: ProjectResponse) => void
+  onOpenFlow?: (project: ProjectResponse) => void
   pagination?: ReactNode
 }
 
@@ -26,6 +27,7 @@ export function ProjectsContent({
   searchTerm,
   onRetry,
   onDeleteProject,
+  onOpenFlow,
   pagination,
 }: ProjectsContentProps) {
   if (status === 'error') {
@@ -70,7 +72,7 @@ export function ProjectsContent({
 
   return (
     <>
-      <ProjectGrid projects={projects} onDelete={onDeleteProject} />
+      <ProjectGrid projects={projects} onDelete={onDeleteProject} onOpenFlow={onOpenFlow} />
       {pagination}
     </>
   )

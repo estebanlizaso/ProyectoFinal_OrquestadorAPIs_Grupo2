@@ -3,6 +3,7 @@ export type ProjectResponse = {
   description: string | null
   projectId: number
   created_at: string | null
+  finish_proyect: boolean
 }
 
 export type ProjectsResponse = {

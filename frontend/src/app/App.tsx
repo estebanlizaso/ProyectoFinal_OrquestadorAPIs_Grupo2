@@ -16,6 +16,7 @@ import {
   buildProjectResultsPath,
   PROJECTS_PATH,
   resolveBackTarget,
+  resolveOpenFlowPath,
   resolveRoute,
   type AppRoute,
 } from './routes'
@@ -88,7 +89,7 @@ export function App() {
           />
         )
       case 'projects':
-        return <ProjectsPage onNewOrchestration={openCreateModal} />
+        return <ProjectsPage onNewOrchestration={openCreateModal} onOpenFlow={(project) => navigate(resolveOpenFlowPath(project))} />
     }
   }
 
