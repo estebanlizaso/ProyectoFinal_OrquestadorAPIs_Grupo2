@@ -61,18 +61,25 @@ public class AiProviderTests
                 "filePath": "main.py", "dependencies": [], "env": [], "assumptions": [], "warnings": []}],
               "projectFiles": [{"path": "main.py", "content": "def main():\n    print('mock')\n\nif __name__ == '__main__':\n    main()\n"},
                 {"path": "requirements.txt", "content": ""},
-                {"path": "USAGE.md", "content": "Ejecutar bash run.sh para iniciar el flujo mock de consola."}]
+                {"path": "USAGE.md", "content": "Ejecutar bash run.sh para iniciar el flujo mock de consola."}],
+              "publicEndpoints": []
             }
             """;
         var handler = new StubHandler(_ => Json(HttpStatusCode.OK, Completion(generated)));
         var response = await CreateBdt(handler).GenerateArchitectureAsync("Generar el proyecto completo");
         Assert.Equal("main.py", Assert.Single(response.Contexts).FilePath);
         Assert.Equal(3, response.ProjectFiles!.Count);
+        Assert.Empty(response.PublicEndpoints!);
         using var request = JsonDocument.Parse(Assert.Single(handler.Requests).Body);
-        var contextSchema = request.RootElement.GetProperty("response_format").GetProperty("json_schema")
-            .GetProperty("schema").GetProperty("properties").GetProperty("contexts").GetProperty("items");
+        var schema = request.RootElement.GetProperty("response_format").GetProperty("json_schema")
+            .GetProperty("schema");
+        var contextSchema = schema.GetProperty("properties").GetProperty("contexts").GetProperty("items");
         Assert.False(contextSchema.GetProperty("properties").TryGetProperty("code", out _));
         Assert.True(contextSchema.GetProperty("properties").TryGetProperty("filePath", out _));
+        Assert.True(schema.GetProperty("properties").TryGetProperty("publicEndpoints", out _));
+        Assert.Contains(
+            schema.GetProperty("required").EnumerateArray().Select(value => value.GetString()),
+            value => value == "publicEndpoints");
     }
 
     [Fact]
