@@ -4,7 +4,6 @@ import { downloadTextFile } from '../../../shared/lib/downloadTextFile'
 import { formatDateOnly } from '../../../shared/lib/formatDateOnly'
 import { Button } from '../../../shared/ui/Button'
 import { Card } from '../../../shared/ui/Card'
-import { readContextMap } from '../../global-context'
 import { buildProjectContextMarkdown } from '../buildProjectContextMarkdown'
 import { buildProjectContextFileName, MARKDOWN_MIME_TYPE, PROJECT_CARD_TEXTS } from '../constants'
 import { PROJECT_CONTEXT_DOWNLOAD_ERROR_MESSAGES } from '../errorMessages'
@@ -14,20 +13,17 @@ import { ProjectCardMenu } from './ProjectCardMenu'
 export type ProjectCardProps = {
   project: ProjectResponse
   onDelete?: (project: ProjectResponse) => void
+  onOpenFlow?: (project: ProjectResponse) => void
 }
 
-export function ProjectCard({ project, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete, onOpenFlow }: ProjectCardProps) {
   const { projectId, name, description, created_at: createdAt } = project
   const { run: fetchContextExport, status: contextStatus, error: contextError } = useProjectContextExport()
 
   async function handleDownloadContext(): Promise<void> {
     const contextExport = await fetchContextExport(projectId)
     if (contextExport !== null) {
-      const markdown = buildProjectContextMarkdown({
-        projectName: name,
-        ...contextExport,
-        map: readContextMap(projectId),
-      })
+      const markdown = buildProjectContextMarkdown({ projectName: name, ...contextExport })
       downloadTextFile(buildProjectContextFileName(projectId), markdown, MARKDOWN_MIME_TYPE)
     }
   }
@@ -56,7 +52,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
       <p className="text-sm text-gray-500">{description || PROJECT_CARD_TEXTS.noDescription}</p>
 
       <footer className="mt-auto">
-        <Button variant="soft" size="sm" disabled>
+        <Button variant="soft" size="sm" disabled={!onOpenFlow} onClick={onOpenFlow && (() => onOpenFlow(project))}>
           {PROJECT_CARD_TEXTS.openFlow}
         </Button>
       </footer>

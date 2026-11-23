@@ -21,6 +21,49 @@ namespace OrquestadorApi.Tests;
 
 public class ContextGenerationTests
 {
+    [Theory]
+    [InlineData("Resumen del planificador", "Resumen del planificador")]
+    [InlineData(null, "")]
+    public async Task GetReturnsInitialPromptAndPersistedPlannerSummary(string? plannerSummary, string expectedSummary)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Db.Contexts.Add(new()
+        {
+            ProjectId = 1,
+            InitialPrompt = "Stock",
+            PlannerSummary = plannerSummary,
+            Resumen = "Memoria del resumidor"
+        });
+        await fixture.Db.SaveChangesAsync();
+        fixture.Db.ChangeTracker.Clear();
+        var controller = new ProjectContextsController(fixture.Service, new TestRepositoryPlans.NoopSelection());
+
+        var result = await controller.Get(1, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(200, ok.StatusCode);
+        var response = Assert.IsType<InitialProjectPromptResponse>(ok.Value);
+        var payload = JsonSerializer.SerializeToElement(response, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Equal(3, payload.EnumerateObject().Count());
+        Assert.Equal("Stock", payload.GetProperty("initialPrompt").GetString());
+        Assert.Equal(expectedSummary, payload.GetProperty("summary").GetString());
+        Assert.Equal(200, payload.GetProperty("status").GetInt32());
+        Assert.Empty(fixture.Db.ChangeTracker.Entries());
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(999)]
+    public async Task GetReturnsNotFoundWhenProjectOrContextIsMissing(int projectId)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var controller = new ProjectContextsController(fixture.Service, new TestRepositoryPlans.NoopSelection());
+
+        var result = await controller.Get(projectId, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result.Result);
+    }
+
     [Fact]
     public async Task GetMapReturnsPersistedNodesAndCompleteConnectionsWithoutCallingAi()
     {

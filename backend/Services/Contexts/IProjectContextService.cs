@@ -25,7 +25,7 @@ public interface IProjectContextService
         int projectId,
         CancellationToken cancellationToken = default);
 
-    Task<string?> GetInitialPromptAsync(
+    Task<InitialProjectPromptResponse?> GetInitialPromptAsync(
         int projectId,
         CancellationToken cancellationToken = default);
 

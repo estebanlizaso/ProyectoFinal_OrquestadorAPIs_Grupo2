@@ -12,8 +12,10 @@ import { FIRST_PAGE } from '../src/features/projects/constants.ts'
 import type {
   CreateProjectRequest,
   DeleteProjectRequest,
+  ProjectProgressResponse,
   ProjectResponse,
   ProjectsResponse,
+  ProjectStage,
 } from '../src/features/projects/types.ts'
 import {
   buildMockArchitecture,
@@ -24,7 +26,7 @@ import {
 } from './architecture.ts'
 import { MOCK_INITIAL_PROMPTS } from './initialPrompts.ts'
 import { MOCK_GENERATED_CONTENT, MOCK_NODES, MOCK_PLANNER, MOCK_RELATIONS } from './projectContexts.ts'
-import { MOCK_PROJECTS } from './projects.ts'
+import { MOCK_FINISHED_PROJECT_IDS, MOCK_PROJECTS } from './projects.ts'
 
 export type ApiMockScenario = 'success' | 'empty' | 'error'
 
@@ -33,9 +35,12 @@ const PROJECTS_ROUTE = '/api/projects'
 const AI_MODELS_ROUTE = '/api/ai/models'
 const PROJECTS_ROOT_PATH = '/'
 const PROJECT_CONTEXT_PATH_PATTERN = /^\/(\d+)\/context\/?$/
+const CONTEXT_MAP_PATH_PATTERN = /^\/(\d+)\/context\/map\/?$/
 const PROJECT_MESSAGES_PATH_PATTERN = /^\/(\d+)\/messages\/?$/
 const CONTEXT_NODE_PATH_PATTERN = /^\/(\d+)\/context\/nodes\/([^/]+)\/?$/
 const ARCHITECTURE_PATH_PATTERN = /^\/(\d+)\/architecture\/?$/
+const PROJECT_PROGRESS_PATH_PATTERN = /^\/(\d+)\/progress\/?$/
+const PROJECT_STAGES: ProjectStage[] = ['context', 'architecture', 'generation']
 const ARCHITECTURE_ARTIFACT_PATH_PATTERN = /^\/(\d+)\/architecture\/(package|postman-collection)\/?$/
 const MOCK_ARCHITECTURE_DELAY_MS = 4000
 const MOCK_DELAY_MS = 800
@@ -73,6 +78,7 @@ const MOCK_ERROR_TITLES = {
   invalidPage: 'Número de página inválido',
   projectNotFound: 'Proyecto no encontrado',
   promptNotFound: 'Prompt inicial no encontrado',
+  contextNotFound: 'Contexto no encontrado',
   nodeNotFound: 'Nodo no encontrado',
   validation: 'One or more validation errors occurred.',
 }
@@ -156,6 +162,11 @@ function getContextProjectId(pathname: string): number | null {
   return rawProjectId === undefined ? null : Number(rawProjectId)
 }
 
+function getContextMapProjectId(pathname: string): number | null {
+  const rawProjectId = CONTEXT_MAP_PATH_PATTERN.exec(pathname)?.[1]
+  return rawProjectId ? Number(rawProjectId) : null
+}
+
 function getMessagesProjectId(pathname: string): number | null {
   const rawProjectId = PROJECT_MESSAGES_PATH_PATTERN.exec(pathname)?.[1]
   return rawProjectId ? Number(rawProjectId) : null
@@ -164,6 +175,20 @@ function getMessagesProjectId(pathname: string): number | null {
 function getArchitectureProjectId(pathname: string): number | null {
   const rawProjectId = ARCHITECTURE_PATH_PATTERN.exec(pathname)?.[1]
   return rawProjectId ? Number(rawProjectId) : null
+}
+
+function getProgressProjectId(pathname: string): number | null {
+  const rawProjectId = PROJECT_PROGRESS_PATH_PATTERN.exec(pathname)?.[1]
+  return rawProjectId ? Number(rawProjectId) : null
+}
+
+function isUpdateProjectProgressRequest(value: unknown): value is { stage: ProjectStage } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'stage' in value &&
+    PROJECT_STAGES.some((stage) => stage === value.stage)
+  )
 }
 
 function getArchitectureArtifactTarget(
@@ -318,6 +343,7 @@ async function sendCreateResult(
     description: null,
     projectId: getNextProjectId(projects),
     created_at: getTodayAsDateOnly(),
+    finish_proyect: false,
   }
   projects.unshift(project)
   sendJson(response, HTTP_STATUS.created, project)
@@ -387,8 +413,32 @@ async function sendInitialPromptResult(
     sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.promptNotFound)
     return
   }
-  const payload: InitialProjectPromptResponse = { initialPrompt: context.initialPrompt }
+  const payload: InitialProjectPromptResponse = {
+    initialPrompt: context.initialPrompt,
+    summary: context.planner?.summary ?? '',
+    status: HTTP_STATUS.ok,
+  }
   sendJson(response, HTTP_STATUS.ok, payload)
+}
+
+async function sendContextMapResult(
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  contexts: Map<number, ProjectContextResponse>,
+  projectId: number,
+): Promise<void> {
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  const context = contexts.get(projectId)
+  if (!context) {
+    sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.contextNotFound)
+    return
+  }
+  sendJson(response, HTTP_STATUS.ok, context)
 }
 
 function addMockMessage(
@@ -537,6 +587,43 @@ async function sendGenerateArchitectureResult(
   sendJson(response, HTTP_STATUS.ok, buildMockArchitecture(projectId, context.contextId))
 }
 
+function buildProgress(stages: Map<number, ProjectStage>, projectId: number): ProjectProgressResponse {
+  const stage = stages.get(projectId) ?? 'context'
+  return { stage, finish_proyect: stage === 'generation' }
+}
+
+async function sendProgressResult(
+  request: IncomingMessage,
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  projects: ProjectResponse[],
+  stages: Map<number, ProjectStage>,
+  projectId: number,
+): Promise<void> {
+  const payload = request.method === 'PATCH' ? await readJsonBody(request).catch(() => undefined) : null
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  if (!projects.some((project) => project.projectId === projectId)) {
+    sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.projectNotFound)
+    return
+  }
+  if (request.method === 'PATCH') {
+    if (!isUpdateProjectProgressRequest(payload)) {
+      sendProblem(response, HTTP_STATUS.badRequest, MOCK_ERROR_TITLES.invalidRequest)
+      return
+    }
+    const currentStage = stages.get(projectId) ?? 'context'
+    if (PROJECT_STAGES.indexOf(payload.stage) > PROJECT_STAGES.indexOf(currentStage)) {
+      stages.set(projectId, payload.stage)
+    }
+  }
+  sendJson(response, HTTP_STATUS.ok, buildProgress(stages, projectId))
+}
+
 async function sendArchitectureArtifactResult(
   response: ServerResponse,
   scenario: ApiMockScenario,
@@ -573,6 +660,9 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
     scenario === 'success' ? buildSeedContexts() : new Map<number, ProjectContextResponse>()
   const messages: ProjectMessageResponse[] = []
   const generatedProjectIds = new Set<number>()
+  const stages = new Map<number, ProjectStage>(
+    scenario === 'success' ? MOCK_FINISHED_PROJECT_IDS.map((projectId) => [projectId, 'generation']) : [],
+  )
 
   return {
     name: 'api-mocks',
@@ -597,9 +687,16 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
         const url = getRequestUrl(request)
         const contextProjectId = getContextProjectId(url.pathname)
         const contextNodeTarget = getContextNodeTarget(url.pathname)
+        const contextMapProjectId = getContextMapProjectId(url.pathname)
         const messagesProjectId = getMessagesProjectId(url.pathname)
         const architectureProjectId = getArchitectureProjectId(url.pathname)
         const architectureArtifactTarget = getArchitectureArtifactTarget(url.pathname)
+        const progressProjectId = getProgressProjectId(url.pathname)
+
+        if (progressProjectId !== null && (request.method === 'GET' || request.method === 'PATCH')) {
+          void sendProgressResult(request, response, scenario, projects, stages, progressProjectId)
+          return
+        }
 
         if (architectureProjectId !== null && request.method === 'POST') {
           void sendGenerateArchitectureResult(response, scenario, contexts, generatedProjectIds, architectureProjectId)
@@ -619,6 +716,11 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
 
         if (messagesProjectId !== null && request.method === 'GET') {
           void sendMessagesResult(url, response, scenario, projects, messages, messagesProjectId)
+          return
+        }
+
+        if (contextMapProjectId !== null && request.method === 'GET') {
+          void sendContextMapResult(response, scenario, contexts, contextMapProjectId)
           return
         }
 

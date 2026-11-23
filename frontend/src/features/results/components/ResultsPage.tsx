@@ -10,7 +10,7 @@ export type ResultsPageProps = {
 }
 
 export function ResultsPage({ projectId, onBackToProjects }: ResultsPageProps) {
-  const { map } = useContextHistory(projectId)
+  const { map, mapStatus, retry } = useContextHistory(projectId)
 
   return (
     <div className="flex animate-fade-in flex-col p-8 lg:h-full">
@@ -19,7 +19,7 @@ export function ResultsPage({ projectId, onBackToProjects }: ResultsPageProps) {
         subtitle={RESULTS_PAGE_TEXTS.subtitle}
         actions={<ResultsActions projectId={projectId} onBackToProjects={onBackToProjects} />}
       />
-      <ArchitectureDiagram map={map} />
+      <ArchitectureDiagram map={map} status={mapStatus} onRetry={retry} />
     </div>
   )
 }

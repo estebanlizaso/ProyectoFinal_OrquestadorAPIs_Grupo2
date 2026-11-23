@@ -28,7 +28,7 @@ export function GenerationExecutionPage({
   assistantSide,
   onCompleted,
 }: GenerationExecutionPageProps) {
-  const { turns, map } = useContextHistory(projectId)
+  const { turns, map, mapStatus, retry: retryMap } = useContextHistory(projectId)
   const latestPlanner = findLatestValidTurn(turns)?.planner ?? null
   const { phase, attempt, errorMessage, retry } = useArchitectureGeneration(projectId)
   const progress = useGenerationProgress(phase, attempt)
@@ -50,9 +50,9 @@ export function GenerationExecutionPage({
         <PageHeader
           title={GENERATION_PAGE_TEXTS.title}
           subtitle={GENERATION_PAGE_TEXTS.subtitle}
-          backButton={backButton}
+          backButton={phase === 'failed' ? backButton : null}
         />
-        <ArchitectureDiagram map={map} />
+        <ArchitectureDiagram map={map} status={mapStatus} onRetry={retryMap} />
       </div>
       <GenerationProgressPanel
         progress={progress}

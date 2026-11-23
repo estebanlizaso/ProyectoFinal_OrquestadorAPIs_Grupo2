@@ -69,16 +69,16 @@ public class ProjectContextsController : ControllerBase
         [FromRoute] int projectId,
         CancellationToken cancellationToken)
     {
-        var initialPrompt = await _projectContextService.GetInitialPromptAsync(
+        var response = await _projectContextService.GetInitialPromptAsync(
             projectId,
             cancellationToken);
 
-        if (initialPrompt is null)
+        if (response is null)
         {
             return NotFound();
         }
 
-        return Ok(new InitialProjectPromptResponse(initialPrompt));
+        return Ok(response);
     }
 
     [HttpGet("map")]

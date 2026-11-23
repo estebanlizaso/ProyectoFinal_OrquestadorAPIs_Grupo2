@@ -18,7 +18,7 @@ export function AppLayout({
   children,
 }: AppLayoutProps) {
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-page text-gray-900">
       <Sidebar
         activeNavItem={activeNavItem}
         isOpen={isSidebarOpen}

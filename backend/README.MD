@@ -555,11 +555,13 @@ Respuesta resumida:
 
 ### `GET /api/projects/{projectId}/context`
 
-Devuelve únicamente el pedido inicial del proyecto. Sirve para la opción de copiar el prompt inicial y reutilizarlo en otro proyecto.
+Devuelve el pedido inicial del proyecto y el resumen de la conversación guardado en `contexts.planner_summary`. Si ese valor es nulo, `summary` es una cadena vacía.
 
 ```json
 {
-  "initialPrompt": "Quiero que la API Legacy consulte el histórico de pólizas de la API Pólizas."
+  "initialPrompt": "Quiero que la API Legacy consulte el histórico de pólizas de la API Pólizas.",
+  "summary": "El usuario quiere consultar el histórico de pólizas.",
+  "status": 200
 }
 ```
 

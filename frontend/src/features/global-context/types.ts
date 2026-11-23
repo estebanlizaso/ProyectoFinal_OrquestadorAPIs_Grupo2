@@ -91,4 +91,6 @@ export type ProjectMessageResponse = {
 
 export type InitialProjectPromptResponse = {
   initialPrompt: string
+  summary: string
+  status: number
 }

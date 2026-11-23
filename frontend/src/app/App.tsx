@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { GenerationExecutionPage } from '../features/generation-execution'
 import { GlobalContextPage } from '../features/global-context'
 import { CreateProjectModal, ProjectsPage, type ProjectResponse } from '../features/projects'
@@ -8,6 +8,7 @@ import { navigate } from '../shared/lib/navigate'
 import { usePathname } from '../shared/lib/usePathname'
 import { BackButton } from '../shared/ui/BackButton'
 import { APP_TEXTS } from './constants'
+import { FinishedProjectGuard } from './FinishedProjectGuard'
 import { AppLayout } from './layout/AppLayout'
 import {
   buildProjectArchitecturePath,
@@ -16,6 +17,7 @@ import {
   buildProjectResultsPath,
   PROJECTS_PATH,
   resolveBackTarget,
+  resolveOpenFlowPath,
   resolveRoute,
   type AppRoute,
 } from './routes'
@@ -48,36 +50,47 @@ export function App() {
     />
   )
 
+  function guardEditableRoute(currentRoute: AppRoute & { projectId: number }, page: ReactNode) {
+    return (
+      <FinishedProjectGuard key={`${currentRoute.name}-${currentRoute.projectId}`} projectId={currentRoute.projectId}>
+        {page}
+      </FinishedProjectGuard>
+    )
+  }
+
   function renderPage(currentRoute: AppRoute) {
     switch (currentRoute.name) {
       case 'projectContext':
-        return (
+        return guardEditableRoute(
+          currentRoute,
           <GlobalContextPage
             key={currentRoute.projectId}
             projectId={currentRoute.projectId}
             backButton={backButton}
             onGenerateArchitecture={() => navigate(buildProjectArchitecturePath(currentRoute.projectId))}
             onMapChanged={(previousMap, nextMap) => syncModuleNotes(currentRoute.projectId, previousMap, nextMap)}
-          />
+          />,
         )
       case 'projectArchitecture':
-        return (
+        return guardEditableRoute(
+          currentRoute,
           <ProposedArchitecturePage
             key={currentRoute.projectId}
             projectId={currentRoute.projectId}
             backButton={backButton}
             onConfirmFlow={() => navigate(buildProjectGenerationPath(currentRoute.projectId))}
-          />
+          />,
         )
       case 'projectGeneration':
-        return (
+        return guardEditableRoute(
+          currentRoute,
           <GenerationExecutionPage
             key={currentRoute.projectId}
             projectId={currentRoute.projectId}
             backButton={backButton}
             assistantSide={assistantSide}
-            onCompleted={() => navigate(buildProjectResultsPath(currentRoute.projectId))}
-          />
+            onCompleted={() => navigate(buildProjectResultsPath(currentRoute.projectId), { replace: true })}
+          />,
         )
       case 'projectResults':
         return (
@@ -88,7 +101,7 @@ export function App() {
           />
         )
       case 'projects':
-        return <ProjectsPage onNewOrchestration={openCreateModal} />
+        return <ProjectsPage onNewOrchestration={openCreateModal} onOpenFlow={(project) => navigate(resolveOpenFlowPath(project))} />
     }
   }
 

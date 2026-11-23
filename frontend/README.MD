@@ -45,7 +45,7 @@ API_MOCKS=
 
 `.env` no debe subirse a Git.
 
-El backend no tiene CORS configurado, por eso el front nunca lo llama directo: el navegador pide a `http://localhost:5173/api/...` y Vite lo reenvía al backend.
+En desarrollo, el frontend usa el proxy de Vite: el navegador pide a `http://localhost:5173/api/...` y Vite lo reenvía al backend. La API también configura una política CORS para los orígenes de `Cors:FrontendOrigins`; en el entorno de desarrollo incluye `http://localhost:5173`.
 
 Un turno puede incluir planificación y resumen, cada uno con el timeout de IA del backend. Configurá `VITE_AI_CONTEXT_TIMEOUT_MS` con margen suficiente para ambos y el trabajo adicional del servidor. Por ejemplo, si `AI__TimeoutSeconds=240`, usá al menos `510000` ms. Un timeout del navegador cancela la solicitud, pero no garantiza que un proveedor remoto detenga su trabajo.
 

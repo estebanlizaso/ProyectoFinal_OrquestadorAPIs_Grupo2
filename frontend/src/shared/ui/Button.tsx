@@ -12,9 +12,9 @@ export type ButtonProps = ComponentPropsWithoutRef<'button'> & {
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary: 'bg-primary-blue font-medium text-white hover:bg-primary-blue/90 disabled:opacity-50',
   secondary:
-    'border border-gray-200 bg-white font-medium text-primary-blue hover:bg-gray-100 disabled:opacity-50',
+    'border border-gray-200 bg-surface font-medium text-primary-blue hover:bg-gray-100 disabled:opacity-50',
   soft: 'border border-primary-blue-light bg-primary-blue-light font-normal text-primary-blue hover:border-primary-blue',
-  danger: 'bg-red-600 font-medium text-white hover:bg-red-700 disabled:opacity-50',
+  danger: 'bg-danger font-medium text-white hover:bg-danger/90 disabled:opacity-50',
   ghost: 'font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900',
 }
 

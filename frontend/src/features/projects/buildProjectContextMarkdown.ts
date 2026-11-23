@@ -10,6 +10,7 @@ import { PROJECT_CONTEXT_EXPORT_TEXTS } from './constants'
 export type ProjectContextMarkdownInput = {
   projectName: string
   initialPrompt: string
+  summary: string
   messages: ProjectMessageResponse[]
   map: ContextMap
 }
@@ -22,7 +23,7 @@ function buildList(items: string[]): string[] {
 
 function buildConversation(messages: ProjectMessageResponse[]): string[] {
   if (messages.length === 0) {
-    return [TEXTS.noMessages]
+    return [TEXTS.noMessages, '']
   }
   return messages.flatMap(({ humanQuestion, chatBot }, index) => [
     `### ${TEXTS.message(index + 1)}`,
@@ -38,21 +39,18 @@ function buildConversation(messages: ProjectMessageResponse[]): string[] {
   ])
 }
 
-function buildFlowSummary(messages: ProjectMessageResponse[]): string[] {
-  const latest = messages.findLast(({ chatBot }) => !isOutOfScope(chatBot))
-  if (latest === undefined) {
-    return []
-  }
-  const { summary, plan, assumptions, language } = latest.chatBot
-  return [
-    `## ${TEXTS.flowSummary}`,
-    '',
-    summary,
-    '',
+function buildFlowSummary(summary: string, messages: ProjectMessageResponse[]): string[] {
+  const latest = messages.findLast(({ chatBot }) => !isOutOfScope(chatBot))?.chatBot
+  const plan = latest?.plan ?? []
+  const assumptions = latest?.assumptions ?? []
+  const language = latest?.language ?? null
+  const content = [
+    ...(summary.trim() !== '' ? [summary, ''] : []),
     ...(plan.length > 0 ? [`### ${TEXTS.plan}`, '', ...buildList(plan), ''] : []),
     ...(assumptions.length > 0 ? [`### ${TEXTS.assumptions}`, '', ...buildList(assumptions), ''] : []),
     ...(language ? [`**${TEXTS.language}:** ${language}`, ''] : []),
   ]
+  return content.length > 0 ? [`## ${TEXTS.flowSummary}`, '', ...content] : []
 }
 
 function buildNodeField(label: string, value: string | null): string[] {
@@ -103,6 +101,7 @@ function buildMap({ nodes, relations }: ContextMap): string[] {
 export function buildProjectContextMarkdown({
   projectName,
   initialPrompt,
+  summary,
   messages,
   map,
 }: ProjectContextMarkdownInput): string {
@@ -114,7 +113,7 @@ export function buildProjectContextMarkdown({
     `## ${TEXTS.conversation}`,
     '',
     ...buildConversation(messages),
-    ...buildFlowSummary(messages),
+    ...buildFlowSummary(summary, messages),
     ...buildMap(map),
   ].join('\n')
 }
