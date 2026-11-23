@@ -5,11 +5,7 @@ namespace OrquestadorApi.Services.Architecture;
 
 public interface IPostmanCollectionBuilder
 {
-    JsonElement Build(
-        string projectName,
-        ArchitectureResponse architecture,
-        IReadOnlyList<OrchestrationNodeResponse> nodes,
-        IReadOnlyList<OrchestrationRelationResponse> relations);
+    JsonElement Build(string projectName, ArchitectureResponse architecture);
 
     string BuildFileName();
 }

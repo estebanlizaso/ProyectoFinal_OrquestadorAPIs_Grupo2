@@ -315,15 +315,14 @@ public class ArchitectureService : IArchitectureService
                 contextResponses,
                 warnings,
                 contextChanged,
-                ProjectFiles: projectFiles);
+                ProjectFiles: projectFiles,
+                PublicEndpoints: NormalizePublicEndpoints(response.PublicEndpoints));
 
             ArchitectureProjectValidator.Validate(architecture);
 
             var postmanCollection = _postmanCollectionBuilder.Build(
                 project.ProjectName,
-                architecture,
-                map.Nodes,
-                map.Relations);
+                architecture);
 
             architecture = architecture with { PostmanCollection = postmanCollection };
 
@@ -742,6 +741,49 @@ public class ArchitectureService : IArchitectureService
             }
 
             result.Add(normalized);
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyList<ArchitecturePublicEndpoint> NormalizePublicEndpoints(
+        IReadOnlyList<ArchitecturePublicEndpoint>? endpoints)
+    {
+        if (endpoints is null || endpoints.Count == 0)
+        {
+            return [];
+        }
+
+        var result = new List<ArchitecturePublicEndpoint>(endpoints.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var endpoint in endpoints)
+        {
+            if (endpoint is null ||
+                string.IsNullOrWhiteSpace(endpoint.Method) ||
+                string.IsNullOrWhiteSpace(endpoint.Path))
+            {
+                continue;
+            }
+
+            var method = endpoint.Method.Trim().ToUpperInvariant();
+            var path = endpoint.Path.Trim();
+            path = path.StartsWith('/') ? path : "/" + path;
+
+            if (!seen.Add($"{method} {path}"))
+            {
+                continue;
+            }
+
+            result.Add(endpoint with
+            {
+                Method = method,
+                Path = path,
+                Name = TrimToNull(endpoint.Name),
+                Description = TrimToNull(endpoint.Description),
+                ExampleBody = TrimToNull(endpoint.ExampleBody),
+                ContentType = TrimToNull(endpoint.ContentType)
+            });
         }
 
         return result;

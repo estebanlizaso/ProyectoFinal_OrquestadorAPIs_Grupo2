@@ -19,4 +19,5 @@ public record ArchitectureResponse(
     [property: JsonPropertyName("goToDrive")] string? GoToDrive = null,
     [property: JsonPropertyName("downloadFile")] string? DownloadFile = null,
     [property: JsonPropertyName("downloadPostmanCollection")] string? DownloadPostmanCollection = null,
-    [property: JsonPropertyName("projectFiles")] IReadOnlyList<ArchitectureProjectFile>? ProjectFiles = null);
+    [property: JsonPropertyName("projectFiles")] IReadOnlyList<ArchitectureProjectFile>? ProjectFiles = null,
+    [property: JsonPropertyName("publicEndpoints")] IReadOnlyList<ArchitecturePublicEndpoint>? PublicEndpoints = null);
