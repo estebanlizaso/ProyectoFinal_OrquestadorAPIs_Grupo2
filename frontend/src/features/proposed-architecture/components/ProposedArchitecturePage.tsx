@@ -28,7 +28,7 @@ export type ProposedArchitecturePageProps = {
 }
 
 export function ProposedArchitecturePage({ projectId, backButton, onConfirmFlow }: ProposedArchitecturePageProps) {
-  const { turns, map, addTurn, addErrorTurn, updateNode } = useContextHistory(projectId)
+  const { turns, map, status, mapStatus, retry, addTurn, addErrorTurn, updateNode } = useContextHistory(projectId)
   const flowSummary = findLatestValidTurn(turns)?.planner.summary ?? null
   const syncModuleNotes = useModuleNotesSync()
   const { isUpdating, startUpdate, finishUpdate } = useDiagramUpdate()
@@ -66,12 +66,18 @@ export function ProposedArchitecturePage({ projectId, backButton, onConfirmFlow 
             </Button>
           }
         />
-        <ArchitectureDiagram map={map} onModuleOpen={setOpenModule} isUpdating={isUpdating} />
+        <ArchitectureDiagram
+          map={map}
+          status={mapStatus}
+          onRetry={retry}
+          onModuleOpen={setOpenModule} isUpdating={isUpdating} />
       </div>
       <div className={activeTab === 'chat' ? 'contents' : 'hidden'}>
         <ContextChatPanel
           projectId={projectId}
           turns={turns}
+          historyStatus={status}
+          onHistoryRetry={retry}
           onTurnAdded={handleTurnAdded}
           onErrorTurnAdded={handleErrorTurnAdded}
           onSendStart={startUpdate}

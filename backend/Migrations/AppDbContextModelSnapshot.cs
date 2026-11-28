@@ -132,6 +132,13 @@ namespace OrquestadorApi.Migrations
                         .HasColumnType("text")
                         .HasColumnName("operation");
 
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasColumnName("operation_key")
+                        .HasComputedColumnSql("coalesce(nullif(btrim(case when http_method is not null and path is not null then http_method || ' ' || path else operation end, ' ' || chr(9) || chr(10) || chr(11) || chr(12) || chr(13)), ''), '')", true);
+
                     b.Property<string>("Path")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)")
@@ -157,8 +164,9 @@ namespace OrquestadorApi.Migrations
 
                     b.HasIndex("TargetNodeId");
 
-                    b.HasIndex("ContextId", "SourceNodeId", "TargetNodeId", "Label")
-                        .IsUnique();
+                    b.HasIndex("ContextId", "SourceNodeId", "TargetNodeId", "Label", "OperationKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_relations_context_endpoints_label_operation");
 
                     b.ToTable("orchestration_relations");
                 });
@@ -180,6 +188,18 @@ namespace OrquestadorApi.Migrations
                         .HasColumnType("text")
                         .HasColumnName("description");
 
+                    b.Property<bool>("FinishProyect")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("boolean")
+                        .HasColumnName("finish_proyect")
+                        .HasComputedColumnSql("last_reached_stage = 2", true);
+
+                    b.Property<int>("LastReachedStage")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("last_reached_stage");
+
                     b.Property<string>("ProjectName")
                         .IsRequired()
                         .HasColumnType("text")
@@ -198,7 +218,10 @@ namespace OrquestadorApi.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_projects_project_name_normalized");
 
-                    b.ToTable("projects");
+                    b.ToTable("projects", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_projects_last_reached_stage", "last_reached_stage IN (0, 1, 2)");
+                        });
                 });
 
             modelBuilder.Entity("OrquestadorApi.Models.ProjectContext", b =>
@@ -252,6 +275,14 @@ namespace OrquestadorApi.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("project_id");
 
+                    b.Property<string>("RepositoryBlueprintJson")
+                        .HasColumnType("text")
+                        .HasColumnName("repository_blueprint");
+
+                    b.Property<int?>("RepositoryBlueprintVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("repository_blueprint_version");
+
                     b.Property<string>("Resumen")
                         .HasColumnType("text")
                         .HasColumnName("resumen");
@@ -267,6 +298,40 @@ namespace OrquestadorApi.Migrations
                         .IsUnique();
 
                     b.ToTable("contexts");
+                });
+
+            modelBuilder.Entity("OrquestadorApi.Models.ProjectMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ChatBot")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("chat_bot");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("HumanQuestion")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("human_question");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer")
+                        .HasColumnName("project_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "CreatedAt", "Id");
+
+                    b.ToTable("project_messages");
                 });
 
             modelBuilder.Entity("OrquestadorApi.Models.OrchestrationNode", b =>
@@ -312,6 +377,17 @@ namespace OrquestadorApi.Migrations
                     b.HasOne("OrquestadorApi.Models.Project", "Project")
                         .WithOne("Context")
                         .HasForeignKey("OrquestadorApi.Models.ProjectContext", "ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("OrquestadorApi.Models.ProjectMessage", b =>
+                {
+                    b.HasOne("OrquestadorApi.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

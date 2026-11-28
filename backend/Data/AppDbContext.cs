@@ -7,6 +7,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 {
     public DbSet<Project> Projects => Set<Project>();
 
+    public DbSet<ProjectMessage> ProjectMessages => Set<ProjectMessage>();
+
     public DbSet<ProjectContext> Contexts => Set<ProjectContext>();
 
     public DbSet<OrchestrationNode> OrchestrationNodes => Set<OrchestrationNode>();
@@ -15,6 +17,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Project>()
+            .Property(project => project.FinishProyect)
+            .HasComputedColumnSql("last_reached_stage = 2", stored: true);
+
+        modelBuilder.Entity<Project>()
+            .Property(project => project.LastReachedStage)
+            .HasDefaultValue(ProjectStage.Context);
+
+        modelBuilder.Entity<Project>()
+            .ToTable("projects", table => table.HasCheckConstraint(
+                "ck_projects_last_reached_stage", "last_reached_stage IN (0, 1, 2)"));
+
+        modelBuilder.Entity<ProjectMessage>()
+            .HasOne(message => message.Project)
+            .WithMany()
+            .HasForeignKey(message => message.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ProjectMessage>()
+            .HasIndex(message => new { message.ProjectId, message.CreatedAt, message.Id });
+
         modelBuilder.Entity<Project>()
             .Property(project => project.ProjectNameNormalized)
             .HasComputedColumnSql("lower(btrim(project_name))", stored: true)
@@ -66,13 +89,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasIndex(relation => new { relation.ContextId });
 
         modelBuilder.Entity<OrchestrationRelation>()
+            .Property(relation => relation.OperationKey)
+            .HasComputedColumnSql(RelationIdentity.OperationKeySql, stored: true)
+            .IsRequired();
+
+        modelBuilder.Entity<OrchestrationRelation>()
             .HasIndex(relation => new
             {
                 relation.ContextId,
                 relation.SourceNodeId,
                 relation.TargetNodeId,
-                relation.Label
+                relation.Label,
+                relation.OperationKey
             })
+            .HasDatabaseName(RelationIdentity.IndexName)
             .IsUnique();
     }
 }

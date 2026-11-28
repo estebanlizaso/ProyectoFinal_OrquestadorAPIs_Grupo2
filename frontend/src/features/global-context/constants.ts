@@ -1,7 +1,7 @@
 export const GLOBAL_CONTEXT_PAGE_TEXTS = {
   title: 'Contexto global',
   subtitle: 'Explicá el objetivo, la IA completa los datos faltantes.',
-  generateArchitecture: 'Generar arquitectura',
+  generateFlow: 'Generar Flujo',
 }
 
 export const CONTEXT_DETAILS_TEXTS = {
@@ -15,6 +15,9 @@ export const CONTEXT_CHAT_TEXTS = {
   goalEmpty: 'Contale a la IA qué tiene que resolver esta orquestación.',
   errorTitle: 'No se pudo generar el contexto',
   rejectedTitle: 'La IA no puede ayudarte con esto',
+  historyLoading: 'Cargando conversación…',
+  historyError: 'No se pudo cargar la conversación.',
+  historyRetry: 'Reintentar',
 }
 
 export const PROMPT_COMPOSER_TEXTS = {

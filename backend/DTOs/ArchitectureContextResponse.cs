@@ -10,4 +10,5 @@ public record ArchitectureContextResponse(
     [property: JsonPropertyName("dependencies")] IReadOnlyList<string> Dependencies,
     [property: JsonPropertyName("env")] IReadOnlyList<ArchitectureEnvVarResponse> Env,
     [property: JsonPropertyName("assumptions")] IReadOnlyList<string> Assumptions,
-    [property: JsonPropertyName("warnings")] IReadOnlyList<string> Warnings);
+    [property: JsonPropertyName("warnings")] IReadOnlyList<string> Warnings,
+    [property: JsonPropertyName("filePath")] string? FilePath = null);

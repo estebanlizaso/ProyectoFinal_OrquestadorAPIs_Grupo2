@@ -4,6 +4,12 @@ namespace OrquestadorApi.Services.Contexts;
 
 public interface IProjectContextService
 {
+    Task<IReadOnlyList<ProjectMessageResponse>?> GetMessagesAsync(
+        int projectId,
+        int offset = 0,
+        int limit = 50,
+        CancellationToken cancellationToken = default);
+
     Task<SaveNodeInstructionsResult> SaveNodeInstructionsAsync(
         int projectId,
         string nodeKey,
@@ -19,7 +25,7 @@ public interface IProjectContextService
         int projectId,
         CancellationToken cancellationToken = default);
 
-    Task<string?> GetInitialPromptAsync(
+    Task<InitialProjectPromptResponse?> GetInitialPromptAsync(
         int projectId,
         CancellationToken cancellationToken = default);
 

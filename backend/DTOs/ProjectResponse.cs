@@ -6,4 +6,5 @@ public record ProjectResponse(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("description")] string? Description,
     [property: JsonPropertyName("projectId")] int ProjectId,
-    [property: JsonPropertyName("created_at")] DateOnly? CreatedAt);
+    [property: JsonPropertyName("created_at")] DateOnly? CreatedAt,
+    [property: JsonPropertyName("finish_proyect")] bool FinishProyect);

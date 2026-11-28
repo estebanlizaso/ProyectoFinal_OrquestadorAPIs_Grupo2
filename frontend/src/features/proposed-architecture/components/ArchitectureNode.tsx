@@ -28,7 +28,7 @@ export function ArchitectureNode({ data }: ArchitectureNodeProps) {
       className={cn(
         'flex size-full items-center gap-3 rounded-xl border px-4',
         isClickable && 'cursor-pointer transition hover:border-primary-blue hover:shadow-md',
-        node.kind === 'step' ? 'border-primary-blue/30 bg-primary-blue-light' : 'border-gray-200 bg-white',
+        node.kind === 'step' ? 'border-primary-blue/30 bg-primary-blue-light' : 'border-gray-200 bg-surface',
       )}
     >
       <Handle type="target" position={Position.Top} isConnectable={false} />

@@ -21,7 +21,7 @@ export function GlobalContextPage({
   onGenerateArchitecture,
   onMapChanged,
 }: GlobalContextPageProps) {
-  const { turns, map, addTurn, addErrorTurn, updateNode } = useContextHistory(projectId)
+  const { turns, map, status, retry, addTurn, addErrorTurn, updateNode } = useContextHistory(projectId)
   const latestAssumptions = findLatestValidTurn(turns)?.planner.assumptions ?? []
   const hasReadyTurn = turns.some((turn) => 'planner' in turn && turn.planner.status === 'ready')
 
@@ -32,28 +32,32 @@ export function GlobalContextPage({
   }
 
   return (
-    <div className="p-8">
+    <div className="flex flex-col p-8 lg:h-full">
       <PageHeader
         title={GLOBAL_CONTEXT_PAGE_TEXTS.title}
         subtitle={GLOBAL_CONTEXT_PAGE_TEXTS.subtitle}
         backButton={backButton}
         actions={
           <Button disabled={!hasReadyTurn} onClick={onGenerateArchitecture}>
-            {GLOBAL_CONTEXT_PAGE_TEXTS.generateArchitecture}
+            {GLOBAL_CONTEXT_PAGE_TEXTS.generateFlow}
           </Button>
         }
       />
 
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 items-start gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-3 lg:grid-rows-1">
+        <div className="lg:col-span-2 lg:flex lg:h-full lg:flex-col">
           <ContextChatPanel
             projectId={projectId}
             turns={turns}
+            historyStatus={status}
+            onHistoryRetry={retry}
             onTurnAdded={handleTurnAdded}
             onErrorTurnAdded={addErrorTurn}
           />
         </div>
-        <ContextDetailsPanel nodes={map.nodes} assumptions={latestAssumptions} />
+        <div className="lg:max-h-full lg:overflow-y-auto">
+          <ContextDetailsPanel nodes={map.nodes} assumptions={latestAssumptions} />
+        </div>
       </div>
     </div>
   )

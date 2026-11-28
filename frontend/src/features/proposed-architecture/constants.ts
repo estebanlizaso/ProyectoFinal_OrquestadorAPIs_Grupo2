@@ -4,9 +4,14 @@ export const PROPOSED_ARCHITECTURE_PAGE_TEXTS = {
   confirmFlow: 'Confirmar flujo',
   diagramEmpty: 'Todavía no hay un diagrama para mostrar.',
   diagramUpdating: 'Actualizando el diagrama',
+  diagramLoading: 'Cargando el diagrama',
+  diagramError: 'No se pudo cargar el diagrama.',
+  diagramRetry: 'Reintentar',
 }
 
 export const DIAGRAM_UPDATE_REVEAL_MS = 600
+
+export const PARALLEL_EDGE_SPACING = 240
 
 export const DIAGRAM_TEXTS = {
   start: 'Inicio',

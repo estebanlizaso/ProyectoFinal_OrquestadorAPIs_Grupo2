@@ -1,25 +1,30 @@
-import { useInitialPrompt } from '../../../services/projectContextService'
+import { useProjectContextExport } from '../../../services/projectContextService'
+import { getErrorMessage } from '../../../shared/api/getErrorMessage'
 import { downloadTextFile } from '../../../shared/lib/downloadTextFile'
 import { formatDateOnly } from '../../../shared/lib/formatDateOnly'
 import { Button } from '../../../shared/ui/Button'
 import { Card } from '../../../shared/ui/Card'
-import { buildInitialPromptFileName, PROJECT_CARD_TEXTS } from '../constants'
+import { buildProjectContextMarkdown } from '../buildProjectContextMarkdown'
+import { buildProjectContextFileName, MARKDOWN_MIME_TYPE, PROJECT_CARD_TEXTS } from '../constants'
+import { PROJECT_CONTEXT_DOWNLOAD_ERROR_MESSAGES } from '../errorMessages'
 import type { ProjectResponse } from '../types'
 import { ProjectCardMenu } from './ProjectCardMenu'
 
 export type ProjectCardProps = {
   project: ProjectResponse
   onDelete?: (project: ProjectResponse) => void
+  onOpenFlow?: (project: ProjectResponse) => void
 }
 
-export function ProjectCard({ project, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete, onOpenFlow }: ProjectCardProps) {
   const { projectId, name, description, created_at: createdAt } = project
-  const { run: fetchInitialPrompt, status: promptStatus } = useInitialPrompt()
+  const { run: fetchContextExport, status: contextStatus, error: contextError } = useProjectContextExport()
 
-  async function handleDownloadPrompt(): Promise<void> {
-    const prompt = await fetchInitialPrompt(projectId)
-    if (prompt !== null) {
-      downloadTextFile(buildInitialPromptFileName(projectId), prompt)
+  async function handleDownloadContext(): Promise<void> {
+    const contextExport = await fetchContextExport(projectId)
+    if (contextExport !== null) {
+      const markdown = buildProjectContextMarkdown({ projectName: name, ...contextExport })
+      downloadTextFile(buildProjectContextFileName(projectId), markdown, MARKDOWN_MIME_TYPE)
     }
   }
 
@@ -35,9 +40,11 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
           )}
         </div>
         <ProjectCardMenu
-          onDownloadPrompt={() => void handleDownloadPrompt()}
-          isDownloadingPrompt={promptStatus === 'loading'}
-          hasDownloadPromptError={promptStatus === 'error'}
+          onDownloadContext={() => void handleDownloadContext()}
+          isDownloadingContext={contextStatus === 'loading'}
+          downloadContextError={
+            contextError && getErrorMessage(contextError, PROJECT_CONTEXT_DOWNLOAD_ERROR_MESSAGES)
+          }
           onDelete={onDelete && (() => onDelete(project))}
         />
       </header>
@@ -45,7 +52,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
       <p className="text-sm text-gray-500">{description || PROJECT_CARD_TEXTS.noDescription}</p>
 
       <footer className="mt-auto">
-        <Button variant="soft" size="sm" disabled>
+        <Button variant="soft" size="sm" disabled={!onOpenFlow} onClick={onOpenFlow && (() => onOpenFlow(project))}>
           {PROJECT_CARD_TEXTS.openFlow}
         </Button>
       </footer>

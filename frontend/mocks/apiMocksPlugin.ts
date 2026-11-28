@@ -1,34 +1,68 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
+import type { AiModelsResponse, AiSelectionRequest } from '../src/features/ai-selection/types.ts'
 import type {
-  CreateProjectContextRequest,
   InitialProjectPromptResponse,
   OrchestrationNodeResponse,
   ProjectContextResponse,
+  ProjectMessageResponse,
   UpdateOrchestrationNodeRequest,
 } from '../src/features/global-context/types.ts'
 import { FIRST_PAGE } from '../src/features/projects/constants.ts'
 import type {
   CreateProjectRequest,
   DeleteProjectRequest,
+  ProjectProgressResponse,
   ProjectResponse,
   ProjectsResponse,
+  ProjectStage,
 } from '../src/features/projects/types.ts'
+import {
+  buildMockArchitecture,
+  MOCK_EMPTY_ZIP,
+  MOCK_NOT_GENERATED_MESSAGE,
+  MOCK_PACKAGE_FILE_NAME,
+  MOCK_POSTMAN_FILE_NAME,
+} from './architecture.ts'
 import { MOCK_INITIAL_PROMPTS } from './initialPrompts.ts'
 import { MOCK_GENERATED_CONTENT, MOCK_NODES, MOCK_PLANNER, MOCK_RELATIONS } from './projectContexts.ts'
-import { MOCK_PROJECTS } from './projects.ts'
+import { MOCK_FINISHED_PROJECT_IDS, MOCK_PROJECTS } from './projects.ts'
 
 export type ApiMockScenario = 'success' | 'empty' | 'error'
 
 const API_MOCK_SCENARIOS: ApiMockScenario[] = ['success', 'empty', 'error']
 const PROJECTS_ROUTE = '/api/projects'
+const AI_MODELS_ROUTE = '/api/ai/models'
 const PROJECTS_ROOT_PATH = '/'
 const PROJECT_CONTEXT_PATH_PATTERN = /^\/(\d+)\/context\/?$/
+const CONTEXT_MAP_PATH_PATTERN = /^\/(\d+)\/context\/map\/?$/
+const PROJECT_MESSAGES_PATH_PATTERN = /^\/(\d+)\/messages\/?$/
 const CONTEXT_NODE_PATH_PATTERN = /^\/(\d+)\/context\/nodes\/([^/]+)\/?$/
+const ARCHITECTURE_PATH_PATTERN = /^\/(\d+)\/architecture\/?$/
+const PROJECT_PROGRESS_PATH_PATTERN = /^\/(\d+)\/progress\/?$/
+const PROJECT_STAGES: ProjectStage[] = ['context', 'architecture', 'generation']
+const ARCHITECTURE_ARTIFACT_PATH_PATTERN = /^\/(\d+)\/architecture\/(package|postman-collection)\/?$/
+const MOCK_ARCHITECTURE_DELAY_MS = 4000
 const MOCK_DELAY_MS = 800
 const MOCK_TRACE_ID = 'mock-trace-id'
 const MOCK_ORIGIN = 'http://localhost'
 const MOCK_PAGE_SIZE = 12
+const MOCK_MESSAGES_PAGE_SIZE = 50
+const MOCK_AI_MODELS: AiModelsResponse = {
+  defaultSelection: { provider: 'Gemini', model: null },
+  providers: [
+    { id: 'Gemini', models: [{ id: 'gemini-3.5-flash-lite', name: 'Gemini' }] },
+    { id: 'Bdt', models: [
+      { id: 'gpt-6-luna-high', name: 'Luna 6.0 - High' },
+      { id: 'qwen-maximo', name: 'qwen-maximo' },
+      { id: 'gpt-6.1-sol-high', name: 'Sol 6.1 - High' },
+      { id: 'gpt-6.1-sol-low', name: 'Sol 6.1 - Low' },
+      { id: 'gpt-6.1-sol-medium', name: 'Sol 6.1 - Medium' },
+      { id: 'gpt-6.1-terra-high', name: 'Terra 6.1 - High' },
+      { id: 'gpt-6.1-terra-medium', name: 'Terra 6.1 - Medium' },
+    ] },
+  ],
+}
 
 const HTTP_STATUS = {
   ok: 200,
@@ -44,6 +78,7 @@ const MOCK_ERROR_TITLES = {
   invalidPage: 'Número de página inválido',
   projectNotFound: 'Proyecto no encontrado',
   promptNotFound: 'Prompt inicial no encontrado',
+  contextNotFound: 'Contexto no encontrado',
   nodeNotFound: 'Nodo no encontrado',
   validation: 'One or more validation errors occurred.',
 }
@@ -88,7 +123,7 @@ function isCreateProjectRequest(value: unknown): value is CreateProjectRequest {
   )
 }
 
-function isCreateProjectContextRequest(value: unknown): value is CreateProjectContextRequest {
+function isCreateProjectContextRequest(value: unknown): value is { prompt: string; aiSelection?: unknown } {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -96,6 +131,18 @@ function isCreateProjectContextRequest(value: unknown): value is CreateProjectCo
     typeof value.prompt === 'string' &&
     value.prompt.trim() !== ''
   )
+}
+
+function isValidAiSelection(value: unknown): value is AiSelectionRequest {
+  if (typeof value !== 'object' || value === null ||
+      !('provider' in value) || typeof value.provider !== 'string' ||
+      !('model' in value) || (typeof value.model !== 'string' && value.model !== null)) return false
+  const providerId = value.provider
+  const provider = MOCK_AI_MODELS.providers.find((item) => item.id.toLowerCase() === providerId.toLowerCase())
+  return provider !== undefined &&
+    (value.model === null
+      ? provider.id === 'Gemini'
+      : provider.models.some((model) => model.id === value.model))
 }
 
 function isUpdateOrchestrationNodeRequest(value: unknown): value is UpdateOrchestrationNodeRequest {
@@ -113,6 +160,45 @@ function getContextNodeTarget(pathname: string): { projectId: number; nodeKey: s
 function getContextProjectId(pathname: string): number | null {
   const rawProjectId = PROJECT_CONTEXT_PATH_PATTERN.exec(pathname)?.[1]
   return rawProjectId === undefined ? null : Number(rawProjectId)
+}
+
+function getContextMapProjectId(pathname: string): number | null {
+  const rawProjectId = CONTEXT_MAP_PATH_PATTERN.exec(pathname)?.[1]
+  return rawProjectId ? Number(rawProjectId) : null
+}
+
+function getMessagesProjectId(pathname: string): number | null {
+  const rawProjectId = PROJECT_MESSAGES_PATH_PATTERN.exec(pathname)?.[1]
+  return rawProjectId ? Number(rawProjectId) : null
+}
+
+function getArchitectureProjectId(pathname: string): number | null {
+  const rawProjectId = ARCHITECTURE_PATH_PATTERN.exec(pathname)?.[1]
+  return rawProjectId ? Number(rawProjectId) : null
+}
+
+function getProgressProjectId(pathname: string): number | null {
+  const rawProjectId = PROJECT_PROGRESS_PATH_PATTERN.exec(pathname)?.[1]
+  return rawProjectId ? Number(rawProjectId) : null
+}
+
+function isUpdateProjectProgressRequest(value: unknown): value is { stage: ProjectStage } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'stage' in value &&
+    PROJECT_STAGES.some((stage) => stage === value.stage)
+  )
+}
+
+function getArchitectureArtifactTarget(
+  pathname: string,
+): { projectId: number; artifact: 'package' | 'postman-collection' } | null {
+  const match = ARCHITECTURE_ARTIFACT_PATH_PATTERN.exec(pathname)
+  if (!match?.[1] || (match[2] !== 'package' && match[2] !== 'postman-collection')) {
+    return null
+  }
+  return { projectId: Number(match[1]), artifact: match[2] }
 }
 
 function wait(milliseconds: number): Promise<void> {
@@ -257,6 +343,7 @@ async function sendCreateResult(
     description: null,
     projectId: getNextProjectId(projects),
     created_at: getTodayAsDateOnly(),
+    finish_proyect: false,
   }
   projects.unshift(project)
   sendJson(response, HTTP_STATUS.created, project)
@@ -326,8 +413,71 @@ async function sendInitialPromptResult(
     sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.promptNotFound)
     return
   }
-  const payload: InitialProjectPromptResponse = { initialPrompt: context.initialPrompt }
+  const payload: InitialProjectPromptResponse = {
+    initialPrompt: context.initialPrompt,
+    summary: context.planner?.summary ?? '',
+    status: HTTP_STATUS.ok,
+  }
   sendJson(response, HTTP_STATUS.ok, payload)
+}
+
+async function sendContextMapResult(
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  contexts: Map<number, ProjectContextResponse>,
+  projectId: number,
+): Promise<void> {
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  const context = contexts.get(projectId)
+  if (!context) {
+    sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.contextNotFound)
+    return
+  }
+  sendJson(response, HTTP_STATUS.ok, context)
+}
+
+function addMockMessage(
+  messages: ProjectMessageResponse[],
+  projectId: number,
+  humanQuestion: string,
+): void {
+  const { reply, ...planner } = MOCK_PLANNER
+  messages.push({
+    id: messages.length + 1,
+    projectId,
+    humanQuestion,
+    chatBot: { ...planner, message: reply },
+    createdAt: new Date().toISOString(),
+  })
+}
+
+async function sendMessagesResult(
+  url: URL,
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  projects: ProjectResponse[],
+  messages: ProjectMessageResponse[],
+  projectId: number,
+): Promise<void> {
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  if (!projects.some((project) => project.projectId === projectId)) {
+    sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.projectNotFound)
+    return
+  }
+  const offset = Number(url.searchParams.get('offset') ?? 0)
+  const limit = Number(url.searchParams.get('limit') ?? MOCK_MESSAGES_PAGE_SIZE)
+  const projectMessages = messages.filter((message) => message.projectId === projectId)
+  sendJson(response, HTTP_STATUS.ok, projectMessages.slice(offset, offset + limit))
 }
 
 async function sendCreateContextResult(
@@ -336,6 +486,7 @@ async function sendCreateContextResult(
   scenario: ApiMockScenario,
   projects: ProjectResponse[],
   contexts: Map<number, ProjectContextResponse>,
+  messages: ProjectMessageResponse[],
   projectId: number,
 ): Promise<void> {
   const payload = await readJsonBody(request).catch(() => undefined)
@@ -349,10 +500,15 @@ async function sendCreateContextResult(
     sendValidationProblem(response, MOCK_VALIDATION_ERRORS.promptRequired)
     return
   }
+  if ('aiSelection' in payload && payload.aiSelection !== null && !isValidAiSelection(payload.aiSelection)) {
+    sendJson(response, HTTP_STATUS.badRequest, { message: 'La selección de IA no está disponible.' })
+    return
+  }
   if (!projects.some((project) => project.projectId === projectId)) {
     sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.projectNotFound)
     return
   }
+  addMockMessage(messages, projectId, payload.prompt.trim())
   const existingContext = contexts.get(projectId)
   if (existingContext) {
     sendJson(response, HTTP_STATUS.ok, existingContext)
@@ -409,19 +565,164 @@ async function sendUpdateNodeNotesResult(
   sendJson(response, HTTP_STATUS.ok, updatedNode)
 }
 
+async function sendGenerateArchitectureResult(
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  contexts: Map<number, ProjectContextResponse>,
+  generatedProjectIds: Set<number>,
+  projectId: number,
+): Promise<void> {
+  await wait(MOCK_ARCHITECTURE_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  const context = contexts.get(projectId)
+  if (!context) {
+    sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.projectNotFound)
+    return
+  }
+  generatedProjectIds.add(projectId)
+  sendJson(response, HTTP_STATUS.ok, buildMockArchitecture(projectId, context.contextId))
+}
+
+function buildProgress(stages: Map<number, ProjectStage>, projectId: number): ProjectProgressResponse {
+  const stage = stages.get(projectId) ?? 'context'
+  return { stage, finish_proyect: stage === 'generation' }
+}
+
+async function sendProgressResult(
+  request: IncomingMessage,
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  projects: ProjectResponse[],
+  stages: Map<number, ProjectStage>,
+  projectId: number,
+): Promise<void> {
+  const payload = request.method === 'PATCH' ? await readJsonBody(request).catch(() => undefined) : null
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  if (!projects.some((project) => project.projectId === projectId)) {
+    sendProblem(response, HTTP_STATUS.notFound, MOCK_ERROR_TITLES.projectNotFound)
+    return
+  }
+  if (request.method === 'PATCH') {
+    if (!isUpdateProjectProgressRequest(payload)) {
+      sendProblem(response, HTTP_STATUS.badRequest, MOCK_ERROR_TITLES.invalidRequest)
+      return
+    }
+    const currentStage = stages.get(projectId) ?? 'context'
+    if (PROJECT_STAGES.indexOf(payload.stage) > PROJECT_STAGES.indexOf(currentStage)) {
+      stages.set(projectId, payload.stage)
+    }
+  }
+  sendJson(response, HTTP_STATUS.ok, buildProgress(stages, projectId))
+}
+
+async function sendArchitectureArtifactResult(
+  response: ServerResponse,
+  scenario: ApiMockScenario,
+  generatedProjectIds: Set<number>,
+  projectId: number,
+  artifact: 'package' | 'postman-collection',
+): Promise<void> {
+  await wait(MOCK_DELAY_MS)
+
+  if (scenario === 'error') {
+    sendServerError(response)
+    return
+  }
+  if (!generatedProjectIds.has(projectId)) {
+    sendJson(response, HTTP_STATUS.notFound, { message: MOCK_NOT_GENERATED_MESSAGE })
+    return
+  }
+  const isPackage = artifact === 'package'
+  const content = isPackage
+    ? MOCK_EMPTY_ZIP
+    : Buffer.from(JSON.stringify(buildMockArchitecture(projectId, 0).postmanCollection))
+  response.statusCode = HTTP_STATUS.ok
+  response.setHeader('Content-Type', isPackage ? 'application/zip' : 'application/json')
+  response.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${isPackage ? MOCK_PACKAGE_FILE_NAME : MOCK_POSTMAN_FILE_NAME}"`,
+  )
+  response.end(content)
+}
+
 export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
   const projects: ProjectResponse[] = scenario === 'success' ? [...MOCK_PROJECTS] : []
   const contexts =
     scenario === 'success' ? buildSeedContexts() : new Map<number, ProjectContextResponse>()
+  const messages: ProjectMessageResponse[] = []
+  const generatedProjectIds = new Set<number>()
+  const stages = new Map<number, ProjectStage>(
+    scenario === 'success' ? MOCK_FINISHED_PROJECT_IDS.map((projectId) => [projectId, 'generation']) : [],
+  )
 
   return {
     name: 'api-mocks',
     apply: 'serve',
     configureServer(server) {
+      server.middlewares.use(AI_MODELS_ROUTE, (request, response, next) => {
+        if (getRequestUrl(request).pathname !== '/' || request.method !== 'GET') {
+          next()
+          return
+        }
+        setTimeout(() => {
+          if (scenario === 'error') {
+            sendServerError(response)
+          } else {
+            sendJson(response, HTTP_STATUS.ok, scenario === 'empty'
+              ? { defaultSelection: null, providers: [] }
+              : MOCK_AI_MODELS)
+          }
+        }, MOCK_DELAY_MS)
+      })
       server.middlewares.use(PROJECTS_ROUTE, (request, response, next) => {
         const url = getRequestUrl(request)
         const contextProjectId = getContextProjectId(url.pathname)
         const contextNodeTarget = getContextNodeTarget(url.pathname)
+        const contextMapProjectId = getContextMapProjectId(url.pathname)
+        const messagesProjectId = getMessagesProjectId(url.pathname)
+        const architectureProjectId = getArchitectureProjectId(url.pathname)
+        const architectureArtifactTarget = getArchitectureArtifactTarget(url.pathname)
+        const progressProjectId = getProgressProjectId(url.pathname)
+
+        if (progressProjectId !== null && (request.method === 'GET' || request.method === 'PATCH')) {
+          void sendProgressResult(request, response, scenario, projects, stages, progressProjectId)
+          return
+        }
+
+        if (architectureProjectId !== null && request.method === 'POST') {
+          void sendGenerateArchitectureResult(response, scenario, contexts, generatedProjectIds, architectureProjectId)
+          return
+        }
+
+        if (architectureArtifactTarget !== null && request.method === 'GET') {
+          void sendArchitectureArtifactResult(
+            response,
+            scenario,
+            generatedProjectIds,
+            architectureArtifactTarget.projectId,
+            architectureArtifactTarget.artifact,
+          )
+          return
+        }
+
+        if (messagesProjectId !== null && request.method === 'GET') {
+          void sendMessagesResult(url, response, scenario, projects, messages, messagesProjectId)
+          return
+        }
+
+        if (contextMapProjectId !== null && request.method === 'GET') {
+          void sendContextMapResult(response, scenario, contexts, contextMapProjectId)
+          return
+        }
 
         if (contextNodeTarget !== null && request.method === 'PATCH') {
           void sendUpdateNodeNotesResult(
@@ -436,7 +737,7 @@ export function apiMocksPlugin(scenario: ApiMockScenario): Plugin {
         }
 
         if (contextProjectId !== null && request.method === 'POST') {
-          void sendCreateContextResult(request, response, scenario, projects, contexts, contextProjectId)
+          void sendCreateContextResult(request, response, scenario, projects, contexts, messages, contextProjectId)
           return
         }
         if (contextProjectId !== null && request.method === 'GET') {

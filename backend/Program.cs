@@ -7,6 +7,7 @@ using OrquestadorApi.Data;
 using OrquestadorApi.Services.AI;
 using OrquestadorApi.Services.Architecture;
 using OrquestadorApi.Services.Contexts;
+using OrquestadorApi.Services.Drive;
 using OrquestadorApi.Services.Projects;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,6 +41,9 @@ builder.Configuration.AddEnvironmentVariables();
 
 var rawConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Postgres");
 var geminiApiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+var bdtApiKey = Environment.GetEnvironmentVariable("BDT_API_KEY");
+var bdtApiUrl = Environment.GetEnvironmentVariable("BDT_API_URL");
+var bdtModel = Environment.GetEnvironmentVariable("BDT_MODEL");
 
 if (string.IsNullOrWhiteSpace(rawConnectionString))
 {
@@ -81,28 +85,91 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(postgresConnection.ConnectionString));
+builder.Services.AddSingleton<AiOptionsValidator>();
+builder.Services.AddSingleton<IValidateOptions<AiOptions>>(
+    services => services.GetRequiredService<AiOptionsValidator>());
 builder.Services
     .AddOptions<AiOptions>()
     .Bind(builder.Configuration.GetSection(AiOptions.SectionName))
-    .Configure(options => options.ApiKey = geminiApiKey ?? string.Empty)
+    .Configure(options =>
+    {
+        options.Gemini.ApiKey = geminiApiKey ?? string.Empty;
+        options.Bdt.ApiKey = bdtApiKey ?? string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(bdtApiUrl))
+        {
+            options.Bdt.BaseUrl = bdtApiUrl;
+        }
+
+        if (!string.IsNullOrWhiteSpace(bdtModel))
+        {
+            options.Bdt.Model = bdtModel;
+        }
+    })
     .ValidateDataAnnotations()
-    .Validate(
-        options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _),
-        "AI:BaseUrl debe ser una URL absoluta.")
     .ValidateOnStart();
 builder.Services
     .AddOptions<OrchestrationOptions>()
     .Bind(builder.Configuration.GetSection(OrchestrationOptions.SectionName))
     .ValidateDataAnnotations()
     .ValidateOnStart();
-builder.Services.AddHttpClient<IAiProvider, GeminiAiProvider>((serviceProvider, client) =>
+builder.Services
+    .AddOptions<DriveOptions>()
+    .Bind(builder.Configuration.GetSection(DriveOptions.SectionName))
+    .Configure(options =>
+    {
+        // Nombres simples para el equipo (prioridad sobre Drive__*).
+        options.RootFolderId =
+            FirstNonEmpty(Environment.GetEnvironmentVariable("DRIVE_ID"), options.RootFolderId);
+        options.OAuthClientId =
+            FirstNonEmpty(Environment.GetEnvironmentVariable("CLIENT_DRIVE"), options.OAuthClientId);
+        options.OAuthClientSecret =
+            FirstNonEmpty(Environment.GetEnvironmentVariable("CLIENT_SECRET_DRIVE"), options.OAuthClientSecret);
+        options.OAuthRefreshToken =
+            FirstNonEmpty(Environment.GetEnvironmentVariable("REFRESH_TOKEN_DRIVE"), options.OAuthRefreshToken);
+
+        var driveEnabled = Environment.GetEnvironmentVariable("DRIVE_ENABLED");
+        if (bool.TryParse(driveEnabled, out var enabled))
+        {
+            options.Enabled = enabled;
+        }
+        else if (!string.IsNullOrWhiteSpace(options.RootFolderId) &&
+                 !string.IsNullOrWhiteSpace(options.OAuthClientId) &&
+                 !string.IsNullOrWhiteSpace(options.OAuthClientSecret) &&
+                 !string.IsNullOrWhiteSpace(options.OAuthRefreshToken))
+        {
+            options.Enabled = true;
+        }
+    })
+    .Validate(
+        options => !options.Enabled || options.IsConfigured,
+        "Si Drive está habilitado, configurá DRIVE_ID, CLIENT_DRIVE, CLIENT_SECRET_DRIVE y REFRESH_TOKEN_DRIVE.")
+    .ValidateOnStart();
+void ConfigureAiClient(IServiceProvider serviceProvider, HttpClient client)
 {
     var options = serviceProvider.GetRequiredService<IOptions<AiOptions>>().Value;
-    client.BaseAddress = new Uri($"{options.BaseUrl.TrimEnd('/')}/");
     client.Timeout = TimeSpan.FromSeconds(
         Math.Max(options.TimeoutSeconds, options.ArchitectureTimeoutSeconds) + 10);
-});
+}
+
+builder.Services.AddHttpClient(AiOptions.GeminiProvider, ConfigureAiClient);
+builder.Services.AddHttpClient(AiOptions.BdtProvider, ConfigureAiClient);
+builder.Services.AddScoped<AiSelectionService>();
+builder.Services.AddScoped<IAiSelectionService>(services => services.GetRequiredService<AiSelectionService>());
+builder.Services.AddScoped<IAiProvider>(services => services.GetRequiredService<AiSelectionService>());
 builder.Services.AddSingleton<IAiRulesProvider, JsonAiRulesProvider>();
+builder.Services.AddSingleton<IArchitecturePackageBuilder, ArchitectureZipBuilder>();
+builder.Services.AddSingleton<IPostmanCollectionBuilder, PostmanCollectionBuilder>();
+builder.Services.AddSingleton<IDriveStorage>(serviceProvider =>
+{
+    var driveOptions = serviceProvider.GetRequiredService<IOptions<DriveOptions>>().Value;
+    if (!driveOptions.IsConfigured)
+    {
+        return new DisabledDriveStorage();
+    }
+
+    return ActivatorUtilities.CreateInstance<GoogleDriveStorage>(serviceProvider);
+});
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IProjectContextService, ProjectContextService>();
 builder.Services.AddScoped<IArchitectureService, ArchitectureService>();
@@ -121,3 +188,6 @@ app.MapControllers();
 await DatabaseInitializer.InitializeAsync(app.Services, postgresConnection);
 
 app.Run();
+
+static string? FirstNonEmpty(string? preferred, string? fallback) =>
+    !string.IsNullOrWhiteSpace(preferred) ? preferred.Trim() : fallback;

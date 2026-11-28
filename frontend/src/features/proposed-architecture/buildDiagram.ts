@@ -1,5 +1,6 @@
 import { MarkerType, type XYPosition } from '@xyflow/react'
 import type { ContextMap, OrchestrationNodeResponse, OrchestrationRelationResponse } from '../global-context'
+import { PARALLEL_EDGE_SPACING } from './constants'
 import { findRelationOperation } from './module-detail/findRelationOperation'
 import type { Diagram, DiagramNode, OperationFlowEdge } from './types'
 
@@ -40,6 +41,16 @@ function groupBySource(relations: OrchestrationRelationResponse[]): Map<string, 
   return relationsBySource
 }
 
+function countTargets(relations: OrchestrationRelationResponse[]): number {
+  return new Set(relations.map((relation) => relation.to)).size
+}
+
+function findCurveOffset(relation: OrchestrationRelationResponse, relations: OrchestrationRelationResponse[]): number {
+  const parallelRelations = relations.filter((candidate) => candidate.to === relation.to)
+  const parallelIndex = parallelRelations.indexOf(relation)
+  return (parallelIndex - (parallelRelations.length - 1) / 2) * PARALLEL_EDGE_SPACING
+}
+
 function buildTree(
   nodes: OrchestrationNodeResponse[],
   relationsBySource: Map<string, OrchestrationRelationResponse[]>,
@@ -61,7 +72,7 @@ function buildTree(
     }
 
     const decisionChildren: TreeItem[] =
-      outgoingRelations.length > 1 ? [{ id: toDecisionId(node.key), type: 'decision', children }] : children
+      countTargets(outgoingRelations) > 1 ? [{ id: toDecisionId(node.key), type: 'decision', children }] : children
 
     return { id: toNodeId(node.key), type: 'architecture', node, children: decisionChildren }
   }
@@ -78,38 +89,45 @@ function buildTree(
   return { id: START_ID, type: 'start', children: roots }
 }
 
-function buildEdge(id: string, source: string, target: string, label: string | null): OperationFlowEdge {
+function buildEdge(
+  id: string,
+  source: string,
+  target: string,
+  label: string | null,
+  curveOffset: number,
+): OperationFlowEdge {
   return {
     id,
     source,
     target,
     type: 'operation',
     markerEnd: { type: MarkerType.ArrowClosed },
-    data: { label },
+    data: { label, curveOffset },
   }
 }
 
 function buildEdges(
   tree: TreeItem,
   relationsBySource: Map<string, OrchestrationRelationResponse[]>,
-  nodesByKey: Map<string, OrchestrationNodeResponse>,
+  { relations, nodesByKey }: { relations: OrchestrationRelationResponse[]; nodesByKey: Map<string, OrchestrationNodeResponse> },
 ): OperationFlowEdge[] {
-  const startEdges = tree.children.map((root) => buildEdge(`${START_ID}-${root.id}`, START_ID, root.id, null))
-  const relationEdges = [...relationsBySource.entries()].flatMap(([sourceKey, relations]) => {
-    const hasDecision = relations.length > 1
+  const startEdges = tree.children.map((root) => buildEdge(`${START_ID}-${root.id}`, START_ID, root.id, null, 0))
+  const relationEdges = [...relationsBySource.entries()].flatMap(([sourceKey, outgoingRelations]) => {
+    const hasDecision = countTargets(outgoingRelations) > 1
     const source = hasDecision ? toDecisionId(sourceKey) : toNodeId(sourceKey)
-    const edges = relations.map((relation) => ({
+    const edges = outgoingRelations.map((relation) => ({
       ...buildEdge(
         `relation-${relation.id}`,
         source,
         toNodeId(relation.to),
-        findRelationOperation(relation, nodesByKey) ?? relation.label,
+        findRelationOperation(relation, relations, nodesByKey) ?? relation.label,
+        findCurveOffset(relation, outgoingRelations),
       ),
       animated: relation.kind === 'async',
     }))
 
     return hasDecision
-      ? [buildEdge(`${toNodeId(sourceKey)}-${source}`, toNodeId(sourceKey), source, null), ...edges]
+      ? [buildEdge(`${toNodeId(sourceKey)}-${source}`, toNodeId(sourceKey), source, null, 0), ...edges]
       : edges
   })
 
@@ -169,6 +187,6 @@ export function buildDiagram({ nodes, relations }: ContextMap, areModulesClickab
 
   return {
     nodes: placeSubtree(tree, 0, 0, areModulesClickable),
-    edges: buildEdges(tree, relationsBySource, nodesByKey),
+    edges: buildEdges(tree, relationsBySource, { relations, nodesByKey }),
   }
 }

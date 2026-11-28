@@ -4,6 +4,8 @@ namespace OrquestadorApi.Services.AI;
 
 public interface IAiProvider
 {
+    string ProviderName => "el proveedor de IA";
+
     Task<PlannerAiResponse> GeneratePlanAsync(
         string agentInput,
         CancellationToken cancellationToken = default);

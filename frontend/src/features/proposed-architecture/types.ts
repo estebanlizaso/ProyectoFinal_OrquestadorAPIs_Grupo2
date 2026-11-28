@@ -17,6 +17,7 @@ export type DiagramNode = StartFlowNode | DecisionFlowNode | ArchitectureFlowNod
 
 export type OperationEdgeData = {
   label: string | null
+  curveOffset: number
 }
 
 export type OperationFlowEdge = Edge<OperationEdgeData, 'operation'>

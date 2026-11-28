@@ -1,14 +1,18 @@
-import { useCallback, useState } from 'react'
-import type { OrchestrationNodeResponse, OrchestrationRelationResponse, PlannerContentResponse } from './types'
+import { useCallback, useMemo, useState } from 'react'
+import { useProjectContextMap, useProjectMessages } from '../../services/projectContextService'
+import type { RequestStatus } from '../../shared/api/requestStatus'
+import type { OrchestrationNodeResponse, OrchestrationRelationResponse, PlannerContentResponse, ProjectMessageResponse } from './types'
 
 export type PlannerTurn = {
   prompt: string
   planner: PlannerContentResponse
+  createdAt: string
 }
 
 export type ErrorTurn = {
   prompt: string
   errorMessage: string
+  createdAt: string
 }
 
 export type ContextTurn = PlannerTurn | ErrorTurn
@@ -18,20 +22,22 @@ export type ContextMap = {
   relations: OrchestrationRelationResponse[]
 }
 
-type ContextHistory = {
-  turns: ContextTurn[]
-  map: ContextMap
+type StoredContext = {
+  errorTurns: ErrorTurn[]
 }
 
 export type UseContextHistoryResult = {
   turns: ContextTurn[]
   map: ContextMap
+  status: RequestStatus
+  mapStatus: RequestStatus
+  retry: () => void
   addTurn: (turn: PlannerTurn, map: ContextMap) => void
   addErrorTurn: (turn: ErrorTurn) => void
   updateNode: (node: OrchestrationNodeResponse) => void
 }
 
-const EMPTY_HISTORY: ContextHistory = { turns: [], map: { nodes: [], relations: [] } }
+const EMPTY_STORED_CONTEXT: StoredContext = { errorTurns: [] }
 
 function buildStorageKey(projectId: number): string {
   return `global-context:${projectId}`
@@ -41,129 +47,40 @@ function isObject(value: unknown): value is object {
   return typeof value === 'object' && value !== null
 }
 
-function isNullableString(value: unknown): value is string | null {
-  return typeof value === 'string' || value === null
-}
-
-function isStringList(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string')
-}
-
-function isPlannerContent(value: unknown): value is PlannerContentResponse {
-  return (
-    isObject(value) &&
-    'status' in value &&
-    typeof value.status === 'string' &&
-    'reply' in value &&
-    typeof value.reply === 'string' &&
-    'summary' in value &&
-    typeof value.summary === 'string' &&
-    'questions' in value &&
-    isStringList(value.questions) &&
-    'plan' in value &&
-    isStringList(value.plan) &&
-    'assumptions' in value &&
-    isStringList(value.assumptions) &&
-    'language' in value &&
-    isNullableString(value.language)
-  )
-}
-
-function isOrchestrationNode(value: unknown): value is OrchestrationNodeResponse {
-  return (
-    isObject(value) &&
-    'id' in value &&
-    typeof value.id === 'number' &&
-    'key' in value &&
-    typeof value.key === 'string' &&
-    'name' in value &&
-    typeof value.name === 'string' &&
-    'description' in value &&
-    isNullableString(value.description) &&
-    'kind' in value &&
-    typeof value.kind === 'string' &&
-    'role' in value &&
-    isNullableString(value.role) &&
-    'responsibility' in value &&
-    isNullableString(value.responsibility) &&
-    'status' in value &&
-    typeof value.status === 'string' &&
-    'userNotes' in value &&
-    isNullableString(value.userNotes) &&
-    'isActive' in value &&
-    typeof value.isActive === 'boolean' &&
-    'sortOrder' in value &&
-    typeof value.sortOrder === 'number'
-  )
-}
-
-function isOrchestrationRelation(value: unknown): value is OrchestrationRelationResponse {
-  return (
-    isObject(value) &&
-    'id' in value &&
-    typeof value.id === 'number' &&
-    'from' in value &&
-    typeof value.from === 'string' &&
-    'to' in value &&
-    typeof value.to === 'string' &&
-    'label' in value &&
-    typeof value.label === 'string' &&
-    'operation' in value &&
-    isNullableString(value.operation) &&
-    'description' in value &&
-    isNullableString(value.description) &&
-    'kind' in value &&
-    isNullableString(value.kind) &&
-    'sortOrder' in value &&
-    typeof value.sortOrder === 'number'
-  )
-}
-
-function isContextTurn(value: unknown): value is ContextTurn {
+function isErrorTurn(value: unknown): value is ErrorTurn {
   return (
     isObject(value) &&
     'prompt' in value &&
     typeof value.prompt === 'string' &&
-    (('planner' in value && isPlannerContent(value.planner)) ||
-      ('errorMessage' in value && typeof value.errorMessage === 'string'))
+    'errorMessage' in value &&
+    typeof value.errorMessage === 'string' &&
+    'createdAt' in value &&
+    typeof value.createdAt === 'string'
   )
 }
 
-function isContextMap(value: unknown): value is ContextMap {
-  return (
-    isObject(value) &&
-    'nodes' in value &&
-    Array.isArray(value.nodes) &&
-    value.nodes.every(isOrchestrationNode) &&
-    'relations' in value &&
-    Array.isArray(value.relations) &&
-    value.relations.every(isOrchestrationRelation)
-  )
-}
-
-function isContextHistory(value: unknown): value is ContextHistory {
-  return (
-    isObject(value) &&
-    'turns' in value &&
-    Array.isArray(value.turns) &&
-    value.turns.every(isContextTurn) &&
-    'map' in value &&
-    isContextMap(value.map)
-  )
-}
-
-function readHistory(projectId: number): ContextHistory {
+function readStoredContext(projectId: number): StoredContext {
   try {
-    const storedHistory: unknown = JSON.parse(localStorage.getItem(buildStorageKey(projectId)) ?? 'null')
-    return isContextHistory(storedHistory) ? storedHistory : EMPTY_HISTORY
+    const storedContext: unknown = JSON.parse(localStorage.getItem(buildStorageKey(projectId)) ?? 'null')
+    if (!isObject(storedContext)) {
+      return EMPTY_STORED_CONTEXT
+    }
+    return {
+      errorTurns:
+        'errorTurns' in storedContext &&
+        Array.isArray(storedContext.errorTurns) &&
+        storedContext.errorTurns.every(isErrorTurn)
+          ? storedContext.errorTurns
+          : [],
+    }
   } catch {
-    return EMPTY_HISTORY
+    return EMPTY_STORED_CONTEXT
   }
 }
 
-function writeHistory(projectId: number, history: ContextHistory): void {
+function writeStoredContext(projectId: number, storedContext: StoredContext): void {
   try {
-    localStorage.setItem(buildStorageKey(projectId), JSON.stringify(history))
+    localStorage.setItem(buildStorageKey(projectId), JSON.stringify(storedContext))
   } catch {
     return
   }
@@ -177,26 +94,58 @@ export function clearContextHistory(projectId: number): void {
   }
 }
 
-export function useContextHistory(projectId: number): UseContextHistoryResult {
-  const [history, setHistory] = useState<ContextHistory>(() => readHistory(projectId))
+function toPlannerTurn({ humanQuestion, chatBot, createdAt }: ProjectMessageResponse): PlannerTurn {
+  const { message, ...planner } = chatBot
+  return { prompt: humanQuestion, planner: { ...planner, reply: message }, createdAt }
+}
 
-  const addTurn = useCallback(
-    (turn: PlannerTurn, map: ContextMap): void => {
-      setHistory((currentHistory) => {
-        const nextHistory = { turns: [...currentHistory.turns, turn], map }
-        writeHistory(projectId, nextHistory)
-        return nextHistory
-      })
-    },
-    [projectId],
+function sortByCreatedAt(turns: ContextTurn[]): ContextTurn[] {
+  return turns.toSorted((first, second) => Date.parse(first.createdAt) - Date.parse(second.createdAt))
+}
+
+function combineStatus(first: RequestStatus, second: RequestStatus): RequestStatus {
+  if (first === 'error' || second === 'error') {
+    return 'error'
+  }
+  return first === 'loading' || second === 'loading' ? 'loading' : first
+}
+
+function replaceNode(map: ContextMap, node: OrchestrationNodeResponse): ContextMap {
+  const nodes = map.nodes.map((currentNode) => (currentNode.key === node.key ? node : currentNode))
+  return { ...map, nodes }
+}
+
+export function useContextHistory(projectId: number): UseContextHistoryResult {
+  const { messages, status: messagesStatus, run: runMessages } = useProjectMessages(projectId)
+  const { map: loadedMap, status: mapStatus, run: runMap } = useProjectContextMap(projectId)
+  const [storedContext, setStoredContext] = useState<StoredContext>(() => readStoredContext(projectId))
+  const [addedTurns, setAddedTurns] = useState<PlannerTurn[]>([])
+  const [changedMap, setChangedMap] = useState<ContextMap | null>(null)
+  const map = changedMap ?? loadedMap
+
+  const turns = useMemo(
+    () => sortByCreatedAt([...messages.map(toPlannerTurn), ...addedTurns, ...storedContext.errorTurns]),
+    [messages, addedTurns, storedContext.errorTurns],
   )
+
+  const retry = useCallback((): void => {
+    setAddedTurns([])
+    setChangedMap(null)
+    void runMessages()
+    void runMap()
+  }, [runMessages, runMap])
+
+  const addTurn = useCallback((turn: PlannerTurn, nextMap: ContextMap): void => {
+    setAddedTurns((currentTurns) => [...currentTurns, turn])
+    setChangedMap(nextMap)
+  }, [])
 
   const addErrorTurn = useCallback(
     (turn: ErrorTurn): void => {
-      setHistory((currentHistory) => {
-        const nextHistory = { turns: [...currentHistory.turns, turn], map: currentHistory.map }
-        writeHistory(projectId, nextHistory)
-        return nextHistory
+      setStoredContext((currentContext) => {
+        const nextContext = { ...currentContext, errorTurns: [...currentContext.errorTurns, turn] }
+        writeStoredContext(projectId, nextContext)
+        return nextContext
       })
     },
     [projectId],
@@ -204,17 +153,19 @@ export function useContextHistory(projectId: number): UseContextHistoryResult {
 
   const updateNode = useCallback(
     (node: OrchestrationNodeResponse): void => {
-      setHistory((currentHistory) => {
-        const nodes = currentHistory.map.nodes.map((currentNode) =>
-          currentNode.key === node.key ? node : currentNode,
-        )
-        const nextHistory = { turns: currentHistory.turns, map: { ...currentHistory.map, nodes } }
-        writeHistory(projectId, nextHistory)
-        return nextHistory
-      })
+      setChangedMap((currentMap) => replaceNode(currentMap ?? loadedMap, node))
     },
-    [projectId],
+    [loadedMap],
   )
 
-  return { turns: history.turns, map: history.map, addTurn, addErrorTurn, updateNode }
+  return {
+    turns,
+    map,
+    status: combineStatus(messagesStatus, mapStatus),
+    mapStatus,
+    retry,
+    addTurn,
+    addErrorTurn,
+    updateNode,
+  }
 }

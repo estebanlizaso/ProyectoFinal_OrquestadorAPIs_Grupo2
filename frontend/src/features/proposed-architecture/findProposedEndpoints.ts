@@ -6,7 +6,7 @@ export function findProposedEndpoints({ nodes, relations }: ContextMap): string[
   const operations = relations
     .toSorted((first, second) => first.sortOrder - second.sortOrder)
     .flatMap((relation) => {
-      const operation = findRelationOperation(relation, nodesByKey)
+      const operation = findRelationOperation(relation, relations, nodesByKey)
       return operation ? [operation] : []
     })
   return [...new Set(operations)]

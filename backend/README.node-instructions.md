@@ -40,4 +40,4 @@ Para cambiar también una operación, agregar los tres campos juntos:
 - La nota reemplaza la anterior; `userNotes: ""` la borra. Máximo: 2000 caracteres.
 - Guardar no genera código ni llama a IA: las instrucciones se aplican en la próxima generación. No se edita autenticación.
 
-**Pendiente para recargar la pantalla:** el `GET /context` actual devuelve solo el prompt inicial; todavía no hay un GET público del mapa completo.
+Para recargar el mapa, usar `GET /api/projects/{projectId}/context/map`. Devuelve el contexto persistido con `nodes`, `relations` y `mapVersion`; responde `404` si el proyecto no existe o todavía no tiene contexto. El endpoint `GET /api/projects/{projectId}/context` devuelve únicamente el prompt inicial.

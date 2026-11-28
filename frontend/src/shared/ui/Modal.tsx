@@ -52,7 +52,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={(event) => {
         if (isDismissible && event.target === event.currentTarget) {
           onClose()
@@ -64,7 +64,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        className={cn('w-full', SIZE_CLASSES[size], 'rounded-xl bg-white p-6 shadow-lg')}
+        className={cn('w-full', SIZE_CLASSES[size], 'rounded-xl bg-surface p-6 shadow-lg')}
       >
         {closeLabel ? (
           <div className="flex items-start justify-between gap-4">
