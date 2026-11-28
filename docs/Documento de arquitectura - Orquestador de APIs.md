@@ -143,7 +143,7 @@ El agente se implementa como tres responsabilidades que usan el proveedor selecc
 
 1. **Planificador:** interpreta el mensaje, propone estado, preguntas, pasos, nodos y relaciones.
 2. **Resumidor:** consolida el contexto para las siguientes interacciones.
-3. **Generador:** recibe el contexto y el mapa y devuelve archivos del proyecto y metadatos de los sistemas.
+3. **Generador:** recibe el contexto y el mapa y devuelve archivos del proyecto, metadatos de los sistemas y endpoints públicos locales.
 
 Las instrucciones de cada responsabilidad se cargan desde archivos JSON en [backend/AI/Rules](../backend/AI/Rules). La interfaz `IAiProvider` abstrae el proveedor; `AiSelectionService` valida la selección y delega en el adaptador correspondiente. Gemini usa su API de generación de contenido; BDT utiliza una API compatible con `chat/completions`.
 
@@ -158,7 +158,7 @@ El generador recibe el prompt inicial, resumen, lenguaje, plan, supuestos, nodos
 - Existencia del archivo referenciado por cada contexto y límites de código configurados.
 - Versión del mapa consultada antes de publicar; si cambió durante la generación, se rechaza esa publicación.
 
-El backend agrega `run.sh` desde una plantilla fija y construye el ZIP y la colección Postman. El ZIP incluye, entre otros, los archivos del proyecto, `README.md`, `USAGE.md`, `nodes.json`, `run.sh`, `.gitignore`, la colección y `.env.example` cuando corresponde. La colección se construye a partir de operaciones HTTP identificadas en el mapa.
+El backend agrega `run.sh` desde una plantilla fija y construye el ZIP y la colección Postman. El ZIP incluye, entre otros, los archivos del proyecto, `README.md`, `USAGE.md`, `nodes.json`, `run.sh`, `.gitignore`, la colección y `.env.example` cuando corresponde. La colección se construye a partir de `publicEndpoints`, la lista de endpoints HTTP locales que devuelve la IA, no directamente de las operaciones del mapa. Sus requests usan `http://127.0.0.1:5000` como URL base predeterminada. Las instrucciones solicitan que los endpoints coincidan con `USAGE.md` y que la lista esté vacía para proyectos CLI; el backend no verifica esa coincidencia con la documentación ni con el código generado.
 
 Las instrucciones al modelo contemplan mocks locales, pero **su presencia y comportamiento dependen de la respuesta generada** y deben validarse. Los controles estructurales no analizan automáticamente la sintaxis ni garantizan compilación, dependencias correctas o comportamiento. La API no ejecuta ni compila el proyecto generado.
 
@@ -206,7 +206,7 @@ sequenceDiagram
     F->>A: POST arquitectura con selección de IA
     A->>D: Lee contexto, nodos, relaciones y versión
     A->>I: Solicita proyecto en el lenguaje objetivo
-    I-->>A: Archivos y metadatos por sistema
+    I-->>A: Archivos, metadatos y endpoints públicos locales
     A->>A: Valida estructura y prepara ZIP y Postman
     A->>D: Comprueba la versión del mapa
     A->>G: Crea o reutiliza carpeta y sube artefactos
