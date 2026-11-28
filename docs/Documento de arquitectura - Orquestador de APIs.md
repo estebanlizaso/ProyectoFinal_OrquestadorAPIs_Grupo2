@@ -125,7 +125,7 @@ El frontend organiza la experiencia por funcionalidades: proyectos, contexto y c
 
 El diagrama se construye con React Flow a partir de nodos y relaciones. **Estado actual:** no permite arrastrar ni conectar nodos, pero sí abrir el detalle de un nodo con un clic y modificar datos desde un modal. Esto difiere de la ERS v2.5, que describe un canvas sin interacción directa y consulta de detalles fuera de él; debe resolverse antes de afirmar conformidad.
 
-La selección de IA se conserva por proyecto y pestaña en `sessionStorage`. El mapa y los turnos con error pueden guardarse en `localStorage`; los turnos con error incluyen el prompt. Esta persistencia del navegador debe considerarse al tratar datos sensibles.
+La selección de IA se conserva por proyecto y pestaña en `sessionStorage`. El mapa y los mensajes persistidos se consultan al backend (`GET /context/map` y `GET /messages`); el frontend combina los mensajes con los turnos con error guardados en `localStorage`, que incluyen el prompt. La preferencia de tema también se guarda en `localStorage`. Esta persistencia del navegador debe considerarse al tratar datos sensibles.
 
 ### 4.2 Servicios de plataforma
 
@@ -274,7 +274,7 @@ El esquema es conceptual: omite campos técnicos y restricciones. El código def
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | PostgreSQL                       | Proyecto y etapa, prompt inicial, resumen, respuestas del planificador, mensajes, nodos, relaciones y versión del mapa. | Contiene información aportada por usuarios. La inicialización aplica migraciones y carga proyectos de ejemplo. |
 | Google Drive                     | ZIP, colección Postman y copias individuales de código, en una carpeta derivada del nombre del proyecto.               | Los archivos del mismo nombre se suben o reemplazan; no debe asumirse un historial completo de generaciones.     |
-| `localStorage` del navegador   | Mapa y turnos con error, que pueden incluir prompts.                                                                     | Su contenido queda en el navegador; debe contemplarse en privacidad y limpieza.                                  |
+| `localStorage` del navegador   | Turnos con error, que pueden incluir prompts, y preferencia de tema claro u oscuro.                                       | Su contenido queda en el navegador; debe contemplarse en privacidad y limpieza.                                  |
 | `sessionStorage` del navegador | Selección de proveedor y modelo por proyecto y pestaña.                                                                | La disponibilidad sigue dependiendo de la configuración del backend.                                            |
 | Descarga local                   | ZIP, colección Postman y, por separado, exportación Markdown del contexto.                                             | La revisión y custodia posterior son responsabilidad del usuario o del equipo.                                  |
 
@@ -291,9 +291,11 @@ Las rutas siguientes resumen los contratos más relevantes; los controladores y 
 | `DELETE /api/projects`                                   | Eliminar un proyecto.                                          |
 | `GET` y `PATCH /api/projects/{id}/progress`            | Consultar o avanzar la etapa registrada.                       |
 | `POST /api/projects/{id}/context`                        | Enviar una interacción al planificador y actualizar contexto. |
+| `GET /api/projects/{id}/context`                         | Consultar el prompt inicial y el resumen del contexto.        |
 | `GET /api/projects/{id}/context/map`                     | Consultar el mapa persistido.                                  |
 | `GET /api/projects/{id}/messages`                        | Recuperar el historial de conversación paginado.              |
 | `PATCH /api/projects/{id}/context/nodes/{nodeKey}`       | Actualizar notas de un nodo.                                   |
+| `POST /api/projects/{id}/context/nodes/{nodeKey}/instructions` | Guardar instrucciones de un nodo; no lo usa el frontend actual. |
 | `GET /api/ai/models`                                     | Obtener proveedores y modelos configurados.                    |
 | `POST /api/projects/{id}/architecture`                   | Solicitar generación y publicación de artefactos.            |
 | `GET /api/projects/{id}/architecture/package`            | Descargar el ZIP desde Drive a través del backend.            |
