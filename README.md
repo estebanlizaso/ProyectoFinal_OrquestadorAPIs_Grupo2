@@ -22,6 +22,10 @@ En desarrollo, el frontend usa el proxy de Vite para reenviar las solicitudes `/
 
 ## 📚 Documentación de Trabajo
 
+### 🏛️ Arquitectura de la Solución
+
+- **[Documento de arquitectura - Orquestador de APIs](<docs/Documento de arquitectura - Orquestador de APIs.md>)** - Propósito, vistas de contexto y contenedores, componentes, flujos, datos, interfaces y decisiones técnicas
+
 ### 🎯 Estándares de Git & Workflow
 
 Para entender cómo trabajar en este proyecto, consulta la documentación completa:
