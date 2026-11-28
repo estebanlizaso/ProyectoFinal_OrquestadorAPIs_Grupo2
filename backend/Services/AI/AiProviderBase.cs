@@ -445,6 +445,29 @@ public abstract class AiProviderBase : IAiProvider
                     required = new[] { "path", "content" }
                 }
             },
+            publicEndpoints = new
+            {
+                type = "array",
+                items = new
+                {
+                    type = "object",
+                    additionalProperties = false,
+                    properties = new
+                    {
+                        method = new
+                        {
+                            type = "string",
+                            @enum = new[] { "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS" }
+                        },
+                        path = new { type = "string" },
+                        name = new { type = "string", nullable = true },
+                        description = new { type = "string", nullable = true },
+                        exampleBody = new { type = "string", nullable = true },
+                        contentType = new { type = "string", nullable = true }
+                    },
+                    required = new[] { "method", "path", "name", "description", "exampleBody", "contentType" }
+                }
+            },
             contexts = new
             {
                 type = "array",
@@ -496,6 +519,6 @@ public abstract class AiProviderBase : IAiProvider
                 }
             }
         },
-        required = new[] { "language", "summary", "contexts", "projectFiles" }
+        required = new[] { "language", "summary", "contexts", "projectFiles", "publicEndpoints" }
     };
 }

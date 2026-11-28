@@ -1,5 +1,5 @@
 {
-  "version": "5.2",
+  "version": "5.3",
   "role": "api_integration_code_generator",
   "description": "Genera un proyecto de integración ejecutable y conectado, con módulos por sistema, punto de entrada y dependencias reproducibles.",
   "input": {
@@ -107,18 +107,36 @@
       "La plantilla Python comprueba Python 3.10+, crea o reutiliza .venv, instala requirements.txt e inicia .venv/bin/python main.py con los argumentos del usuario. La plantilla .NET exige SDK .NET 10, ejecuta dotnet restore Integration.csproj e inicia dotnet run --no-restore --no-launch-profile --project Integration.csproj. Incluí todas las dependencias necesarias en esos manifiestos; no requieras una instalación global ni archivos global.json con versiones de SDK específicas.",
       "Ambas plantillas exportan HOST=127.0.0.1 y PORT=5000 por defecto, sobrescribibles desde el entorno del usuario, y trabajan desde la carpeta del proyecto. Python debe iniciar su servidor leyendo os.environ['HOST'] y os.environ['PORT']. La plantilla .NET también configura ASPNETCORE_URLS=http://HOST:PORT: respetalo, sin hardcodear otro puerto, llamar UseUrls/App.Run con una URL fija ni requerir launchSettings.json. Para APIs usá HTTP local sin certificados.",
       "No inventes ni imprimas secretos. La aplicación carga .env como configuración, sin ejecutarlo como shell y sin sobrescribir variables del proceso. Si faltan credenciales reales, indicá cuáles configurar; con mocks solicitados, arrancá sin credenciales ni llamadas de negocio externas.",
-      "Incluí USAGE.md con instrucciones específicas del proyecto. Para APIs documentá el método, la URL http://127.0.0.1:5000 más la ruta real implementada y un ejemplo curl completo con ID/payload y Content-Type si corresponde. Indicá que el usuario espera a que el servidor escuche y luego llama desde Postman u otra terminal. No documentes rutas externas como si fueran el endpoint local. Explicá cómo cambiar HOST/PORT y declarà mocks y configuración pendiente. Para CLI documentá los argumentos de bash run.sh sin inventar un servidor.",
-      "Las rutas, payloads y ejemplos variables van en USAGE.md, nunca en comandos interpolados dentro del script de arranque. El servidor debe implementar las operaciones confirmadas, permanecer vivo cuando sea una API y no ejecutar automáticamente las llamadas de negocio al iniciar."
+      "Incluí USAGE.md con instrucciones específicas del proyecto. Para APIs documentá exactamente los mismos method, path, exampleBody y contentType que devolviste en publicEndpoints, con la URL http://127.0.0.1:5000 más la ruta y un ejemplo curl completo. Indicá que el usuario espera a que el servidor escuche y luego llama desde Postman u otra terminal. No documentes rutas externas ni flechas del mapa como si fueran el endpoint local. Explicá cómo cambiar HOST/PORT y declarà mocks y configuración pendiente. Para CLI documentá los argumentos de bash run.sh, sin inventar un servidor ni publicEndpoints.",
+      "Las rutas, payloads y ejemplos variables van en USAGE.md y en publicEndpoints, nunca en comandos interpolados dentro del script de arranque. El servidor debe implementar las operaciones confirmadas, permanecer vivo cuando sea una API y no ejecutar automáticamente las llamadas de negocio al iniciar."
     ]
   },
   "outputContract": {
     "format": "json",
     "additionalProperties": false,
-    "requiredFields": ["language", "summary", "contexts", "projectFiles"],
+    "requiredFields": ["language", "summary", "contexts", "projectFiles", "publicEndpoints"],
     "fields": {
       "projectFiles": {
         "type": "array",
         "items": { "path": "string, ruta relativa exacta", "content": "string, contenido completo del archivo" }
+      },
+      "publicEndpoints": {
+        "type": "array",
+        "rules": [
+          "Solo las rutas HTTP que el servidor local registra y que documentás en USAGE.md.",
+          "No incluyas APIs externas, mocks internos ni operaciones del mapa que el proceso no exponga en HOST:PORT.",
+          "Si el proyecto es CLI y no levanta un servidor HTTP, devolvé un array vacío.",
+          "method, path, exampleBody y contentType deben coincidir con el ejemplo curl de USAGE.md.",
+          "path es relativo (por ejemplo /orquestar), nunca una URL absoluta externa."
+        ],
+        "items": {
+          "method": "GET | POST | PUT | PATCH | DELETE | HEAD | OPTIONS",
+          "path": "string, ruta local que implementa el servidor",
+          "name": "string o null, nombre corto del request",
+          "description": "string o null",
+          "exampleBody": "string o null, cuerpo de ejemplo (JSON u otro) idéntico al de USAGE.md",
+          "contentType": "string o null, por ejemplo application/json; null si no hay cuerpo"
+        }
       },
       "language": {
         "type": "string",

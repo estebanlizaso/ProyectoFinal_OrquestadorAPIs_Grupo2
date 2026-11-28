@@ -1,10 +1,13 @@
+using OrquestadorApi.DTOs;
+
 namespace OrquestadorApi.Services.AI.Contracts;
 
 public sealed record ArchitectureAiResponse(
     string Language,
     string Summary,
     IReadOnlyList<ArchitectureAiContext> Contexts,
-    IReadOnlyList<OrquestadorApi.DTOs.ArchitectureProjectFile>? ProjectFiles = null);
+    IReadOnlyList<ArchitectureProjectFile>? ProjectFiles = null,
+    IReadOnlyList<ArchitecturePublicEndpoint>? PublicEndpoints = null);
 
 public sealed record ArchitectureAiContext(
     string Key,

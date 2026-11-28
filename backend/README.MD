@@ -191,6 +191,7 @@ El planificador conserva su contrato original: conversa con el usuario y define 
 El generador recibe el pedido inicial, resumen, plan, supuestos, nodos con sus notas actuales y relaciones del mapa en una sola solicitud. Decide libremente cómo organizar el repositorio y devuelve:
 
 - `projectFiles`: **todos** los archivos del proyecto, cada uno con `path` y `content`. El modelo entrega código por sistema, entrada, utilidades, contratos compartidos, dependencias e instrucciones `USAGE.md`. El backend agrega `run.sh` desde una plantilla fija; no se le pide redactar ese script a la IA.
+- `publicEndpoints`: rutas HTTP locales que el servidor implementa (`method`, `path`, `exampleBody`, etc.). Deben coincidir con `USAGE.md`. Array vacío si el proyecto es CLI. La colección de Postman se arma solo con esta lista.
 - `contexts`: metadatos por nodo `system`, con `key`, `summary`, `filePath`, dependencias, variables de entorno, supuestos y advertencias. `filePath` referencia su implementación principal dentro de `projectFiles`. Varios sistemas pueden compartir un archivo; no se exige un módulo por nodo.
 
 Las instrucciones del generador piden diseñar todos los archivos juntos: imports que apunten a módulos entregados, firmas y datos compatibles, un punto de entrada que ejecute el flujo completo, condiciones y reintentos implementados, sin TODOs ni pasos de conexión manual. Las flechas representan comportamiento, no imports automáticos.
@@ -212,7 +213,7 @@ Los ejemplos variables (método, ruta, ID, payload y curl) van en **`USAGE.md`**
 La validación es **básica**: rutas seguras, archivos no duplicados, límites de tamaño, entrada, manifiesto, `USAGE.md` y plantilla `run.sh` presentes, y referencias de contexto a archivos entregados. El ZIP guarda el script con finales LF y permisos Unix ejecutables; `bash run.sh` no depende de esos permisos. Las plantillas se prueban con `bash -n` y runtimes simulados (instalación, argumentos, directorios con espacios, reuso de venv y fallos), sin instalar paquetes ni ejecutar código del modelo en esas pruebas. No se compila ni ejecuta la aplicación generada ni se prueban APIs externas o credenciales: un script fijo no garantiza que el código generado compile. Los ZIP anteriores deben regenerarse para incorporar estas plantillas.
 
 La respuesta de architecture también incluye `postmanCollection` (formato Postman Collection v2.1):
-una carpeta por nodo destino con requests armados desde las relaciones que tienen `httpMethod` + `path`.
+requests armados desde `publicEndpoints` (las mismas rutas locales que documenta `USAGE.md`), con `baseUrl` en `http://127.0.0.1:5000`. No se generan requests por cada flecha del mapa.
 
 La respuesta incluye links de acción para el front:
 

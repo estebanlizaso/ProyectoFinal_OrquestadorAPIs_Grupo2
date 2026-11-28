@@ -6,9 +6,15 @@ namespace OrquestadorApi.Services.Architecture;
 
 public sealed class PostmanCollectionBuilder : IPostmanCollectionBuilder
 {
-    private static readonly Regex OperationPattern =
-        new(@"^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+(\S+)$",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private const string DefaultBaseUrl = "http://127.0.0.1:5000";
+
+    private static readonly HashSet<string> AllowedMethods = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"
+    };
+
+    private static readonly Regex AbsoluteUrlPattern =
+        new(@"^https?://", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -17,113 +23,111 @@ public sealed class PostmanCollectionBuilder : IPostmanCollectionBuilder
 
     public string BuildFileName() => "postman_collection.json";
 
-    public JsonElement Build(
-        string projectName,
-        ArchitectureResponse architecture,
-        IReadOnlyList<OrchestrationNodeResponse> nodes,
-        IReadOnlyList<OrchestrationRelationResponse> relations)
+    public JsonElement Build(string projectName, ArchitectureResponse architecture)
     {
-        var nodeByKey = nodes.ToDictionary(node => node.Key, StringComparer.OrdinalIgnoreCase);
-        var requestsByTarget = new Dictionary<string, List<object>>(StringComparer.OrdinalIgnoreCase);
+        var endpoints = architecture.PublicEndpoints ?? [];
+        var items = endpoints
+            .Select(BuildRequestItem)
+            .Where(item => item is not null)
+            .Cast<object>()
+            .ToList();
 
-        foreach (var relation in relations)
-        {
-            if (!TryResolveHttp(relation, out var method, out var path))
-            {
-                continue;
-            }
-
-            if (!requestsByTarget.TryGetValue(relation.To, out var folderItems))
-            {
-                folderItems = [];
-                requestsByTarget[relation.To] = folderItems;
-            }
-
-            folderItems.Add(BuildRequestItem(relation, method, path));
-        }
-
-        var folders = new List<object>();
-
-        foreach (var context in architecture.Contexts)
-        {
-            if (!requestsByTarget.TryGetValue(context.Key, out var items) || items.Count == 0)
-            {
-                continue;
-            }
-
-            folders.Add(new
-            {
-                name = $"{context.Name} ({context.Key})",
-                description = context.Summary,
-                item = items
-            });
-        }
-
-        foreach (var (targetKey, items) in requestsByTarget
-                     .Where(pair => architecture.Contexts.All(
-                         context => !string.Equals(context.Key, pair.Key, StringComparison.OrdinalIgnoreCase)))
-                     .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
-        {
-            var nodeName = nodeByKey.TryGetValue(targetKey, out var node)
-                ? node.Name
-                : targetKey;
-
-            folders.Add(new
-            {
-                name = $"{nodeName} ({targetKey})",
-                item = items
-            });
-        }
-
-        var variables = BuildVariables(architecture);
         var collection = new
         {
             info = new
             {
                 name = $"Proyecto {architecture.ProjectId} - {projectName}",
                 description =
-                    "Collection generada desde el mapa de orquestación para probar los endpoints de cada nodo.\n\n" +
+                    "Collection generada desde los endpoints públicos locales documentados en USAGE.md.\n\n" +
                     architecture.Summary,
                 schema = "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
             },
-            item = folders,
-            variable = variables
+            item = items,
+            variable = BuildVariables(architecture)
         };
 
         return JsonSerializer.SerializeToElement(collection, JsonOptions);
     }
 
-    private static object BuildRequestItem(
-        OrchestrationRelationResponse relation,
-        string method,
-        string path)
+    private static object? BuildRequestItem(ArchitecturePublicEndpoint endpoint)
     {
-        var rawUrl = path.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            ? path
-            : "{{baseUrl}}" + (path.StartsWith('/') ? path : "/" + path);
+        if (string.IsNullOrWhiteSpace(endpoint.Method) ||
+            !AllowedMethods.Contains(endpoint.Method.Trim()))
+        {
+            return null;
+        }
 
-        var url = BuildUrl(rawUrl);
-        var name = string.IsNullOrWhiteSpace(relation.Label)
+        if (string.IsNullOrWhiteSpace(endpoint.Path) ||
+            AbsoluteUrlPattern.IsMatch(endpoint.Path.Trim()))
+        {
+            return null;
+        }
+
+        var method = endpoint.Method.Trim().ToUpperInvariant();
+        var path = NormalizePath(endpoint.Path);
+        var rawUrl = "{{baseUrl}}" + path;
+        var name = string.IsNullOrWhiteSpace(endpoint.Name)
             ? $"{method} {path}"
-            : $"{relation.Label} ({method} {path})";
+            : endpoint.Name.Trim();
+
+        var headers = new List<object>();
+        var contentType = string.IsNullOrWhiteSpace(endpoint.ContentType)
+            ? null
+            : endpoint.ContentType.Trim();
+        var hasBody = !string.IsNullOrWhiteSpace(endpoint.ExampleBody);
+
+        if (hasBody && contentType is null)
+        {
+            contentType = "application/json";
+        }
+
+        if (contentType is not null)
+        {
+            headers.Add(new { key = "Content-Type", value = contentType });
+        }
+
+        object? body = null;
+        if (hasBody)
+        {
+            var language = contentType is not null &&
+                contentType.Contains("json", StringComparison.OrdinalIgnoreCase)
+                    ? "json"
+                    : "text";
+            body = new
+            {
+                mode = "raw",
+                raw = endpoint.ExampleBody,
+                options = new
+                {
+                    raw = new { language }
+                }
+            };
+        }
 
         return new
         {
             name,
             request = new
             {
-                method = method.ToUpperInvariant(),
-                header = Array.Empty<object>(),
-                description = relation.Description,
-                url
+                method,
+                header = headers,
+                description = endpoint.Description,
+                body,
+                url = BuildUrl(rawUrl)
             }
         };
+    }
+
+    private static string NormalizePath(string path)
+    {
+        var trimmed = path.Trim();
+        return trimmed.StartsWith('/') ? trimmed : "/" + trimmed;
     }
 
     private static object BuildUrl(string rawUrl)
     {
         if (!Uri.TryCreate(
-                rawUrl.Replace("{{baseUrl}}", "http://localhost", StringComparison.Ordinal),
+                rawUrl.Replace("{{baseUrl}}", DefaultBaseUrl, StringComparison.Ordinal),
                 UriKind.Absolute,
                 out var parsed))
         {
@@ -150,15 +154,10 @@ public sealed class PostmanCollectionBuilder : IPostmanCollectionBuilder
                 })
                 .ToArray();
 
-        var host = rawUrl.StartsWith("{{baseUrl}}", StringComparison.Ordinal)
-            ? new object[] { "{{baseUrl}}" }
-            : parsed.Host.Split('.', StringSplitOptions.RemoveEmptyEntries).Cast<object>().ToArray();
-
         return new
         {
             raw = rawUrl,
-            protocol = rawUrl.StartsWith("{{baseUrl}}", StringComparison.Ordinal) ? null : parsed.Scheme,
-            host,
+            host = new object[] { "{{baseUrl}}" },
             path = pathSegments,
             query
         };
@@ -171,7 +170,7 @@ public sealed class PostmanCollectionBuilder : IPostmanCollectionBuilder
             new
             {
                 key = "baseUrl",
-                value = ResolveDefaultBaseUrl(architecture),
+                value = DefaultBaseUrl,
                 type = "string"
             }
         };
@@ -191,49 +190,5 @@ public sealed class PostmanCollectionBuilder : IPostmanCollectionBuilder
         }
 
         return variables;
-    }
-
-    private static string ResolveDefaultBaseUrl(ArchitectureResponse architecture)
-    {
-        foreach (var envVar in architecture.Contexts.SelectMany(context => context.Env))
-        {
-            if (!string.IsNullOrWhiteSpace(envVar.Example) &&
-                Uri.TryCreate(envVar.Example, UriKind.Absolute, out var uri) &&
-                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
-            {
-                return envVar.Example.TrimEnd('/');
-            }
-        }
-
-        return "http://localhost:3000";
-    }
-
-    private static bool TryResolveHttp(
-        OrchestrationRelationResponse relation,
-        out string method,
-        out string path)
-    {
-        if (!string.IsNullOrWhiteSpace(relation.HttpMethod) &&
-            !string.IsNullOrWhiteSpace(relation.Path))
-        {
-            method = relation.HttpMethod.Trim();
-            path = relation.Path.Trim();
-            return true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(relation.Operation))
-        {
-            var match = OperationPattern.Match(relation.Operation.Trim());
-            if (match.Success)
-            {
-                method = match.Groups[1].Value;
-                path = match.Groups[2].Value;
-                return true;
-            }
-        }
-
-        method = string.Empty;
-        path = string.Empty;
-        return false;
     }
 }
